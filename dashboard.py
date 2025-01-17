@@ -228,3 +228,21 @@ if __name__ == "__main__":
     main()
 
 #streamlit run dashboard.py
+
+# GitHub 更新指令說明
+# 1. 初次設定
+# git init  # 初始化 git 倉庫
+# git remote add origin <repository_url>  # 連接遠端倉庫
+
+# 2. 更新流程
+# git add .  # 加入所有修改的檔案
+# git commit -m "更新說明"  # 提交修改並加入說明
+# git push origin main  # 推送到 GitHub 主分支
+
+# 3. 如果遇到衝突
+# git pull origin main  # 先拉取最新版本
+# 解決衝突後再執行步驟 2
+
+# 4. 查看狀態
+# git status  # 檢查檔案狀態
+# git log  # 查看提交歷史
