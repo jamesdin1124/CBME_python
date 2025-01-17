@@ -5,6 +5,7 @@ from io import BytesIO
 from student_analysis import show_analysis_section
 import sys
 from resident_analysis import show_resident_analysis_section
+import re
 
 # 獲取當前檔案的目錄
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -202,16 +203,22 @@ def main():
             else:
                 st.error("檔案合併失敗！")
     
-    # 修改分頁設置，從三個分頁改為兩個，並更改名稱
-    tab1, tab2 = st.tabs(["住院醫師分析", "UGY分析"])
+    # 修改分頁設置，改為三個分頁
+    tab1, tab2, tab3 = st.tabs(["學員分析", "住院醫師分析", "UGY分析"])
     
     with tab1:
+        if 'merged_data' in st.session_state:
+            show_analysis_section()
+        else:
+            st.warning("請先在側邊欄合併Excel檔案")
+    
+    with tab2:
         if 'merged_data' in st.session_state:
             show_resident_analysis_section(st.session_state.merged_data)
         else:
             st.warning("請先在側邊欄合併Excel檔案")
     
-    with tab2:
+    with tab3:
         if 'merged_data' in st.session_state:
             show_UGY_peer_analysis_section(st.session_state.merged_data)
         else:
