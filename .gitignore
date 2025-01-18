@@ -15,3 +15,13 @@ Thumbs.db
 
 # Streamlit
 .streamlit/ 
+.streamlit/secret.toml
+
+# Excel 檔案和資料夾
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+excel/
+Excel/
+data/excel/

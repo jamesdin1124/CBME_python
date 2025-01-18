@@ -16,16 +16,10 @@ try:
 except ImportError:
     st.error("無法載入 UGY_peer_analysis 模組，請確認檔案位置是否正確")
 
-def merge_excel_files(folder_path):
+def merge_excel_files(uploaded_files):
     try:
-        # 取得所有Excel檔案
-        excel_files = [
-            f for f in os.listdir(folder_path) 
-            if f.endswith(('.xlsx', '.xls'))
-        ]
-        
-        if not excel_files:
-            st.warning("所選資料夾中沒有Excel檔案！")
+        if not uploaded_files:
+            st.warning("請上傳Excel檔案！")
             return None
             
         # 定義轉換對照表
@@ -48,12 +42,12 @@ def merge_excel_files(folder_path):
         
         # 合併所有Excel檔案
         all_data = []
-        for file in excel_files:
-            file_path = os.path.join(folder_path, file)
-            df = pd.read_excel(file_path)
+        for uploaded_file in uploaded_files:
+            # 直接從上傳的檔案讀取DataFrame
+            df = pd.read_excel(uploaded_file)
             
             # 處理檔案名稱，移除括號內的版本號
-            clean_filename = re.sub(r'\s*\([0-9]+\)\.xls$', '.xls', file)
+            clean_filename = re.sub(r'\s*\([0-9]+\)\.xls$', '.xls', uploaded_file.name)
             
             # 處理訓練階段期間
             if '訓練階段期間' in df.columns:
@@ -193,18 +187,43 @@ def main():
     # 側邊欄設置
     with st.sidebar:
         st.header("資料處理")
-        uploaded_folder = st.text_input("請輸入Excel檔案所在的資料夾路徑")
         
-        if st.button("合併Excel檔案") and uploaded_folder:
-            result = merge_excel_files(uploaded_folder)
+        # UGY資料上傳區域
+        st.subheader("UGY 評核資料")
+        uploaded_files = st.file_uploader(
+            "請上傳 UGY Excel檔案",
+            type=['xlsx', 'xls'],
+            accept_multiple_files=True,
+            key="ugy_files"  # 新增唯一的 key
+        )
+        
+        if st.button("合併 UGY Excel檔案") and uploaded_files:
+            result = merge_excel_files(uploaded_files)
             if result is not None:
-                st.success("檔案合併成功！")
+                st.success("UGY 檔案合併成功！")
                 st.session_state.merged_data = result
             else:
-                st.error("檔案合併失敗！")
-    
-    # 修改分頁設置，改為三個分頁
-    tab1, tab2, tab3 = st.tabs(["學員分析", "住院醫師分析", "UGY分析"])
+                st.error("UGY 檔案合併失敗！")
+        
+        # 住院醫師資料上傳區域
+        st.subheader("住院醫師評核資料")
+        resident_files = st.file_uploader(
+            "請上傳住院醫師 Excel檔案",
+            type=['xlsx', 'xls'],
+            accept_multiple_files=True,
+            key="resident_files"  # 新增唯一的 key
+        )
+        
+        if st.button("合併住院醫師 Excel檔案") and resident_files:
+            resident_result = merge_excel_files(resident_files)
+            if resident_result is not None:
+                st.success("住院醫師檔案合併成功！")
+                st.session_state.resident_data = resident_result
+            else:
+                st.error("住院醫師檔案合併失敗！")
+
+    # 修改分頁順序
+    tab1, tab2, tab3 = st.tabs(["UGY個別學員分析", "UGY整體分析", "住院醫師分析"])
     
     with tab1:
         if 'merged_data' in st.session_state:
@@ -214,15 +233,15 @@ def main():
     
     with tab2:
         if 'merged_data' in st.session_state:
-            show_resident_analysis_section(st.session_state.merged_data)
+            show_UGY_peer_analysis_section(st.session_state.merged_data)
         else:
             st.warning("請先在側邊欄合併Excel檔案")
     
     with tab3:
-        if 'merged_data' in st.session_state:
-            show_UGY_peer_analysis_section(st.session_state.merged_data)
+        if 'resident_data' in st.session_state:
+            show_resident_analysis_section(st.session_state.resident_data)
         else:
-            st.warning("請先在側邊欄合併Excel檔案")
+            st.warning("請先在側邊欄合併住院醫師 Excel檔案")
 
 if __name__ == "__main__":
     main()
