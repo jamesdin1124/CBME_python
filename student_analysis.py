@@ -153,7 +153,136 @@ def show_analysis_section():
                         status_emoji = "✅" if is_completed else "❌"
                         st.write(f"{status_emoji} {assignment}")
                 
-                # 繪製雷達圖
+                # 核心技能分析
+                if any('五年級' in str(plan) for plan in student_data['臨床訓練計畫'].values):
+                    st.subheader("核心技能分析")
+                    
+                    # 定義核心技能檔案清單
+                    core_skill_files = {
+                        '身高體重的量測': '臨床核心技能 1-28 身高體重的量測.xls',
+                        '兒童劑量的換算': '臨床核心技能 5-4 兒童劑量的換算.xls',
+                        '接觸以及檢查兒童的能力': '臨床核心技能 1-24 接觸以及檢查兒童的能力.xls',
+                        '新生兒的檢查': '臨床核心技能 1-23 新生兒的檢查.xls'
+                    }
+                    
+                    # 取得當前學生的訓練計畫
+                    current_training_program = student_data['臨床訓練計畫'].iloc[0]
+                    
+                    # 篩選同訓練計畫的同儕資料
+                    peer_df = filtered_df[filtered_df['臨床訓練計畫'] == current_training_program]
+                    peer_df = peer_df[peer_df['學員'] != selected_student]  # 排除當前學生
+                    
+                    # 準備雷達圖數據
+                    student_scores = {}
+                    peer_scores = {}
+                    comments_data = {}
+                    
+                    for skill_name, file_name in core_skill_files.items():
+                        # 學生資料
+                        student_skill_data = student_data[student_data['檔案名稱'].str.contains(file_name, na=False)]
+                        # 同儕資料
+                        peer_skill_data = peer_df[peer_df['檔案名稱'].str.contains(file_name, na=False)]
+                        
+                        if not student_skill_data.empty:
+                            # 取得教師評核分數欄位
+                            evaluation_cols = [col for col in student_skill_data.columns if '教師評核' in col]
+                            if evaluation_cols:
+                                # 學生分數
+                                student_value = pd.to_numeric(student_skill_data[evaluation_cols[0]].iloc[0], errors='coerce')
+                                if pd.notna(student_value):
+                                    student_scores[skill_name] = student_value
+                                
+                                # 同儕平均分數
+                                peer_values = pd.to_numeric(peer_skill_data[evaluation_cols[0]], errors='coerce')
+                                peer_mean = peer_values.mean()
+                                if pd.notna(peer_mean):
+                                    peer_scores[skill_name] = peer_mean
+                            
+                                # 取得評語
+                                comment_cols = [col for col in student_skill_data.columns if '評語' in col or '建議' in col]
+                                if comment_cols:
+                                    comments = []
+                                    for comment_col in comment_cols:
+                                        comment = student_skill_data[comment_col].iloc[0]
+                                        if pd.notna(comment):
+                                            comments.append(f"{comment_col}: {comment}")
+                                    if comments:
+                                        comments_data[skill_name] = '\n'.join(comments)
+                    
+                    if student_scores and peer_scores:
+                        # 創建左右欄位
+                        left_col, right_col = st.columns([3, 2])  # 左側佔3份，右側佔2份
+                        
+                        with left_col:
+                            # 顯示雷達圖
+                            fig = go.Figure()
+                            
+                            # 確保數據點首尾相連
+                            categories = list(student_scores.keys())
+                            student_values = [student_scores[cat] for cat in categories]
+                            peer_values = [peer_scores[cat] for cat in categories]
+                            
+                            # 先畫同儕平均（深褐色）
+                            fig.add_trace(go.Scatterpolar(
+                                r=peer_values + [peer_values[0]],
+                                theta=categories + [categories[0]],
+                                name='同儕平均',
+                                line=dict(color='rgba(101, 67, 33, 1)', width=2),  # 深褐色線條
+                                fill='none'
+                            ))
+                            
+                            # 後畫學生本人（紅色）
+                            fig.add_trace(go.Scatterpolar(
+                                r=student_values + [student_values[0]],
+                                theta=categories + [categories[0]],
+                                name=f'{selected_student}',
+                                fill='toself',
+                                fillcolor='rgba(255, 0, 0, 0.2)',  # 淡紅色填充
+                                line=dict(color='rgba(255, 0, 0, 1)', width=2)  # 紅色線條
+                            ))
+                            
+                            fig.update_layout(
+                                polar=dict(
+                                    radialaxis=dict(
+                                        visible=True,
+                                        range=[0, 5]
+                                    )
+                                ),
+                                title={
+                                    'text': "核心技能評核雷達圖比較",
+                                    'xanchor': 'center',
+                                    'x': 0.5
+                                },
+                                showlegend=True,
+                                height=500,  # 調整圖表高度
+                                margin=dict(  # 增加邊距
+                                    l=80,    # 左邊距
+                                    r=80,    # 右邊距
+                                    t=100,   # 上邊距
+                                    b=80     # 下邊距
+                                )
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                        with right_col:
+                            # 直接顯示評語（不使用expander）
+                            st.markdown("### 評語與建議")
+                            if comments_data:
+                                for skill_name, comments in comments_data.items():
+                                    st.markdown(f"**{skill_name}**")
+                                    # 使用 markdown 容器來確保文字自動換行
+                                    st.markdown(f"""
+                                        <div style="white-space: pre-wrap; word-wrap: break-word;">
+                                            {comments}
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                    st.markdown("---")  # 添加分隔線
+                            else:
+                                st.info("目前沒有評語資料")
+                    else:
+                        st.warning("沒有足夠的評核數據來產生雷達圖")
+                
+                # EPA教師評核成績
                 st.subheader("EPA教師評核成績")
                 
                 # 只篩選包含 'EPA' 的欄位，但排除包含 '教師評量' 的欄位
@@ -295,131 +424,6 @@ def show_analysis_section():
                                         if pd.notna(attending_doctor):
                                             st.markdown("**主治醫師：**")
                                             st.text(attending_doctor)
-                    else:
-                        st.warning("沒有足夠的評核數據來產生雷達圖")
-                
-                # 核心技能分析 
-                if any('五年級' in str(plan) for plan in student_data['臨床訓練計畫'].values):
-                    st.subheader("核心技能分析")
-                    
-                    # 定義核心技能檔案清單
-                    core_skill_files = {
-                        '身高體重的量測': '臨床核心技能 1-28 身高體重的量測.xls',
-                        '兒童劑量的換算': '臨床核心技能 5-4 兒童劑量的換算.xls',
-                        '接觸以及檢查兒童的能力': '臨床核心技能 1-24 接觸以及檢查兒童的能力.xls',
-                        '新生兒的檢查': '臨床核心技能 1-23 新生兒的檢查.xls'
-                    }
-                    
-                    # 取得當前學生的訓練計畫
-                    current_training_program = student_data['臨床訓練計畫'].iloc[0]
-                    
-                    # 篩選同訓練計畫的同儕資料
-                    peer_df = filtered_df[filtered_df['臨床訓練計畫'] == current_training_program]
-                    peer_df = peer_df[peer_df['學員'] != selected_student]  # 排除當前學生
-                    
-                    # 準備雷達圖數據
-                    student_scores = {}
-                    peer_scores = {}
-                    comments_data = {}
-                    
-                    for skill_name, file_name in core_skill_files.items():
-                        # 學生資料
-                        student_skill_data = student_data[student_data['檔案名稱'].str.contains(file_name, na=False)]
-                        # 同儕資料
-                        peer_skill_data = peer_df[peer_df['檔案名稱'].str.contains(file_name, na=False)]
-                        
-                        if not student_skill_data.empty:
-                            # 取得教師評核分數欄位
-                            evaluation_cols = [col for col in student_skill_data.columns if '教師評核' in col]
-                            if evaluation_cols:
-                                # 學生分數
-                                student_value = pd.to_numeric(student_skill_data[evaluation_cols[0]].iloc[0], errors='coerce')
-                                if pd.notna(student_value):
-                                    student_scores[skill_name] = student_value
-                                
-                                # 同儕平均分數
-                                peer_values = pd.to_numeric(peer_skill_data[evaluation_cols[0]], errors='coerce')
-                                peer_mean = peer_values.mean()
-                                if pd.notna(peer_mean):
-                                    peer_scores[skill_name] = peer_mean
-                            
-                                # 取得評語
-                                comment_cols = [col for col in student_skill_data.columns if '評語' in col or '建議' in col]
-                                if comment_cols:
-                                    comments = []
-                                    for comment_col in comment_cols:
-                                        comment = student_skill_data[comment_col].iloc[0]
-                                        if pd.notna(comment):
-                                            comments.append(f"{comment_col}: {comment}")
-                                    if comments:
-                                        comments_data[skill_name] = '\n'.join(comments)
-                    
-                    if student_scores and peer_scores:
-                        # 建立雷達圖
-                        fig = go.Figure()
-                        
-                        # 確保數據點首尾相連
-                        categories = list(student_scores.keys())
-                        student_values = [student_scores[cat] for cat in categories]
-                        peer_values = [peer_scores[cat] for cat in categories]
-                        
-                        # 先畫同儕平均（深褐色）
-                        fig.add_trace(go.Scatterpolar(
-                            r=peer_values + [peer_values[0]],
-                            theta=categories + [categories[0]],
-                            name='同儕平均',
-                            line=dict(color='rgba(101, 67, 33, 1)', width=2),  # 深褐色線條
-                            fill='none'
-                        ))
-                        
-                        # 後畫學生本人（紅色）
-                        fig.add_trace(go.Scatterpolar(
-                            r=student_values + [student_values[0]],
-                            theta=categories + [categories[0]],
-                            name=f'{selected_student}',
-                            fill='toself',
-                            fillcolor='rgba(255, 0, 0, 0.2)',  # 淡紅色填充
-                            line=dict(color='rgba(255, 0, 0, 1)', width=2)  # 紅色線條
-                        ))
-                        
-                        # 更新布局
-                        fig.update_layout(
-                            polar=dict(
-                                radialaxis=dict(
-                                    visible=True,
-                                    range=[0, 5]  # 假設評分範圍是0-5
-                                )
-                            ),
-                            title={
-                                'text': "核心技能評核雷達圖比較",
-                                'xanchor': 'center',
-                                'x': 0.5
-                            },
-                            showlegend=True
-                        )
-                        
-                        # 顯示雷達圖
-                        st.plotly_chart(fig)
-                        
-                        # 顯示具體數值比較
-                        st.subheader("核心技能評核數值比較")
-                        for skill_name in categories:
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.metric(
-                                    skill_name, 
-                                    f"{student_scores[skill_name]:.1f}",
-                                    f"{student_scores[skill_name] - peer_scores[skill_name]:+.1f} vs 同儕"
-                                )
-                            with col2:
-                                st.metric("同儕平均", f"{peer_scores[skill_name]:.1f}")
-                        
-                        # 顯示評語
-                        if comments_data:
-                            with st.expander("查看評語與建議", expanded=False):
-                                for skill_name, comments in comments_data.items():
-                                    st.markdown(f"**{skill_name}**")
-                                    st.text(comments)
                     else:
                         st.warning("沒有足夠的評核數據來產生雷達圖")
                 

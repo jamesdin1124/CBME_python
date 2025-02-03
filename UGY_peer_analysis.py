@@ -69,8 +69,10 @@ def show_UGY_peer_analysis_section(df):
             else:
                 st.write("找到的核心技能檔案:", list(set(found_files)))
                 
-                # 繼續處理核心技能資料
+                # 初始化 core_skill_data 列表
                 core_skill_data = []
+                
+                # 繼續處理核心技能資料
                 for student in students:
                     student_data = {'學員': student}
                     student_records = period_data[period_data['學員'] == student]
@@ -79,15 +81,15 @@ def show_UGY_peer_analysis_section(df):
                         training_plan = student_records['臨床訓練計畫'].iloc[0]
                         student_data['臨床訓練計畫'] = training_plan
                     
+                    has_skill_data = False  # 新增標記來追蹤是否有技能資料
+                    
                     # 檢查每個核心技能的評核
                     for skill_name, pattern in core_skill_files.items():
-                        # 使用模糊匹配來找到相關檔案
                         skill_records = student_records[
                             student_records['檔案名稱'].str.contains(pattern, na=False, regex=False)
                         ]
                         
                         if not skill_records.empty:
-                            # 尋找評核分數
                             score_cols = [col for col in skill_records.columns 
                                         if '教師評核' in col or '分數' in col]
                             
@@ -96,9 +98,11 @@ def show_UGY_peer_analysis_section(df):
                                                     errors='coerce')
                                 if pd.notna(score):
                                     student_data[skill_name] = score
+                                    has_skill_data = True  # 有找到技能資料
                                     break
                     
-                    if len(student_data) > 2:  # 至少要有一個技能成績
+                    # 只有當有技能資料時才加入列表
+                    if has_skill_data:
                         core_skill_data.append(student_data)
             
             # 檢查是否有資料
