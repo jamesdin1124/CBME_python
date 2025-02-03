@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import re
 import plotly.express as px
+import numpy as np
 
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     """用於自然排序的鍵函數"""
@@ -31,20 +32,175 @@ def show_UGY_peer_analysis_section(df):
             core_skill_cols = [col for col in period_data.columns if '教師評核' in col]
             all_score_cols = score_cols + core_skill_cols
             
-            # 不呈現個別學生分數表格
+            # 取得所有學員
+            students = period_data['學員'].unique()
+
+            # 修改每行顯示的雷達圖數量
+            CHARTS_PER_ROW = 3
+
+            # 將核心技能分析移到最上面
+            st.subheader("核心技能分析")
+            
+            # 定義核心技能檔案清單
+            core_skill_files = {
+                '身高體重的量測': '臨床核心技能 1-28 身高體重的量測',
+                '兒童劑量的換算': '臨床核心技能 5-4 兒童劑量的換算',
+                '接觸以及檢查兒童的能力': '臨床核心技能 1-24 接觸以及檢查兒童的能力',
+                '新生兒的檢查': '臨床核心技能 1-23 新生兒的檢查'
+            }
+            
+            # 檢查是否有核心技能相關的檔案
+            has_core_skill_files = False
+            found_files = []
+            
+            # 檢查資料中的檔案
+            for filename in period_data['檔案名稱'].unique():
+                for skill_name, pattern in core_skill_files.items():
+                    # 移除檔案名稱中的編號部分 (例如 " (2)")，以便匹配
+                    clean_filename = re.sub(r' \(\d+\)\.xls$', '.xls', str(filename))
+                    if pattern in clean_filename:
+                        has_core_skill_files = True
+                        found_files.append(filename)
+            
+            if not has_core_skill_files:
+                st.warning("請確認是否已上傳以下核心技能評核檔案：")
+                for skill_name, pattern in core_skill_files.items():
+                    st.write(f"- {pattern}.xls")
+            else:
+                st.write("找到的核心技能檔案:", list(set(found_files)))
+                
+                # 繼續處理核心技能資料
+                core_skill_data = []
+                for student in students:
+                    student_data = {'學員': student}
+                    student_records = period_data[period_data['學員'] == student]
+                    
+                    if '臨床訓練計畫' in student_records.columns:
+                        training_plan = student_records['臨床訓練計畫'].iloc[0]
+                        student_data['臨床訓練計畫'] = training_plan
+                    
+                    # 檢查每個核心技能的評核
+                    for skill_name, pattern in core_skill_files.items():
+                        # 使用模糊匹配來找到相關檔案
+                        skill_records = student_records[
+                            student_records['檔案名稱'].str.contains(pattern, na=False, regex=False)
+                        ]
+                        
+                        if not skill_records.empty:
+                            # 尋找評核分數
+                            score_cols = [col for col in skill_records.columns 
+                                        if '教師評核' in col or '分數' in col]
+                            
+                            for col in score_cols:
+                                score = pd.to_numeric(skill_records[col].iloc[0], 
+                                                    errors='coerce')
+                                if pd.notna(score):
+                                    student_data[skill_name] = score
+                                    break
+                    
+                    if len(student_data) > 2:  # 至少要有一個技能成績
+                        core_skill_data.append(student_data)
+            
+            # 檢查是否有資料
+            if not core_skill_data:
+                st.warning("沒有找到核心技能相關的評核資料")
+            else:
+                # 計算整體平均值（按訓練計畫分組）
+                avg_core_skill = {}
+                for student_data in core_skill_data:
+                    training_plan = student_data.get('臨床訓練計畫', '未知')
+                    if training_plan not in avg_core_skill:
+                        avg_core_skill[training_plan] = {
+                            '身高體重的量測': [],
+                            '兒童劑量的換算': [],
+                            '接觸以及檢查兒童的能力': [],
+                            '新生兒的檢查': []
+                        }
+                    
+                    for skill_name in avg_core_skill[training_plan].keys():
+                        if skill_name in student_data:
+                            avg_core_skill[training_plan][skill_name].append(student_data[skill_name])
+                
+                # 計算每個訓練計畫的平均值
+                for plan in avg_core_skill:
+                    for skill in avg_core_skill[plan]:
+                        scores = avg_core_skill[plan][skill]
+                        avg_core_skill[plan][skill] = np.mean(scores) if scores else 0
+                
+                # 建立核心技能雷達圖
+                for idx, student_data in enumerate(core_skill_data):
+                    # 建立兩欄佈局
+                    col1, col2 = st.columns([1, 1])
+                    training_plan = student_data.get('臨床訓練計畫', '未知')
+                    
+                    with col1:
+                        fig = go.Figure()
+                        
+                        # 準備資料
+                        skill_names = [name for name in avg_core_skill[training_plan].keys() if name in student_data]
+                        if skill_names:
+                            # 確保數據點首尾相連
+                            skill_names_closed = skill_names + [skill_names[0]]
+                            avg_scores_closed = [avg_core_skill[training_plan][skill] for skill in skill_names] + [avg_core_skill[training_plan][skill_names[0]]]
+                            student_scores_closed = [student_data.get(skill, 0) for skill in skill_names] + [student_data.get(skill_names[0], 0)]
+                            
+                            # 先畫同儕平均（深褐色）
+                            fig.add_trace(go.Scatterpolar(
+                                r=avg_scores_closed,
+                                theta=skill_names_closed,
+                                name='同儕平均',
+                                line=dict(color='rgba(101, 67, 33, 1)', width=2),
+                            ))
+                            
+                            # 後畫學生本人（紅色）
+                            fig.add_trace(go.Scatterpolar(
+                                r=student_scores_closed,
+                                theta=skill_names_closed,
+                                name=student_data['學員'],
+                                fill='toself',
+                                fillcolor='rgba(255, 0, 0, 0.2)',
+                                line=dict(color='rgba(255, 0, 0, 1)', width=2),
+                            ))
+                            
+                            fig.update_layout(
+                                polar=dict(
+                                    radialaxis=dict(
+                                        visible=True,
+                                        range=[0, 5]
+                                    )
+                                ),
+                                showlegend=True,
+                                title=f"{student_data['學員']} ({training_plan}) - 核心技能評核",
+                                height=400,
+                                width=400
+                            )
+                            
+                            st.plotly_chart(fig, use_container_width=True)
+
+                    with col2:
+                        st.markdown("### 教師評語")
+                        # 取得該學生的所有評語
+                        student_records = period_data[period_data['學員'] == student_data['學員']]
+                        for skill_name, pattern in core_skill_files.items():
+                            skill_records = student_records[
+                                student_records['檔案名稱'].str.contains(pattern, na=False, regex=False)
+                            ]
+                            if not skill_records.empty:
+                                comment_cols = [col for col in skill_records.columns if '評語' in col or '建議' in col]
+                                for col in comment_cols:
+                                    comment = skill_records[col].iloc[0]
+                                    if pd.notna(comment):
+                                        st.markdown(f"**{skill_name}**：{comment}")
+
+            # EPA 分析部分移到核心技能後面
+            st.subheader("EPA 評量比較")
             
             # 找出所有 EPA 編號，並按自然順序排序
             epa_columns = [col for col in all_score_cols if col.startswith('EPA')]
             epa_columns_sorted = sorted(epa_columns, key=natural_sort_key)
             
-            st.subheader("EPA 評量比較")
-            
             # 修改雷達圖標籤處理
             epa_labels = [col.split('(')[0].strip() for col in epa_columns_sorted]
-            
-            # 修改每行顯示的雷達圖數量
-            CHARTS_PER_ROW = 1
-            
             
             # 取得所有學員
             students = period_data['學員'].unique()
@@ -78,11 +234,10 @@ def show_UGY_peer_analysis_section(df):
                 avg_data[col] = period_data[col].mean()
             
             # 建立雷達圖
-            cols = st.columns(CHARTS_PER_ROW)
             for idx, student_data in enumerate(radar_data):
-                col_idx = idx % CHARTS_PER_ROW
+                col1, col2 = st.columns([1, 1])
                 
-                with cols[col_idx]:
+                with col1:
                     fig = go.Figure()
                     
                     # 確保數據點首尾相連，使用簡化後的標籤
@@ -124,12 +279,16 @@ def show_UGY_peer_analysis_section(df):
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
-                
-                # 當完成一行後，添加新的一行
-                if col_idx == CHARTS_PER_ROW - 1:
-                    cols = st.columns(CHARTS_PER_ROW)
-            
- 
+
+                with col2:
+                    st.markdown("### EPA 教師評語")
+                    student_records = period_data[period_data['學員'] == student_data['學員']]
+                    comment_cols = [col for col in student_records.columns if '評語' in col or '建議' in col]
+                    for col in comment_cols:
+                        comments = student_records[col].dropna()
+                        for comment in comments:
+                            if comment:
+                                st.markdown(f"**{col}**：{comment}")
             
             # 作業繳交狀況
             st.subheader("作業繳交狀況")
