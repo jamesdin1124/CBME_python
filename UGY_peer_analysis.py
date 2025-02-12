@@ -111,11 +111,11 @@ def show_UGY_peer_analysis_section(df):
             skill_scores = {}
             for _, row in student_data.iterrows():
                 filename = row['檔案名稱']
-                match = re.search(r'臨床核心技能\s+(\d+-\d+)\s+(.*?)\.xls', filename)
+                match = re.search(r'^臨床核心技能\s*(.*?)\.xls', filename)
+                match = re.search(r'^臨床核心技能\s*(.*?)\.xls', filename)
                 if match:
-                    skill_number = match.group(1)
-                    skill_name = match.group(2)
-                    skill_key = f"{skill_number} {skill_name}"
+                    skill_name = match.group(1)
+                    skill_key = skill_name
                     
                     if pd.notna(row['教師評核']):
                         try:
@@ -131,11 +131,10 @@ def show_UGY_peer_analysis_section(df):
                 # 計算同儕平均
                 peer_averages = {}
                 for filename in core_skill_data['檔案名稱'].unique():
-                    match = re.search(r'臨床核心技能\s+(\d+-\d+)\s+(.*?)\.xls', filename)
+                    match = re.search(r'^臨床核心技能\s*(.*?)\.xls', filename)
                     if match:
-                        skill_number = match.group(1)
-                        skill_name = match.group(2)
-                        skill_key = f"{skill_number} {skill_name}"
+                        skill_name = match.group(1)
+                        skill_key = skill_name
                         
                         # 計算該技能的平均分數
                         skill_scores_all = core_skill_data[
@@ -192,12 +191,11 @@ def show_UGY_peer_analysis_section(df):
             st.markdown("### 教師評語")
             for _, row in student_data.iterrows():
                 filename = row['檔案名稱']
-                match = re.search(r'臨床核心技能\s+(\d+-\d+)\s+(.*?)\.xls', filename)
+                match = re.search(r'^臨床核心技能\s*(.*?)\.xls', filename)
                 if match:
-                    skill_number = match.group(1)
-                    skill_name = match.group(2)
+                    skill_name = match.group(1)
                     if '教師評語與總結' in row and pd.notna(row['教師評語與總結']):
-                        st.markdown(f"**{skill_number} {skill_name}**：{row['教師評語與總結']}")
+                        st.markdown(f"**{skill_name}**：{row['教師評語與總結']}")
 
     # EPA 分析部分
     st.subheader("EPA 評量比較")

@@ -5,6 +5,7 @@ from io import BytesIO
 from student_analysis import show_analysis_section
 import sys
 from resident_analysis import show_resident_analysis_section
+from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
 import re
 
 # 獲取當前檔案的目錄
@@ -25,11 +26,44 @@ def merge_excel_files(uploaded_files):
         # 定義轉換對照表
         
         teacher_evaluation_texts = {
-            ' Level I': 1,
-            ' Level II': 2,
-            ' Level III': 3,
-            ' Level IV': 4,
-            ' Level V': 5
+            'Level I': 1,
+            'Level1': 1,
+            'Level 1': 1,
+            'Level 1&2': 1.5,
+            'Level1&2': 1.5,
+            'LevelI&2': 1.5,
+            'Level&2': 1.5,
+            'Level II': 2,
+            'Level2': 2,
+            'Level 2': 2,
+            'Level2&3': 2.5,
+            'Level 2&3': 2.5,
+            'Leve 2&3': 2.5,
+            'Level 2a': 2,
+            'Level2a': 2,
+            'Level 2b': 2.5,
+            'Level2b': 2.5,
+            'Level III': 3,
+            'Level3': 3,
+            'Level 3': 3,
+            'Level 3a': 3,
+            'Level3a': 3,
+            'Level 3b': 3.3,
+            'Level3b': 3.3,
+            'Level3c': 3.6,
+            'Level 3c': 3.6,
+            'Level 3&4': 3.5,
+            'Level 3&4': 3.5,
+            'Lvel 3&4': 3.5,
+            'Level3&4': 3.5,
+            'Level IV': 4, 
+            'Level4': 4,
+            'Level 4': 4,
+            'Level4&5': 4.5,
+            'Level 4&5': 4.5,
+            'Level 5': 5,
+            'Level V': 5,
+            'Level5': 5
         }
         
         teacher_support_texts = {
@@ -68,8 +102,11 @@ def merge_excel_files(uploaded_files):
                 
                 if '教師評核' in col:
                     df[col] = df[col].apply(lambda x: teacher_evaluation_texts.get(str(x), x))
+                elif '學員自評' in col:
+                    df[col] = df[col].apply(lambda x: teacher_evaluation_texts.get(str(x), x))
                 elif 'EPA' in col:
                     df[col] = df[col].apply(lambda x: teacher_support_texts.get(str(x), x))
+
             
             # 加入處理過的檔案名稱欄位
             df['檔案名稱'] = clean_filename
@@ -189,21 +226,21 @@ def main():
         st.header("資料處理")
         
         # UGY資料上傳區域
-        st.subheader("UGY 評核資料")
+        st.subheader("CEPO 評核資料")
         uploaded_files = st.file_uploader(
-            "請上傳 UGY Excel檔案",
+            "請上傳 CEPO Excel檔案",
             type=['xlsx', 'xls'],
             accept_multiple_files=True,
             key="ugy_files"  # 新增唯一的 key
         )
         
-        if st.button("合併 UGY Excel檔案") and uploaded_files:
+        if st.button("合併 CEPO Excel檔案") and uploaded_files:
             result = merge_excel_files(uploaded_files)
             if result is not None:
-                st.success("UGY 檔案合併成功！")
+                st.success("CEPO 檔案合併成功！")
                 st.session_state.merged_data = result
             else:
-                st.error("UGY 檔案合併失敗！")
+                st.error("CEPO 檔案合併失敗！")
         
         # 住院醫師資料上傳區域
         st.subheader("住院醫師評核資料")
@@ -222,8 +259,8 @@ def main():
             else:
                 st.error("住院醫師檔案合併失敗！")
 
-    # 修改分頁順序
-    tab1, tab2, tab3 = st.tabs(["UGY個別學員分析", "UGY整體分析", "住院醫師分析"])
+    # 修改分頁順序和名稱
+    tab1, tab2, tab3, tab4 = st.tabs(["UGY個別學員分析", "UGY整體分析", "住院醫師分析", "麻醉科住院醫師EPA分析"])
     
     with tab1:
         if 'merged_data' in st.session_state:
@@ -242,6 +279,12 @@ def main():
             show_resident_analysis_section(st.session_state.resident_data)
         else:
             st.warning("請先在側邊欄合併住院醫師 Excel檔案")
+    
+    with tab4:
+        if 'merged_data' in st.session_state:
+            show_ANE_R_EPA_peer_analysis_section(st.session_state.merged_data)
+        else:
+            st.warning("請先在側邊欄合併 CEPO Excel檔案")
 
 if __name__ == "__main__":
     main()
