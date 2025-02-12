@@ -8,6 +8,13 @@ from resident_analysis import show_resident_analysis_section
 from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
 import re
 
+# 設定頁面配置為寬屏模式
+st.set_page_config(
+    layout="wide",  # 使用寬屏模式
+    page_title="臨床教師評核系統",
+    initial_sidebar_state="expanded"  # 預設展開側邊欄
+)
+
 # 獲取當前檔案的目錄
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
@@ -54,6 +61,7 @@ def merge_excel_files(uploaded_files):
             'Level 3c': 3.6,
             'Level 3&4': 3.5,
             'Level 3&4': 3.5,
+            'Leve 3&4': 3.5,
             'Lvel 3&4': 3.5,
             'Level3&4': 3.5,
             'Level IV': 4, 

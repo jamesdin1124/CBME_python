@@ -65,7 +65,7 @@ def calculate_average_scores(student_data, item_data):
 def show_ANE_R_EPA_peer_analysis_section(df):
     """顯示ANE_R同梯次分析的函數"""
     
-    st.subheader("ANE_R同梯次分析")
+    st.subheader("麻醉科住院醫師分析")
 
     # 取得所有可用的學員名稱
     students = df['學員'].unique()
@@ -73,14 +73,6 @@ def show_ANE_R_EPA_peer_analysis_section(df):
         '請選擇要分析的學員：',
         students,
         key='ane_r_student_selector'
-    )
-
-    # 選擇要顯示的 EPA
-    epa_options = ['EPA 1', 'EPA 2', 'EPA 3', 'EPA 4', 'EPA 5', 'EPA 6']
-    selected_epa = st.selectbox(
-        '請選擇要分析的 EPA：',
-        epa_options,
-        key='epa_selector'
     )
 
     # 定義所有 EPA 的評量項目對應
@@ -333,160 +325,210 @@ def show_ANE_R_EPA_peer_analysis_section(df):
         }
     }
 
-    # 根據選擇的 EPA 取得對應的評量項目
-    selected_items = epa_items.get(selected_epa, {})
-
     # 篩選選定學員的資料
     student_data = df[df['學員'] == selected_student]
     
-    # 準備雷達圖數據
-    categories = []
-    self_eval = []
-    teacher_eval = []
-    teacher_review = []
-    
-    # 處理每個評量項目
-    for item_key, item_data in selected_items.items():
-        # 計算平均分數
-        scores = calculate_average_scores(student_data, item_data)
+    # 依序分析每個EPA
+    for epa_name in ['EPA 1', 'EPA 2', 'EPA 3', 'EPA 4', 'EPA 5', 'EPA 6']:
+        st.markdown(f"### {epa_name}")
         
-        # 只有當至少有一個評分存在時才加入該項目
-        if any(score is not None for score in scores.values()):
-            categories.append(f"{item_key}:<br>{item_data['名稱']}")
-            self_eval.append(scores['學員自評'] if scores['學員自評'] is not None else 0)
-            teacher_eval.append(scores['教師評核'] if scores['教師評核'] is not None else 0)
-            teacher_review.append(scores['教師複評'] if scores['教師複評'] is not None else 0)
-    
-    # 確保有資料才繪製雷達圖
-    if categories:
-        # 確保資料首尾相連
-        categories.append(categories[0])
-        self_eval.append(self_eval[0])
-        teacher_eval.append(teacher_eval[0])
-        teacher_review.append(teacher_review[0])
+        # 取得該EPA的評量項目
+        selected_items = epa_items.get(epa_name, {})
         
-        # 建立雷達圖
-        fig = go.Figure()
+        # 準備雷達圖數據
+        categories = []
+        self_eval = []
+        teacher_eval = []
+        teacher_review = []
+        student_avg = []
+        all_students_avg = []
         
-        # 加入學員自評 - 使用實線
-        fig.add_trace(go.Scatterpolar(
-            r=self_eval + [self_eval[0]],
-            theta=categories,
-            name='學員自評',
-            line=dict(
-                color='blue',
-                width=2,
-                dash='solid'
-            ),
-            opacity=0.8
-        ))
-        
-        # 加入教師評核 - 使用虛線
-        fig.add_trace(go.Scatterpolar(
-            r=teacher_eval + [teacher_eval[0]],
-            theta=categories,
-            name='教師評核',
-            line=dict(
-                color='red',
-                width=2,
-                dash='dash'
-            ),
-            opacity=0.8
-        ))
-        
-        # 加入教師複評 - 使用點線
-        fig.add_trace(go.Scatterpolar(
-            r=teacher_review + [teacher_review[0]],
-            theta=categories,
-            name='教師複評',
-            line=dict(
-                color='green',
-                width=2,
-                dash='dot'
-            ),
-            opacity=0.8
-        ))
-        
-        # 更新布局
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, 5]
-                ),
-                angularaxis=dict(
-                    tickangle=0  # 調整標籤角度
-                )
-            ),
-            showlegend=True,
-            title=f"{selected_student} - {selected_epa} 評量雷達圖",
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="right",
-                x=0.99
-            ),
-            width=400,  # 設定圖形寬度
-            height=400,  # 設定圖形高度
-            margin=dict(  # 調整邊距
-                l=80,
-                r=80,
-                t=80,
-                b=80
-            )
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("所選學員在此 EPA 項目中沒有評核資料")
-
-    # 建立評核項目總表
-    st.markdown("### 評核項目總表")
-    
-    # 找出所有評核相關欄位
-    eval_items = {}
-    for col in df.columns:
-        try:
-            # 移除 [單選] 標記和其他雜項
-            base_name = str(col)  # 確保 col 是字串
-            base_name = re.sub(r'\[單選\]|\s*\.*\d*$', '', base_name)
+        # 處理每個評量項目
+        for item_key, item_data in selected_items.items():
+            # 計算當前學生的分數
+            scores = calculate_average_scores(student_data, item_data)
             
-            if '(學員自評)' in base_name:
-                item_name = re.sub(r'\(學員自評\)', '', base_name).strip()
-                if item_name not in eval_items:
-                    eval_items[item_name] = {'學員自評': '', '教師評核': '', '教師複評': ''}
-                eval_items[item_name]['學員自評'] = col
-            elif '(教師評核)' in base_name and '.1' not in str(col):
-                item_name = re.sub(r'\(教師評核\)', '', base_name).strip()
-                if item_name not in eval_items:
-                    eval_items[item_name] = {'學員自評': '', '教師評核': '', '教師複評': ''}
-                eval_items[item_name]['教師評核'] = col
-            elif '(教師評核)' in base_name and '.1' in str(col):
-                item_name = re.sub(r'\(教師評核\)', '', base_name).strip()
-                if item_name not in eval_items:
-                    eval_items[item_name] = {'學員自評': '', '教師評核': '', '教師複評': ''}
-                eval_items[item_name]['教師複評'] = col
-        except Exception as e:
-            st.warning(f"處理欄位 {col} 時發生錯誤: {str(e)}")
-            continue
-
-    # 轉換為DataFrame
-    eval_df = pd.DataFrame([
-        {
-            '評核項目': str(item),  # 確保是字串
-            '學員自評': str(cols['學員自評']),  # 確保是字串
-            '教師評核': str(cols['教師評核']),  # 確保是字串
-            '教師複評': str(cols['教師複評'])   # 確保是字串
-        }
-        for item, cols in eval_items.items()
-    ])
-
-    # 顯示表格
-    st.dataframe(
-        eval_df,
-        use_container_width=True,
-        height=400
-    )
+            # 計算所有學生的平均分數
+            all_students_scores = calculate_average_scores(df, item_data)
+            
+            # 只有當至少有一個評分存在時才加入該項目
+            if any(score is not None for score in scores.values()) or any(score is not None for score in all_students_scores.values()):
+                categories.append(f"{item_key}:<br>{item_data['名稱']}")
+                
+                # 第一個圖的數據
+                self_eval.append(scores['學員自評'] if scores['學員自評'] is not None else 0)
+                teacher_eval.append(scores['教師評核'] if scores['教師評核'] is not None else 0)
+                teacher_review.append(scores['教師複評'] if scores['教師複評'] is not None else 0)
+                
+                # 第二個圖的數據
+                student_teacher_scores = [scores['教師評核'], scores['教師複評']]
+                student_teacher_scores = [s for s in student_teacher_scores if s is not None]
+                student_avg.append(np.mean(student_teacher_scores) if student_teacher_scores else 0)
+                
+                all_teacher_scores = [all_students_scores['教師評核'], all_students_scores['教師複評']]
+                all_teacher_scores = [s for s in all_teacher_scores if s is not None]
+                all_students_avg.append(np.mean(all_teacher_scores) if all_teacher_scores else 0)
+        
+        # 確保有資料才繪製雷達圖
+        if categories:
+            # 確保資料首尾相連
+            categories.append(categories[0])
+            self_eval.append(self_eval[0])
+            teacher_eval.append(teacher_eval[0])
+            teacher_review.append(teacher_review[0])
+            student_avg.append(student_avg[0])
+            all_students_avg.append(all_students_avg[0])
+            
+            # 建立兩欄布局來並排顯示圖表
+            left_col, right_col = st.columns(2)
+            
+            with left_col:
+                # 第一個雷達圖（自評與教師評核）
+                fig1 = go.Figure()
+                
+                fig1.add_trace(go.Scatterpolar(
+                    r=self_eval,
+                    theta=categories,
+                    name='學員自評',
+                    line=dict(color='blue', width=2, dash='solid'),
+                    opacity=0.8
+                ))
+                
+                fig1.add_trace(go.Scatterpolar(
+                    r=teacher_eval,
+                    theta=categories,
+                    name='教師評核',
+                    line=dict(color='red', width=2, dash='dash'),
+                    opacity=0.8
+                ))
+                
+                fig1.add_trace(go.Scatterpolar(
+                    r=teacher_review,
+                    theta=categories,
+                    name='教師複評',
+                    line=dict(color='green', width=2, dash='dot'),
+                    opacity=0.8
+                ))
+                
+                # 更新第一個圖的布局
+                fig1.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True, 
+                            range=[0, 5],
+                            tickfont=dict(color='black')
+                        ),
+                        angularaxis=dict(
+                            tickangle=0,
+                            tickfont=dict(size=10),
+                            direction="clockwise",  # 順時針方向
+                            rotation=90,  # 旋轉90度
+                            tickmode='array',  # 使用自定義標籤模式
+                            ticktext=categories,  # 標籤文字
+                            tickvals=list(range(len(categories))),  # 標籤位置
+                            layer='below traces'  # 確保標籤在軌跡下層
+                        )
+                    ),
+                    showlegend=True,
+                    legend=dict(
+                        yanchor="top",
+                        y=1.2,
+                        xanchor="center",  # 將圖例置中
+                        x=0.5
+                    ),
+                    title=dict(
+                        text=f"{selected_student} - {epa_name}<br>評量雷達圖",
+                        y=0.95,
+                        x=0.5,  # 標題置中
+                        xanchor='center',
+                        yanchor='top',
+                        font=dict(size=16)
+                    ),
+                    height=500,
+                    margin=dict(
+                        l=100,  # 增加左邊距
+                        r=100,  # 增加右邊距
+                        t=120,  # 增加上邊距
+                        b=100,  # 增加下邊距
+                        pad=10
+                    ),
+                    autosize=True
+                )
+                
+                st.plotly_chart(fig1, use_container_width=True)
+            
+            with right_col:
+                # 第二個雷達圖（個人平均與全體平均）
+                fig2 = go.Figure()
+                
+                fig2.add_trace(go.Scatterpolar(
+                    r=student_avg,
+                    theta=categories,
+                    name='個人教師評核平均',
+                    line=dict(color='red', width=2),
+                    fill='toself',
+                    fillcolor='rgba(255, 0, 0, 0.2)'
+                ))
+                
+                fig2.add_trace(go.Scatterpolar(
+                    r=all_students_avg,
+                    theta=categories,
+                    name='全體教師評核平均',
+                    line=dict(color='black', width=2)
+                ))
+                
+                # 更新第二個圖的布局
+                fig2.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True, 
+                            range=[0, 5],
+                            tickfont=dict(color='black')
+                        ),
+                        angularaxis=dict(
+                            tickangle=0,
+                            tickfont=dict(size=10),
+                            direction="clockwise",  # 順時針方向
+                            rotation=90,  # 旋轉90度
+                            tickmode='array',  # 使用自定義標籤模式
+                            ticktext=categories,  # 標籤文字
+                            tickvals=list(range(len(categories))),  # 標籤位置
+                            layer='below traces'  # 確保標籤在軌跡下層
+                        )
+                    ),
+                    showlegend=True,
+                    legend=dict(
+                        yanchor="top",
+                        y=1.2,
+                        xanchor="center",  # 將圖例置中
+                        x=0.5
+                    ),
+                    title=dict(
+                        text=f"{selected_student} - {epa_name}<br>教師評核平均比較",
+                        y=0.95,
+                        x=0.5,  # 標題置中
+                        xanchor='center',
+                        yanchor='top',
+                        font=dict(size=16)
+                    ),
+                    height=500,
+                    margin=dict(
+                        l=100,  # 增加左邊距
+                        r=100,  # 增加右邊距
+                        t=120,  # 增加上邊距
+                        b=100,  # 增加下邊距
+                        pad=10
+                    ),
+                    autosize=True
+                )
+                
+                st.plotly_chart(fig2, use_container_width=True)
+            
+            # 在每個EPA後添加分隔線
+            st.markdown("---")
+        else:
+            st.warning(f"所選學員在 {epa_name} 項目中沒有評核資料")
+            st.markdown("---")
 
     # 在分析開始前先顯示完整的資料表
     st.markdown("### 完整資料表")
