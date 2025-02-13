@@ -48,6 +48,17 @@ def show_UGY_peer_analysis_section(df):
     
     st.subheader("UGY同梯次分析")
 
+    # 取得所有可用的臨床訓練計畫
+    training_plans = sorted(df['臨床訓練計畫'].unique())
+    # 讓使用者選擇要分析的臨床訓練計畫
+    selected_training_plan = st.selectbox(
+        '請選擇要分析的臨床訓練計畫：',
+        training_plans
+    )
+
+    # 篩選選定臨床訓練計畫的資料
+    df = df[df['臨床訓練計畫'] == selected_training_plan]
+
     # 取得所有可用的訓練階段期間
     periods = df['訓練階段期間'].unique()
     # 讓使用者選擇要分析的訓練階段期間

@@ -7,14 +7,16 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 import time
+from webdriver_manager.chrome import ChromeDriverManager
 
 # 設定 Chrome 選項
 chrome_options = Options()
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 
-# 初始化瀏覽器
-driver = webdriver.Chrome(options=chrome_options)
+# 使用 ChromeDriverManager 自動下載對應版本的 ChromeDriver
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
 try:
     # 前往登入頁面
