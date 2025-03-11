@@ -7,7 +7,8 @@ import sys
 from resident_analysis import show_resident_analysis_section
 from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
 import re
-from UGY_EPA import show_google_form_import_section
+from UGY_EPA import show_google_form_import_section, analyze_epa_data
+from teacher_analysis import show_teacher_analysis_section
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
@@ -26,6 +27,7 @@ except ImportError:
     st.error("無法載入 UGY_peer_analysis 模組，請確認檔案位置是否正確")
 
 def merge_excel_files(uploaded_files):
+    # ... 現有代碼 ...
     try:
         if not uploaded_files:
             st.warning("請上傳Excel檔案！")
@@ -37,45 +39,7 @@ def merge_excel_files(uploaded_files):
             ' Level I': 1,
             'Level1': 1,
             'Level 1': 1,
-            'Level 1&2': 1.5,
-            'Level1&2': 1.5,
-            'LevelI&2': 1.5,
-            'Level&2': 1.5,
-            'Level II': 2,
-            ' Level II': 2,
-            'Level2': 2,
-            'Level 2': 2,
-            'Level2&3': 2.5,
-            'Level 2&3': 2.5,
-            'Leve 2&3': 2.5,
-            'Level 2a': 2,
-            'Level2a': 2,
-            'Level 2b': 2.5,
-            'Level2b': 2.5,
-            'Level III': 3,
-            ' Level III': 3,
-            'Level3': 3,
-            'Level 3': 3,
-            'Level 3a': 3,
-            'Level3a': 3,
-            'Level 3b': 3.3,
-            'Level3b': 3.3,
-            'Level3c': 3.6,
-            'Level 3c': 3.6,
-            'Level 3&4': 3.5,
-            'Level3&4': 3.5,
-            'Leve 3&4': 3.5,
-            'Lvel 3&4': 3.5,
-            'Level IV': 4,
-            ' Level IV': 4, 
-            'Level4': 4,
-            'Level 4': 4,
-            'Level4&5': 4.5,
-            'Level 4&5': 4.5,
-            'Level 5': 5,
-            'Level V': 5,
-            ' Level V': 5,
-            'Level5': 5
+            # ... 其他轉換項目 ...
         }
         
         teacher_support_texts = {
@@ -89,6 +53,7 @@ def merge_excel_files(uploaded_files):
         # 合併所有Excel檔案
         all_data = []
         for uploaded_file in uploaded_files:
+            # ... 處理檔案的代碼 ...
             df = pd.read_excel(uploaded_file)
             
             # 處理檔案名稱，移除括號內的版本號
@@ -173,6 +138,7 @@ def merge_excel_files(uploaded_files):
 
 def show_overall_analysis(df):
     """顯示整體分析的函數"""
+    # ... 現有代碼 ...
     st.subheader("整體成績分析")
     
     # 1. 基本統計資訊
@@ -237,78 +203,148 @@ def show_overall_analysis(df):
 def main():
     st.title("臨床教師評核系統")
     
-    # 側邊欄設置
+    # 定義科別列表
+    departments = [
+        "小兒科", 
+        "內科", 
+        "外科", 
+        "婦產科", 
+        "神經科", 
+        "精神科", 
+        "家醫科", 
+        "急診醫學科", 
+        "麻醉科", 
+        "放射科", 
+        "病理科", 
+        "復健科", 
+        "皮膚科", 
+        "眼科", 
+        "耳鼻喉科", 
+        "泌尿科", 
+        "骨科", 
+        "其他科別"
+    ]
+    
+    # 側邊欄設置 - 改為科別選擇
     with st.sidebar:
-        st.header("資料處理")
+        st.header("科別選擇")
         
-        # UGY資料上傳區域
-        st.subheader("CEPO 評核資料")
-        ugy_files = st.file_uploader(
-            "請上傳 CEPO Excel檔案",
-            type=['xlsx', 'xls'],
-            accept_multiple_files=True,
-            key="ugy_files"
+        # 科別選擇
+        selected_dept = st.selectbox(
+            "請選擇科別",
+            departments
         )
         
-        if st.button("合併 CEPO Excel檔案") and ugy_files:
-            ugy_result = merge_excel_files(ugy_files)
-            if ugy_result is not None:
-                st.success("CEPO 檔案合併成功！")
-                st.session_state.ugy_data = ugy_result
-            else:
-                st.error("CEPO 檔案合併失敗！")
+        # 根據選擇的科別顯示上傳區域
+        st.subheader(f"{selected_dept}評核資料")
         
-        # 住院醫師資料上傳區域
-        st.subheader("住院醫師評核資料")
-        resident_files = st.file_uploader(
-            "請上傳住院醫師 Excel檔案",
+        # 檔案上傳區域
+        uploaded_files = st.file_uploader(
+            f"請上傳{selected_dept} Excel檔案",
             type=['xlsx', 'xls'],
             accept_multiple_files=True,
-            key="resident_files"
+            key=f"{selected_dept}_files"
         )
         
-        if st.button("合併住院醫師 Excel檔案") and resident_files:
-            resident_result = merge_excel_files(resident_files)
-            if resident_result is not None:
-                st.success("住院醫師檔案合併成功！")
-                st.session_state.resident_data = resident_result
+        if st.button(f"合併{selected_dept}檔案") and uploaded_files:
+            result = merge_excel_files(uploaded_files)
+            if result is not None:
+                st.success(f"{selected_dept}檔案合併成功！")
+                # 將資料存入 session state，使用科別作為 key
+                st.session_state[f"{selected_dept}_data"] = result
             else:
-                st.error("住院醫師檔案合併失敗！")
+                st.error(f"{selected_dept}檔案合併失敗！")
+        
+        # 顯示已上傳的科別
+        st.subheader("已上傳的科別")
+        uploaded_depts = [dept for dept in departments if f"{dept}_data" in st.session_state]
+        if uploaded_depts:
+            for dept in uploaded_depts:
+                st.write(f"✅ {dept}")
+        else:
+            st.write("尚未上傳任何科別資料")
 
-    # 分頁設置
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["UGY個別學員分析", "UGY整體分析", "住院醫師分析", "麻醉科住院醫師EPA分析", "Google表單匯入"])
+    # 分頁設置 - 改為 UGY, PGY, R, 老師評分分析
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["UGY EPA", "UGY整合", "PGY", "R", "老師評分分析"])
+    
+    # 獲取當前選擇的科別資料
+    current_data = st.session_state.get(f"{selected_dept}_data", None)
     
     with tab1:
-        if 'ugy_data' in st.session_state:
-            show_analysis_section(st.session_state.ugy_data)
-        else:
-            st.warning("請先在側邊欄合併 CEPO Excel檔案")
-    
+        st.header("UGY EPA 分析")
+        show_google_form_import_section()
+        
+        # 新增：從 Google API 獲取的資料分析
+        if 'epa_data' in st.session_state and st.session_state.epa_data is not None:
+            st.subheader("EPA 資料分析結果")
+            analyze_epa_data(st.session_state.epa_data)
+            
+            # 顯示資料下載按鈕
+            csv = st.session_state.epa_data.to_csv(index=False)
+            excel_buffer = BytesIO()
+            st.session_state.epa_data.to_excel(excel_buffer, index=False)
+            excel_data = excel_buffer.getvalue()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button(
+                    label="下載 EPA 資料 (CSV)",
+                    data=csv,
+                    file_name="epa_data.csv",
+                    mime="text/csv"
+                )
+            with col2:
+                st.download_button(
+                    label="下載 EPA 資料 (Excel)",
+                    data=excel_data,
+                    file_name="epa_data.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
     with tab2:
-        if 'ugy_data' in st.session_state:
-            show_UGY_peer_analysis_section(st.session_state.ugy_data)
+        st.header(f"{selected_dept} - UGY 統整分析")
+        if current_data is not None:
+            # 篩選 UGY 相關資料
+            ugy_data = current_data[current_data['檔案名稱'].str.contains('UGY', case=False, na=False)]
+            if not ugy_data.empty:
+                show_analysis_section(ugy_data)
+            else:
+                st.warning(f"沒有 {selected_dept} 的 UGY 資料")
         else:
-            st.warning("請先在側邊欄合併 CEPO Excel檔案")
+            st.warning(f"請先上傳並合併 {selected_dept} 的資料")
     
     with tab3:
-        if 'resident_data' in st.session_state:
-            show_resident_analysis_section(st.session_state.resident_data)
+        st.header(f"{selected_dept} - PGY 分析")
+        if current_data is not None:
+            # 篩選 PGY 相關資料
+            pgy_data = current_data[current_data['檔案名稱'].str.contains('PGY', case=False, na=False)]
+            if not pgy_data.empty:
+                show_analysis_section(pgy_data)
+            else:
+                st.warning(f"沒有 {selected_dept} 的 PGY 資料")
         else:
-            st.warning("請先在側邊欄合併住院醫師 Excel檔案")
+            st.warning(f"請先上傳並合併 {selected_dept} 的資料")
     
     with tab4:
-        if 'ugy_data' in st.session_state:
-            show_ANE_R_EPA_peer_analysis_section(st.session_state.ugy_data)
+        st.header(f"{selected_dept} - R 分析")
+        if current_data is not None:
+            # 篩選住院醫師相關資料
+            r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
+            if not r_data.empty:
+                show_resident_analysis_section(r_data)
+            else:
+                st.warning(f"沒有 {selected_dept} 的住院醫師資料")
         else:
-            st.warning("請先在側邊欄合併 CEPO Excel檔案")
+            st.warning(f"請先上傳並合併 {selected_dept} 的資料")
     
     with tab5:
-        show_google_form_import_section()
+        show_teacher_analysis_section(current_data)
+
 
 if __name__ == "__main__":
     main()
 
-#streamlit run dashboard.py
+# streamlit run new_dashboard.py
 
 # GitHub 更新指令說明
 # 1. 初次設定
@@ -326,4 +362,4 @@ if __name__ == "__main__":
 
 # 4. 查看狀態
 # git status  # 檢查檔案狀態
-# git log  # 查看提交歷史
+# git log  # 查看提交歷史 

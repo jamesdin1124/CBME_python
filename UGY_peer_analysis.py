@@ -123,7 +123,6 @@ def show_UGY_peer_analysis_section(df):
             for _, row in student_data.iterrows():
                 filename = row['檔案名稱']
                 match = re.search(r'^臨床核心技能\s*(.*?)\.xls', filename)
-                match = re.search(r'^臨床核心技能\s*(.*?)\.xls', filename)
                 if match:
                     skill_name = match.group(1)
                     skill_key = skill_name
@@ -131,7 +130,7 @@ def show_UGY_peer_analysis_section(df):
                     if pd.notna(row['教師評核']):
                         try:
                             score = float(row['教師評核'])
-                            skill_scores[skill_key] = score
+                            skill_scores[skill_key] = score # 將評核分數存入字典，只留最後一筆
                         except (ValueError, TypeError):
                             st.warning(f"無法轉換評核分數：{row['教師評核']}")
             
