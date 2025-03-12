@@ -14,6 +14,18 @@ def convert_level_to_score(value):
     if pd.isna(value):
         return 0
     
+    # 如果已經是數字，直接返回
+    if isinstance(value, (int, float)) and 1 <= value <= 5:
+        return value
+    
+    # 嘗試直接轉換為數字
+    try:
+        num_value = float(value)
+        if 1 <= num_value <= 5:
+            return num_value
+    except (ValueError, TypeError):
+        pass
+    
     # 轉換為大寫並移除空白
     value = str(value).upper().strip()
     
@@ -24,16 +36,41 @@ def convert_level_to_score(value):
         'LEVEL III': 3,
         'LEVEL IV': 4,
         'LEVEL V': 5,
+        'Level I': 1,
+        'Level II': 2, 
+        'Level III': 3,
+        'Level IV': 4,
+        'Level V': 5,
+        'level i': 1,
+        'level ii': 2,
+        'level iii': 3,
+        'level iv': 4,
+        'level v': 5,
         'I': 1,
         'II': 2,
         'III': 3,
         'IV': 4,
         'V': 5,
+        'i': 1,
+        'ii': 2,
+        'iii': 3,
+        'iv': 4,
+        'v': 5,
         'LEVEL 1': 1,
         'LEVEL 2': 2,
         'LEVEL 3': 3,
         'LEVEL 4': 4,
         'LEVEL 5': 5,
+        'Level 1': 1,
+        'Level 2': 2,
+        'Level 3': 3,
+        'Level 4': 4,
+        'Level 5': 5,
+        'level 1': 1,
+        'level 2': 2,
+        'level 3': 3,
+        'level 4': 4,
+        'level 5': 5,
         '1': 1,
         '2': 2,
         '3': 3,
@@ -129,7 +166,10 @@ def show_UGY_peer_analysis_section(df):
                     
                     if pd.notna(row['教師評核']):
                         try:
-                            score = float(row['教師評核'])
+                            # 使用 convert_level_to_score 函數轉換評核
+                            # 新增教師評核轉換分數欄位
+                            score = convert_level_to_score(row['教師評核'])
+                            row['教師評核轉換分數'] = score  # 新增轉換後的分數欄位
                             skill_scores[skill_key] = score # 將評核分數存入字典，只留最後一筆
                         except (ValueError, TypeError):
                             st.warning(f"無法轉換評核分數：{row['教師評核']}")
@@ -146,10 +186,14 @@ def show_UGY_peer_analysis_section(df):
                         skill_name = match.group(1)
                         skill_key = skill_name
                         
-                        # 計算該技能的平均分數
+                        # 先為所有資料新增轉換分數欄位
+                        core_skill_data.loc[core_skill_data['檔案名稱'] == filename, '教師評核轉換分數'] = \
+                            core_skill_data.loc[core_skill_data['檔案名稱'] == filename, '教師評核'].apply(convert_level_to_score)
+                        
+                        # 使用轉換後的分數計算平均
                         skill_scores_all = core_skill_data[
                             core_skill_data['檔案名稱'] == filename
-                        ]['教師評核'].astype(float).mean()
+                        ]['教師評核轉換分數'].mean()
                         
                         peer_averages[skill_key] = skill_scores_all
                 
@@ -253,9 +297,8 @@ def show_UGY_peer_analysis_section(df):
             
             with col1:
                 # 準備雷達圖資料
-                student_scores = []
-                peer_scores = []
-                display_labels = []
+                student_scores = {}
+                peer_scores = {}
                 
                 # 取得當前學生的訓練計畫
                 current_training_program = student_data['臨床訓練計畫'].iloc[0]
@@ -267,63 +310,86 @@ def show_UGY_peer_analysis_section(df):
                 # 使用 score_columns 取得評核分數
                 for col in score_columns:
                     try:
-                        # 學生分數
-                        score = float(student_data[col].iloc[0])
-                        student_scores.append(score)
-                        
-                        # 同儕平均
-                        peer_score = peer_df[col].astype(float).mean()
-                        peer_scores.append(peer_score)
-                        
                         # 從欄位名稱提取 EPA 編號
                         epa_match = re.search(r'EPA(\d+)', col)
                         if epa_match:
                             epa_number = epa_match.group(1)
-                            display_labels.append(f"EPA{epa_number}")
+                            display_label = f"EPA{epa_number}"
+                            
+                            # 學生分數 - 只處理非空值
+                            if not student_data[col].isna().all():
+                                # 新增轉換分數欄位
+                                student_data[f"{col}_轉換分數"] = student_data[col].apply(convert_level_to_score)
+                                score = student_data[f"{col}_轉換分數"].iloc[0]
+                                
+                                # 只有當分數大於 0 時才加入
+                                if score > 0:
+                                    student_scores[display_label] = score
+                                
+                                # 同儕平均 - 只處理非空值
+                                if not peer_df[col].isna().all():
+                                    # 為同儕資料新增轉換分數欄位
+                                    peer_df[f"{col}_轉換分數"] = peer_df[col].apply(convert_level_to_score)
+                                    peer_score = peer_df[f"{col}_轉換分數"].mean()
+                                    
+                                    # 只有當分數大於 0 時才加入
+                                    if peer_score > 0:
+                                        peer_scores[display_label] = peer_score
                     except (ValueError, TypeError):
                         st.warning(f"無法轉換評核分數：{col}")
                 
-                if student_scores and peer_scores and display_labels:
-                    # 確保數據點首尾相連
-                    display_labels_closed = display_labels + [display_labels[0]]
-                    student_scores_closed = student_scores + [student_scores[0]]
-                    peer_scores_closed = peer_scores + [peer_scores[0]]
+                if student_scores and peer_scores:
+                    # 只使用兩者都有的鍵
+                    common_labels = set(student_scores.keys()) & set(peer_scores.keys())
                     
-                    # 建立雷達圖
-                    fig = go.Figure()
-                    
-                    # 先畫同儕平均（黑色）
-                    fig.add_trace(go.Scatterpolar(
-                        r=peer_scores_closed,
-                        theta=display_labels_closed,
-                        name='同儕平均',
-                        line=dict(color='rgba(0, 0, 0, 1)', width=2),
-                    ))
-                    
-                    # 後畫學生本人（紅色）
-                    fig.add_trace(go.Scatterpolar(
-                        r=student_scores_closed,
-                        theta=display_labels_closed,
-                        name=student,
-                        fill='toself',
-                        fillcolor='rgba(255, 0, 0, 0.2)',
-                        line=dict(color='rgba(255, 0, 0, 1)', width=2),
-                    ))
-                    
-                    fig.update_layout(
-                        polar=dict(
-                            radialaxis=dict(
-                                visible=True,
-                                range=[0, 5]
-                            )
-                        ),
-                        showlegend=True,
-                        title=f"{student} ({training_plan}) - EPA評量",
-                        height=400,
-                        width=400
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
+                    if common_labels:
+                        # 轉換為列表
+                        display_labels = sorted(list(common_labels), key=natural_sort_key)
+                        scores = [student_scores[label] for label in display_labels]
+                        peer_scores_list = [peer_scores[label] for label in display_labels]
+                        
+                        # 確保數據點首尾相連
+                        display_labels_closed = display_labels + [display_labels[0]]
+                        student_scores_closed = scores + [scores[0]]
+                        peer_scores_closed = peer_scores_list + [peer_scores_list[0]]
+                        
+                        # 建立雷達圖
+                        fig = go.Figure()
+                        
+                        # 先畫同儕平均（黑色）
+                        fig.add_trace(go.Scatterpolar(
+                            r=peer_scores_closed,
+                            theta=display_labels_closed,
+                            name='同儕平均',
+                            line=dict(color='rgba(0, 0, 0, 1)', width=2),
+                        ))
+                        
+                        # 後畫學生本人（紅色）
+                        fig.add_trace(go.Scatterpolar(
+                            r=student_scores_closed,
+                            theta=display_labels_closed,
+                            name=student,
+                            fill='toself',
+                            fillcolor='rgba(255, 0, 0, 0.2)',
+                            line=dict(color='rgba(255, 0, 0, 1)', width=2),
+                        ))
+                        
+                        fig.update_layout(
+                            polar=dict(
+                                radialaxis=dict(
+                                    visible=True,
+                                    range=[0, 5]
+                                )
+                            ),
+                            showlegend=True,
+                            title=f"{student} ({training_plan}) - EPA評量",
+                            height=400,
+                            width=400
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning(f"沒有找到 {student} 和同儕都有評核的 EPA 項目")
                 else:
                     st.warning(f"沒有找到 {student} 的有效評核分數")
             

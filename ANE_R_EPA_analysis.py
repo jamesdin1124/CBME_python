@@ -66,6 +66,17 @@ def show_ANE_R_EPA_peer_analysis_section(df):
     """顯示ANE_R同梯次分析的函數"""
     
     st.subheader("麻醉科住院醫師分析")
+    
+    # 在最上方顯示匯入的資料表
+    st.markdown("### 匯入資料總覽")
+    st.dataframe(
+        df,
+        use_container_width=True,
+        height=300
+    )
+    
+    # 添加分隔線
+    st.markdown("---")
 
     # 取得所有可用的學員名稱
     students = df['學員'].unique()
@@ -432,9 +443,9 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     showlegend=True,
                     legend=dict(
                         yanchor="top",
-                        y=1.2,
-                        xanchor="center",  # 將圖例置中
-                        x=0.5
+                        y=1.0,
+                        xanchor="right",  # 將圖例置於右側
+                        x=1.1  # 調整水平位置
                     ),
                     title=dict(
                         text=f"{selected_student} - {epa_name}<br>評量雷達圖",
@@ -499,9 +510,9 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     showlegend=True,
                     legend=dict(
                         yanchor="top",
-                        y=1.2,
-                        xanchor="center",  # 將圖例置中
-                        x=0.5
+                        y=1.0,
+                        xanchor="right",  # 將圖例置於右側
+                        x=1.1  # 調整水平位置
                     ),
                     title=dict(
                         text=f"{selected_student} - {epa_name}<br>教師評核平均比較",
@@ -649,6 +660,12 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                         )
                     ),
                     showlegend=True,
+                    legend=dict(
+                        yanchor="top",
+                        y=1.0,
+                        xanchor="right",  # 將圖例置於右側
+                        x=1.1  # 調整水平位置
+                    ),
                     title=f"{student} ({training_plan}) - 核心技能評核",
                     height=400,
                     width=400
@@ -779,6 +796,12 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                             )
                         ),
                         showlegend=True,
+                        legend=dict(
+                            yanchor="top",
+                            y=1.0,
+                            xanchor="right",  # 將圖例置於右側
+                            x=1.1  # 調整水平位置
+                        ),
                         title=f"{student} ({training_plan}) - EPA評量",
                         height=400,
                         width=400

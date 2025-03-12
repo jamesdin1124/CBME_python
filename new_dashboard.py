@@ -9,6 +9,7 @@ from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
 import re
 from UGY_EPA import show_google_form_import_section, analyze_epa_data
 from teacher_analysis import show_teacher_analysis_section
+from UGY_peer_analysis import show_UGY_peer_analysis_section
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
@@ -35,11 +36,94 @@ def merge_excel_files(uploaded_files):
             
         # 定義轉換對照表
         teacher_evaluation_texts = {
-            'Level I': 1,
-            ' Level I': 1,
-            'Level1': 1,
-            'Level 1': 1,
-            # ... 其他轉換項目 ...
+        'LEVEL I': 1,
+        'LEVEL II': 2,
+        'LEVEL III': 3,
+        'LEVEL IV': 4,
+        'LEVEL V': 5,
+        'Level I': 1,
+        'Level II': 2, 
+        'Level III': 3,
+        'Level IV': 4,
+        'Level V': 5,
+        'level i': 1,
+        'level ii': 2,
+        'level iii': 3,
+        'level iv': 4,
+        'level v': 5,
+        'I': 1,
+        'II': 2,
+        'III': 3,
+        'IV': 4,
+        'V': 5,
+        'i': 1,
+        'ii': 2,
+        'iii': 3,
+        'iv': 4,
+        'v': 5,
+        'LEVEL 1': 1,
+        'LEVEL 2': 2,
+        'LEVEL 3': 3,
+        'LEVEL 4': 4,
+        'LEVEL 5': 5,
+        'Level 1': 1,
+        'Level 2': 2,
+        'Level 3': 3,
+        'Level 4': 4,
+        'Level 5': 5,
+        'level 1': 1,
+        'level 2': 2,
+        'level 3': 3,
+        'level 4': 4,
+        'level 5': 5,
+        '1': 1,
+        '2': 2,
+        '3': 3,
+        '4': 4,
+        '5': 5,
+        'Level I': 1,
+        ' Level I': 1,
+        'Level1': 1,
+        'Level 1': 1,
+        'Level 1&2': 1.5,
+        'Level1&2': 1.5,
+        'LevelI&2': 1.5,
+        'Level&2': 1.5,
+        'Level II': 2,
+        ' Level II': 2,
+        'Level2': 2,
+        'Level 2': 2,
+        'Level2&3': 2.5,
+        'Level 2&3': 2.5,
+        'Leve 2&3': 2.5,
+        'Level 2a': 2,
+        'Level2a': 2,
+        'Level 2b': 2.5,
+        'Level2b': 2.5,
+        'Level III': 3,
+        ' Level III': 3,
+        'Level3': 3,
+        'Level 3': 3,
+        'Level 3a': 3,
+        'Level3a': 3,
+        'Level 3b': 3.3,
+        'Level3b': 3.3,
+        'Level3c': 3.6,
+        'Level 3c': 3.6,
+        'Level 3&4': 3.5,
+        'Level3&4': 3.5,
+        'Leve 3&4': 3.5,
+        'Lvel 3&4': 3.5,
+        'Level IV': 4,
+        ' Level IV': 4, 
+        'Level4': 4,
+        'Level 4': 4,
+        'Level4&5': 4.5,
+        'Level 4&5': 4.5,
+        'Level 5': 5,
+        'Level V': 5,
+        ' Level V': 5,
+        'Level5': 5
         }
         
         teacher_support_texts = {
@@ -302,16 +386,13 @@ def main():
                 )
 
     with tab2:
-        st.header(f"{selected_dept} - UGY 統整分析")
+        st.header("UGY整合分析")
         if current_data is not None:
-            # 篩選 UGY 相關資料
-            ugy_data = current_data[current_data['檔案名稱'].str.contains('UGY', case=False, na=False)]
-            if not ugy_data.empty:
-                show_analysis_section(ugy_data)
-            else:
-                st.warning(f"沒有 {selected_dept} 的 UGY 資料")
+            # 將當前資料存入 session state 的 ugy_data
+            st.session_state.ugy_data = current_data
+            show_UGY_peer_analysis_section(current_data)
         else:
-            st.warning(f"請先上傳並合併 {selected_dept} 的資料")
+            st.warning("請先在側邊欄合併 CEPO Excel檔案")
     
     with tab3:
         st.header(f"{selected_dept} - PGY 分析")
@@ -331,14 +412,21 @@ def main():
             # 篩選住院醫師相關資料
             r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
             if not r_data.empty:
-                show_resident_analysis_section(r_data)
+                # 根據科別選擇不同的分析函數
+                if selected_dept == "麻醉科":
+                    # 使用麻醉科專用的分析函數
+                    show_ANE_R_EPA_peer_analysis_section(r_data)
+                else:
+                    # 使用一般住院醫師分析函數
+                    show_resident_analysis_section(r_data)
             else:
                 st.warning(f"沒有 {selected_dept} 的住院醫師資料")
         else:
             st.warning(f"請先上傳並合併 {selected_dept} 的資料")
     
     with tab5:
-        show_teacher_analysis_section(current_data)
+        # 直接呼叫函數，不傳遞任何參數
+        show_teacher_analysis_section()
 
 
 if __name__ == "__main__":

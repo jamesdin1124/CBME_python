@@ -849,7 +849,7 @@ def analyze_epa_data(df):
                     # 準備顯示的資料表格
                     if '評語' in student_data.columns and 'EPA評核項目' in student_data.columns and '等級' in student_data.columns:
                         # 選擇要顯示的欄位
-                        display_df = student_data[['EPA評核項目', '評核老師', '評語', '等級', '等級數值']]
+                        display_df = student_data[['EPA評核項目', '評語', '等級', '評核老師']]
                         
                         # 使用 expander 讓表格可展開
                         with st.expander("點擊展開詳細評核資料", expanded=False):
