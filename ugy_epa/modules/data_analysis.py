@@ -1,468 +1,17 @@
 import streamlit as st
 import pandas as pd
-import gspread
-from google.oauth2.service_account import Credentials
-from io import BytesIO
-import os
-import re
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime
-import json
 import scipy.stats as stats
-from modules.epa_constants import EPA_LEVEL_MAPPING
-
-# 預設 Google 試算表連結
-DEFAULT_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1VZRYRrsSMNUKoWM32gc5D9FykCHm7IRgcmR1_qXx8_w/edit?resourcekey=&gid=1986457679#gid=1986457679"
-
-def extract_spreadsheet_id(url):
-    """從 Google 試算表 URL 中提取 spreadsheet ID"""
-    # 正則表達式匹配 spreadsheet ID
-    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
-    if match:
-        return match.group(1)
-    return None
-
-def extract_gid(url):
-    """從 Google 試算表 URL 中提取 gid"""
-    # 正則表達式匹配 gid
-    match = re.search(r'gid=(\d+)', url)
-    if match:
-        return int(match.group(1))
-    return None
-
-def setup_google_connection():
-    """設定與 Google API 的連接"""
-    try:
-        # 從 Streamlit Secrets 獲取憑證資訊
-        if "gcp_service_account" in st.secrets:
-            credentials = {
-                "type": st.secrets["gcp_service_account"]["type"],
-                "project_id": st.secrets["gcp_service_account"]["project_id"],
-                "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
-                "private_key": st.secrets["gcp_service_account"]["private_key"].replace('\\n', '\n'),
-                "client_email": st.secrets["gcp_service_account"]["client_email"],
-                "client_id": st.secrets["gcp_service_account"]["client_id"],
-                "auth_uri": st.secrets["gcp_service_account"]["auth_uri"],
-                "token_uri": st.secrets["gcp_service_account"]["token_uri"],
-                "auth_provider_x509_cert_url": st.secrets["gcp_service_account"]["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
-            }
-            
-            # 設定 Google API 範圍
-            scope = [
-                'https://spreadsheets.google.com/feeds',
-                'https://www.googleapis.com/auth/spreadsheets',
-                'https://www.googleapis.com/auth/drive'
-            ]
-            
-            # 建立認證
-            creds = Credentials.from_service_account_info(credentials, scopes=scope)
-            client = gspread.authorize(creds)
-            
-            return client
-        else:
-            # 如果沒有在 secrets 中找到憑證，則使用上傳方式
-            st.warning("未找到 Google API 憑證設定，請上傳憑證檔案")
-            
-            # 檢查是否有上傳憑證檔案
-            uploaded_file = st.file_uploader("上傳 Google API 憑證 JSON 檔案", type=['json'])
-            
-            if uploaded_file is not None:
-                # 將上傳的憑證檔案保存到臨時檔案
-                credentials_json = uploaded_file.getvalue().decode('utf-8')
-                
-                # 設定 Google API 範圍
-                scope = [
-                    'https://spreadsheets.google.com/feeds',
-                    'https://www.googleapis.com/auth/spreadsheets',
-                    'https://www.googleapis.com/auth/drive'
-                ]
-                
-                # 從憑證建立連接
-                credentials_dict = json.loads(credentials_json)
-                
-                # 建立認證
-                creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
-                client = gspread.authorize(creds)
-                
-                # 儲存到 session state 以便後續使用
-                st.session_state.google_credentials = credentials_dict
-                st.session_state.google_client = client
-                
-                st.success("Google API 連接成功！")
-                return client
-            
-            # 如果已經有憑證，直接使用
-            if 'google_client' in st.session_state:
-                return st.session_state.google_client
-                
-            return None
-    except Exception as e:
-        st.error(f"連接 Google API 時發生錯誤：{str(e)}")
-        return None
-
-def fetch_google_form_data(spreadsheet_url=None, selected_sheet_title=None):
-    """從 Google 表單獲取評核資料"""
-    try:
-        # 如果沒有提供 URL，使用預設 URL
-        if not spreadsheet_url:
-            spreadsheet_url = DEFAULT_SPREADSHEET_URL
-        
-        client = setup_google_connection()
-        if client is None:
-            return None, None
-        
-        # 從 URL 提取 spreadsheet ID
-        spreadsheet_id = extract_spreadsheet_id(spreadsheet_url)
-        if not spreadsheet_id:
-            st.error("無法從 URL 提取 spreadsheet ID，請檢查 URL 格式")
-            return None, None
-        
-        # 從 URL 提取 gid
-        gid = extract_gid(spreadsheet_url)
-        
-        # 開啟指定的 Google 試算表
-        try:
-            spreadsheet = client.open_by_key(spreadsheet_id)
-        except Exception as e:
-            st.error(f"無法開啟試算表：{str(e)}")
-            st.info("請確保您的 Google API 服務帳號有權限訪問此試算表。您需要在試算表的共享設定中添加服務帳號的電子郵件地址。")
-            return None, None
-        
-        # 獲取所有工作表
-        all_worksheets = spreadsheet.worksheets()
-        sheet_titles = [sheet.title for sheet in all_worksheets]
-        
-        # 如果沒有提供工作表標題，則返回工作表標題列表供選擇
-        if not selected_sheet_title:
-            return None, sheet_titles
-        
-        # 使用提供的工作表標題
-        try:
-            worksheet = spreadsheet.worksheet(selected_sheet_title)
-            st.info(f"使用工作表：{worksheet.title}")
-        except Exception as e:
-            st.error(f"無法開啟工作表 {selected_sheet_title}：{str(e)}")
-            return None, sheet_titles
-        
-        # 獲取所有資料
-        data = worksheet.get_all_records()
-        
-        if not data:
-            # 嘗試獲取原始資料並顯示
-            raw_data = worksheet.get_all_values()
-            st.write("試算表內容預覽：")
-            st.write(f"總行數：{len(raw_data)}")
-            if raw_data:
-                st.write("前幾行內容：")
-                for i, row in enumerate(raw_data[:5]):  # 顯示前5行
-                    st.write(f"第 {i} 行: {row}")
-            
-            st.warning("試算表中沒有資料或資料格式不正確")
-            return None, sheet_titles
-        
-        # 轉換為 DataFrame
-        df = pd.DataFrame(data)
-        
-        # 處理資料格式
-        df = process_epa_form_data(df)
-        
-        return df, sheet_titles
-    except Exception as e:
-        st.error(f"獲取 Google 表單資料時發生錯誤：{str(e)}")
-        return None, None
-
-def process_epa_form_data(df):
-    """處理從 Google 表單獲取的 EPA 評核資料格式"""
-    # 檢查並重命名欄位，確保標準化
-    column_mapping = {
-        # 可能的原始欄位名稱映射到標準欄位名稱
-        '學員階層': '學員階層',
-        '學生階層': '學員階層',
-        '階層': '學員階層',
-        '姓名': '姓名',
-        '學生姓名': '姓名',
-        '學號': '學號',  # 保留映射但不作為必要欄位
-        '學生學號': '學號',
-        '評核時間': '評核時間',
-        '時間': '評核時間',
-        '時間戳記': '評核時間',
-        '日期': '評核時間',
-        'EPA評核項目': 'EPA評核項目',
-        'EPA項目': 'EPA評核項目',
-        '評核項目': 'EPA評核項目',
-        '教師評核EPA等級': '教師評核EPA等級',
-        '學員自評EPA等級': '學員自評EPA等級',
-        '評語': '評語',
-        '回饋': '評語',
-        '電子郵件地址': '評核老師',  # 將電子郵件地址映射為評核老師
-        '梯次': '梯次',
-        '學員梯次': '梯次',
-        '實習梯次': '梯次',
-        '訓練梯次': '梯次',
-        '地點': '地點',
-        '病歷號': '病歷號',
-        '病人難度': '病人難度',
-        '私下回饋': '私下回饋'
-    }
-
-    # 重命名欄位
-    for col in df.columns:
-        for original, standard in column_mapping.items():
-            if original.lower() in col.lower():
-                df = df.rename(columns={col: standard})
-                break
-    
-    required_columns = ['學員階層', '學號', '姓名', '評核時間', 'EPA評核項目', '教師評核EPA等級', '學員自評EPA等級', '評語', '評核老師']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    
-    if missing_columns:
-        st.warning(f"表單中缺少以下必要欄位：{', '.join(missing_columns)}")
-        # 為缺少的欄位添加空值
-        for col in missing_columns:
-            df[col] = None
-    
-    # 處理評核時間格式
-    if '評核時間' in df.columns:
-        try:
-            # 嘗試轉換為日期時間格式
-            df['評核時間'] = pd.to_datetime(df['評核時間'])
-        except:
-            # 如果轉換失敗，保持原樣
-            pass
-    
-    # 修改 EPA 等級轉換的部分
-    def map_epa_level(level_str):
-        """將 EPA 等級字串映射為數值"""
-        if pd.isna(level_str) or level_str == '':
-            return np.nan
-            
-        level_str = str(level_str).strip()
-        return EPA_LEVEL_MAPPING.get(level_str, np.nan)
-
-    # 處理 EPA 等級轉換 - 分別處理教師評核和學員自評
-    if '教師評核EPA等級' in df.columns:
-        # 將等級欄位轉為字串，並確保處理 NaN 值
-        df['教師評核EPA等級'] = df['教師評核EPA等級'].fillna('').astype(str)
-        
-        # 使用自定義函數進行映射，創建新的數值欄位
-        df['教師評核EPA等級數值'] = df['教師評核EPA等級'].map(EPA_LEVEL_MAPPING)
-        
-        # 設定等級數值欄位（向下兼容）
-        df['等級數值'] = df['教師評核EPA等級數值']
-        
-        # 輸出除錯資訊
-        print("教師評核EPA等級數值的唯一值：", df['教師評核EPA等級數值'].unique())
-    
-    # 處理學員自評 EPA 等級
-    if '學員自評EPA等級' in df.columns and not df['學員自評EPA等級'].isna().all():
-        # 將自評等級欄位轉為字串，但保留原始值
-        df['學員自評EPA等級'] = df['學員自評EPA等級'].fillna('').astype(str)
-        
-        # 使用自定義函數進行映射，創建新的數值欄位
-        # 使用自定義函數進行映射
-        df['學員自評EPA等級數值'] = df['學員自評EPA等級'].apply(map_epa_level)
-        
-        # 輸出除錯資訊
-        print("學員自評EPA等級數值的唯一值：", df['學員自評EPA等級數值'].unique())
-    else:
-        # 如果沒有學員自評資料，創建空的數值欄位
-        df['學員自評EPA等級數值'] = np.nan
-    
-    # 修改梯次生成邏輯
-    if '評核時間' in df.columns and pd.api.types.is_datetime64_any_dtype(df['評核時間']):
-        # 確保評核時間是日期時間格式
-        df['評核時間'] = pd.to_datetime(df['評核時間'])
-        
-        # 計算每個日期對應的週一
-        df['梯次'] = df['評核時間'].apply(lambda x: (x - pd.Timedelta(days=x.weekday())).strftime('%Y-%m-%d'))
-        
-        # 添加說明性訊息
-        st.info("已根據評核時間自動生成梯次（以每週一為起始日期）")
-        
-        # 顯示梯次對照表
-        with st.expander("點擊查看梯次日期對照表"):
-            # 獲取唯一的梯次和對應的日期範圍
-            batch_ranges = {}
-            for batch in sorted(df['梯次'].unique()):
-                batch_start = pd.to_datetime(batch)
-                batch_end = batch_start + pd.Timedelta(days=6)
-                batch_ranges[batch] = f"{batch_start.strftime('%Y-%m-%d')} 至 {batch_end.strftime('%Y-%m-%d')}"
-            
-            # 創建對照表 DataFrame
-            batch_df = pd.DataFrame.from_dict(batch_ranges, orient='index', columns=['日期範圍'])
-            batch_df.index.name = '梯次起始日'
-            st.dataframe(batch_df)
-    
-    # 加入資料來源標記
-    df['資料來源'] = 'Google表單EPA評核'
-    analyze_epa_data
-    # 加入匯入時間
-    df['匯入時間'] = datetime.now()
-    
-    return df
-
-def show_google_form_import_section():
-    """顯示 Google 表單 EPA 評核資料匯入區域"""
-    st.title("UGY EPA分析")
-    
-    # 自動載入預設連結的資料
-    with st.spinner("正在自動載入預設試算表資料..."):
-        # 首先獲取工作表列表
-        df, sheet_titles = fetch_google_form_data(DEFAULT_SPREADSHEET_URL)
-        
-        if sheet_titles:
-            # 直接使用第一個工作表
-            selected_sheet = sheet_titles[0]
-            st.info(f"自動使用第一個工作表：{selected_sheet}")
-            
-            # 使用第一個工作表獲取資料
-            df, _ = fetch_google_form_data(DEFAULT_SPREADSHEET_URL, selected_sheet)
-            
-            if df is not None and not df.empty:
-                st.success(f"成功匯入 {len(df)} 筆 EPA 評核資料！")
-                
-                # 移除重複的欄位名稱
-                df = df.loc[:, ~df.columns.duplicated()]
-                
-                # 顯示資料預覽
-                st.subheader("資料預覽")
-
-                # 確保評核時間欄位存在並計算梯次
-                if '評核時間' in df.columns and pd.api.types.is_datetime64_any_dtype(df['評核時間']):
-                    # 確保評核時間是日期時間格式
-                    df['評核時間'] = pd.to_datetime(df['評核時間'])
-                    
-                    # 計算每個日期對應的週一作為梯次
-                    df['梯次'] = df['評核時間'].apply(lambda x: (x - pd.Timedelta(days=x.weekday())).strftime('%Y-%m-%d'))
-
-                # 確保梯次欄位在前面顯示
-                preview_columns = [
-                    '梯次',  # 將梯次放在第一個
-                    '評核時間',
-                    '姓名', 
-                    '學號', 
-                    '學員階層',
-                    'EPA評核項目',
-                    '教師評核EPA等級',
-                    '教師評核EPA等級數值',
-                    '學員自評EPA等級',
-                    '學員自評EPA等級數值',
-                    '評語',
-                    '評核老師',
-                    '地點',
-                    '病歷號',
-                    '病人難度',
-                    '私下回饋'
-                ]
-
-                # 只選擇存在的欄位
-                display_columns = [col for col in preview_columns if col in df.columns]
-
-                # 顯示前10筆資料作為預覽，並設定數值欄位的格式
-                st.dataframe(
-                    df[display_columns].head(10).style.format({
-                        '教師評核EPA等級數值': '{:.1f}',
-                        '學員自評EPA等級數值': '{:.1f}'
-                    })
-                )
-                
-                # 加入篩選器
-                st.write("### 資料篩選")
-                
-                # 篩選梯次
-                if '梯次' in df.columns:
-                    all_batches = sorted(df['梯次'].unique().tolist())
-                    selected_batches = st.multiselect("選擇梯次", all_batches, default=all_batches)
-                else:
-                    selected_batches = None
-                
-                # 篩選個人
-                if '姓名' in df.columns:
-                    # 確保姓名欄位的值都是字串
-                    df['姓名'] = df['姓名'].fillna('未知').astype(str)
-                    all_students = sorted(df['姓名'].unique().tolist())
-                    selected_students = st.multiselect("選擇學員", all_students, default=[])
-                else:
-                    selected_students = None
-                
-                # 應用篩選條件
-                filtered_df = df.copy()
-                
-                if selected_batches:
-                    filtered_df = filtered_df[filtered_df['梯次'].isin(selected_batches)]
-                
-                if selected_students and len(selected_students) > 0:
-                    filtered_df = filtered_df[filtered_df['姓名'].isin(selected_students)]
-                
-                # 顯示篩選後的資料
-                st.write(f"篩選後資料：{len(filtered_df)} 筆")
-                
-                # 在資料預覽之後加入分析部分
-                st.write("### 轉換後資料預覽")
-                
-                # 使用 expander 來顯示 EPA 等級對應說明
-                with st.expander("點擊展開 EPA 等級對應說明"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("""
-                        **基礎等級 (Level 1-2)**
-                        - Level 1 (1.0): 不允許學員觀察
-                        - Level 1.5: 允許學員在旁觀察
-                        - Level 2 (2.0): 教師在旁逐步共同操作
-                        - Level 2.5: 教師在旁必要時協助
-                        """)
-                        
-                        st.markdown("""
-                        **進階等級 (Level 3)**
-                        - Level 3 (3.0): 教師可立即到場協助，事後逐項確認
-                        - Level 3.3: 教師可立即到場協助，事後重點確認
-                        - Level 3.6: 教師可稍後到場協助，必要時事後確認
-                        """)
-                    
-                    with col2:
-                        st.markdown("""
-                        **高階等級 (Level 4-5)**
-                        - Level 4 (4.0): 教師on call提供監督
-                        - Level 4.5: 教師不需on call，事後提供回饋及監督
-                        - Level 5 (5.0): 學員可對其他資淺的學員進行監督與教學
-                        """)
-                
-                # 確保梯次欄位存在
-                if '梯次' not in filtered_df.columns:
-                    st.warning("資料中缺少梯次欄位，請檢查資料處理過程")
-                else:
-                    # 定義要顯示的欄位（確保沒有重複）
-                    preview_columns = [
-                        '評核時間', '梯次',  # 確保梯次欄位在前面
-                        '姓名', '學號', '學員階層', 
-                        'EPA評核項目', 
-                        '教師評核EPA等級', '教師評核EPA等級數值',
-                        '學員自評EPA等級', '學員自評EPA等級數值',
-                        '評語', '評核老師', '地點', '病歷號', 
-                        '病人難度', '私下回饋'
-                    ]
-                    
-                    # 只選擇存在的欄位
-                    display_columns = [col for col in preview_columns if col in filtered_df.columns]
-                    
-                    # 顯示資料預覽，並設定數值欄位的格式
-                    st.write("以下資料包含自動計算的梯次（每週一為起始日）：")
-                    st.dataframe(
-                        filtered_df[display_columns].style.format({
-                            '教師評核EPA等級數值': '{:.1f}',
-                            '學員自評EPA等級數值': '{:.1f}'
-                        })
-                    )
-                
-                # 加入分隔線
-                st.markdown("---")
-                
-                # 調用分析函數
-                analyze_epa_data(filtered_df)
+from .visualization import (
+    plot_epa_radar,
+    plot_trend_analysis,
+    plot_teacher_comparison,
+    plot_epa_distributions,
+    plot_epa_trend,
+    plot_epa_distribution,
+    plot_epa_boxplot,
+    display_epa_stats
+)
 
 def analyze_epa_data(df):
     """分析 EPA 評核資料"""
@@ -496,9 +45,22 @@ def analyze_epa_data(df):
     if 'EPA評核項目' in df.columns:
         st.write("# EPA 項目分析")
         
-        # 計算各 EPA 項目的評核數量
-        epa_item_counts = df['EPA評核項目'].value_counts()
+        # 計算每個 EPA 項目的平均等級
+        epa_means = df.groupby('EPA評核項目')['等級數值'].mean()
         
+        # 繪製雷達圖
+        fig = plot_epa_radar(
+            df,
+            categories=epa_means.index.tolist(),
+            values=epa_means.values.tolist(),
+            title="EPA 項目平均等級"
+        )
+        st.pyplot(fig)
+        
+        # 顯示統計資訊
+        st.write("EPA 項目統計資訊")
+        stats = display_epa_stats(df, 'EPA評核項目', '等級數值')
+        st.dataframe(stats)
     
     # 3. EPA 等級分析
     if '等級數值' in df.columns:
@@ -1315,3 +877,13 @@ def analyze_epa_data(df):
                 st.pyplot(fig)
             else:
                 st.warning("缺少必要欄位，無法進行EPA項目統計分析")
+
+def calculate_statistics(df):
+    """計算基本統計資訊"""
+    # ... 統計計算相關程式碼 ...
+    pass
+
+def perform_statistical_tests(teacher_data, all_data):
+    """執行統計檢定"""
+    # ... 統計檢定相關程式碼 ...
+    pass 

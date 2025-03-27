@@ -6,10 +6,10 @@ from student_analysis import show_analysis_section
 import sys
 from resident_analysis import show_resident_analysis_section
 from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
-import re
-from UGY_EPA import show_google_form_import_section, analyze_epa_data
 from teacher_analysis import show_teacher_analysis_section
 from UGY_peer_analysis import show_UGY_peer_analysis_section
+from ugy_epa.main import show_google_form_import_section
+from modules.epa_constants import EPA_LEVEL_MAPPING
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
@@ -18,14 +18,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"  # 預設展開側邊欄
 )
 
-# 獲取當前檔案的目錄
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(current_dir)
-
-try:
-    from UGY_peer_analysis import show_UGY_peer_analysis_section
-except ImportError:
-    st.error("無法載入 UGY_peer_analysis 模組，請確認檔案位置是否正確")
 
 def merge_excel_files(uploaded_files):
     # ... 現有代碼 ...
@@ -34,106 +26,6 @@ def merge_excel_files(uploaded_files):
             st.warning("請上傳Excel檔案！")
             return None
             
-        # 定義轉換對照表
-        teacher_evaluation_texts = {
-        'LEVEL I': 1,
-        'LEVEL II': 2,
-        'LEVEL III': 3,
-        'LEVEL IV': 4,
-        'LEVEL V': 5,
-        'Level I': 1,
-        'Level II': 2, 
-        'Level III': 3,
-        'Level IV': 4,
-        'Level V': 5,
-        'level i': 1,
-        'level ii': 2,
-        'level iii': 3,
-        'level iv': 4,
-        'level v': 5,
-        'I': 1,
-        'II': 2,
-        'III': 3,
-        'IV': 4,
-        'V': 5,
-        'i': 1,
-        'ii': 2,
-        'iii': 3,
-        'iv': 4,
-        'v': 5,
-        'LEVEL 1': 1,
-        'LEVEL 2': 2,
-        'LEVEL 3': 3,
-        'LEVEL 4': 4,
-        'LEVEL 5': 5,
-        'Level 1': 1,
-        'Level 2': 2,
-        'Level 3': 3,
-        'Level 4': 4,
-        'Level 5': 5,
-        'level 1': 1,
-        'level 2': 2,
-        'level 3': 3,
-        'level 4': 4,
-        'level 5': 5,
-        '1': 1,
-        '2': 2,
-        '3': 3,
-        '4': 4,
-        '5': 5,
-        'Level I': 1,
-        ' Level I': 1,
-        'Level1': 1,
-        'Level 1': 1,
-        'Level 1&2': 1.5,
-        'Level1&2': 1.5,
-        'LevelI&2': 1.5,
-        'Level&2': 1.5,
-        'Level II': 2,
-        ' Level II': 2,
-        'Level2': 2,
-        'Level 2': 2,
-        'Level2&3': 2.5,
-        'Level 2&3': 2.5,
-        'Leve 2&3': 2.5,
-        'Level 2a': 2,
-        'Level2a': 2,
-        'Level 2b': 2.5,
-        'Level2b': 2.5,
-        'Level III': 3,
-        ' Level III': 3,
-        'Level3': 3,
-        'Level 3': 3,
-        'Level 3a': 3,
-        'Level3a': 3,
-        'Level 3b': 3.3,
-        'Level3b': 3.3,
-        'Level3c': 3.6,
-        'Level 3c': 3.6,
-        'Level 3&4': 3.5,
-        'Level3&4': 3.5,
-        'Leve 3&4': 3.5,
-        'Lvel 3&4': 3.5,
-        'Level IV': 4,
-        ' Level IV': 4, 
-        'Level4': 4,
-        'Level 4': 4,
-        'Level4&5': 4.5,
-        'Level 4&5': 4.5,
-        'Level 5': 5,
-        'Level V': 5,
-        ' Level V': 5,
-        'Level5': 5
-        }
-        
-        teacher_support_texts = {
-            '教師在旁逐步共同操作': 1,
-            '教師在旁必要時協助 ': 2,
-            '教師可立即到場協助，事後須再確認': 3,
-            '教師可稍後到場協助，重點須再確認': 4,
-            '我可獨立執行': 5
-        }
-        
         # 合併所有Excel檔案
         all_data = []
         for uploaded_file in uploaded_files:
@@ -162,14 +54,14 @@ def merge_excel_files(uploaded_files):
                 
                 if '教師評核' in col:
                     # 確保轉換後的值是數值型態
-                    df[col] = df[col].apply(lambda x: teacher_evaluation_texts.get(str(x).strip(), x))
+                    df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x).strip(), x))
                     # 強制轉換為數值型態
                     df[col] = pd.to_numeric(df[col], errors='coerce')
                 elif '學員自評' in col:
-                    df[col] = df[col].apply(lambda x: teacher_evaluation_texts.get(str(x), x))
+                    df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x), x))
                     df[col] = pd.to_numeric(df[col], errors='coerce')
                 elif 'EPA' in col:
-                    df[col] = df[col].apply(lambda x: teacher_support_texts.get(str(x), x))
+                    df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x), x))
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
             
@@ -220,69 +112,6 @@ def merge_excel_files(uploaded_files):
         st.error(f"合併檔案時發生錯誤：{str(e)}")
         return None
 
-def show_overall_analysis(df):
-    """顯示整體分析的函數"""
-    # ... 現有代碼 ...
-    st.subheader("整體成績分析")
-    
-    # 1. 基本統計資訊
-    score_cols = [col for col in df.columns if '成績' in col or '分數' in col]
-    if score_cols:
-        st.write("各項成績統計")
-        for col in score_cols:
-            with st.expander(f"{col} 統計資訊"):
-                # 只處理數值型資料
-                numeric_data = pd.to_numeric(df[col], errors='coerce')
-                if not numeric_data.empty:
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("平均分數", f"{numeric_data.mean():.2f}")
-                    with col2:
-                        st.metric("最高分", f"{numeric_data.max():.2f}")
-                    with col3:
-                        st.metric("最低分", f"{numeric_data.min():.2f}")
-    
-    # 2. 各階段完成度分析
-    if '訓練階段' in df.columns:
-        st.write("各訓練階段作業完成情況")
-        completion_by_stage = df.groupby('訓練階段').size()
-        st.bar_chart(completion_by_stage)
-    
-    # 3. 教師評核分布
-    evaluation_cols = [col for col in df.columns if '教師評核' in col]
-    if evaluation_cols:
-        st.write("教師評核分布")
-        for col in evaluation_cols:
-            with st.expander(f"{col} 分布"):
-                # 確保資料是數值型
-                numeric_eval = pd.to_numeric(df[col], errors='coerce')
-                if not numeric_eval.empty:
-                    eval_dist = numeric_eval.value_counts().sort_index()
-                    st.bar_chart(eval_dist)
-    
-    # 4. 時間趨勢分析
-    if '日期' in df.columns and score_cols:
-        st.write("成績時間趨勢")
-        for score_col in score_cols:
-            with st.expander(f"{score_col} 時間趨勢"):
-                # 確保只使用數值型資料
-                df_clean = df.copy()
-                df_clean[score_col] = pd.to_numeric(df_clean[score_col], errors='coerce')
-                df_clean = df_clean.dropna(subset=[score_col])
-                
-                if not df_clean.empty:
-                    # 使用 DataFrame 的方式呈現
-                    st.write("成績趨勢表")
-                    trend_data = df_clean.groupby('日期')[score_col].mean().reset_index()
-                    st.dataframe(trend_data)
-                    
-                    # 使用基本折線圖
-                    st.write("成績趨勢圖")
-                    chart_data = pd.DataFrame({
-                        '日期': trend_data['日期'],
-                        '平均分數': trend_data[score_col]
-                    })
-                    st.line_chart(chart_data.set_index('日期'))
 
 def main():
     st.title("臨床教師評核系統")
@@ -355,36 +184,9 @@ def main():
     current_data = st.session_state.get(f"{selected_dept}_data", None)
     
     with tab1:
-        st.header("UGY EPA 分析")
+        # 直接調用 main.py 中的函數
         show_google_form_import_section()
         
-        # 新增：從 Google API 獲取的資料分析
-        if 'epa_data' in st.session_state and st.session_state.epa_data is not None:
-            st.subheader("EPA 資料分析結果")
-            analyze_epa_data(st.session_state.epa_data)
-            
-            # 顯示資料下載按鈕
-            csv = st.session_state.epa_data.to_csv(index=False)
-            excel_buffer = BytesIO()
-            st.session_state.epa_data.to_excel(excel_buffer, index=False)
-            excel_data = excel_buffer.getvalue()
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    label="下載 EPA 資料 (CSV)",
-                    data=csv,
-                    file_name="epa_data.csv",
-                    mime="text/csv"
-                )
-            with col2:
-                st.download_button(
-                    label="下載 EPA 資料 (Excel)",
-                    data=excel_data,
-                    file_name="epa_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
     with tab2:
         st.header("UGY整合分析")
         if current_data is not None:
