@@ -8,7 +8,7 @@ from resident_analysis import show_resident_analysis_section
 from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
 from teacher_analysis import show_teacher_analysis_section
 from UGY_peer_analysis import show_UGY_peer_analysis_section
-from ugy_epa.main import show_google_form_import_section
+from ugy_epa.main import show_UGY_EPA_section
 from modules.epa_constants import EPA_LEVEL_MAPPING
 
 # 設定頁面配置為寬屏模式
@@ -185,7 +185,7 @@ def main():
     
     with tab1:
         # 直接調用 main.py 中的函數
-        show_google_form_import_section()
+        show_UGY_EPA_section()
         
     with tab2:
         st.header("UGY整合分析")
