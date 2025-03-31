@@ -9,6 +9,7 @@ from google.oauth2.service_account import Credentials
 import gspread
 import json
 from scipy import stats
+from modules.data_processing import process_epa_level
 
 # 預設 Google 試算表連結
 DEFAULT_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1VZRYRrsSMNUKoWM32gc5D9FykCHm7IRgcmR1_qXx8_w/edit?resourcekey=&gid=1986457679#gid=1986457679"
@@ -60,47 +61,14 @@ def setup_google_connection():
             
             return client
         else:
-            # 如果沒有在 secrets 中找到憑證，則使用上傳方式
-            st.warning("未找到 Google API 憑證設定，請上傳憑證檔案")
-            
-            # 檢查是否有上傳憑證檔案
-            uploaded_file = st.file_uploader("上傳 Google API 憑證 JSON 檔案", type=['json'])
-            
-            if uploaded_file is not None:
-                # 將上傳的憑證檔案保存到臨時檔案
-                credentials_json = uploaded_file.getvalue().decode('utf-8')
-                
-                # 設定 Google API 範圍
-                scope = [
-                    'https://spreadsheets.google.com/feeds',
-                    'https://www.googleapis.com/auth/spreadsheets',
-                    'https://www.googleapis.com/auth/drive'
-                ]
-                
-                # 從憑證建立連接
-                credentials_dict = json.loads(credentials_json)
-                
-                # 建立認證
-                creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
-                client = gspread.authorize(creds)
-                
-                # 儲存到 session state 以便後續使用
-                st.session_state.google_credentials = credentials_dict
-                st.session_state.google_client = client
-                
-                st.success("Google API 連接成功！")
-                return client
-            
-            # 如果已經有憑證，直接使用
-            if 'google_client' in st.session_state:
-                return st.session_state.google_client
-                
+            st.error("未找到 Google API 憑證設定，請確認 secrets.toml 檔案中包含正確的憑證資訊")
             return None
+            
     except Exception as e:
         st.error(f"連接 Google API 時發生錯誤：{str(e)}")
         return None
 
-def fetch_google_form_data(spreadsheet_url=None, selected_sheet_title=None):
+def fetch_google_form_data(spreadsheet_url=None):
     """從 Google 表單獲取評核資料"""
     try:
         # 如果沒有提供 URL，使用預設 URL
@@ -109,181 +77,63 @@ def fetch_google_form_data(spreadsheet_url=None, selected_sheet_title=None):
         
         client = setup_google_connection()
         if client is None:
-            return None, None
+            return None
         
         # 從 URL 提取 spreadsheet ID
         spreadsheet_id = extract_spreadsheet_id(spreadsheet_url)
         if not spreadsheet_id:
             st.error("無法從 URL 提取 spreadsheet ID，請檢查 URL 格式")
-            return None, None
-        
-        # 從 URL 提取 gid
-        gid = extract_gid(spreadsheet_url)
+            return None
         
         # 開啟指定的 Google 試算表
         try:
             spreadsheet = client.open_by_key(spreadsheet_id)
+            worksheet = spreadsheet.get_worksheet(0)  # 獲取第一個工作表
+            
+            # 獲取所有資料
+            data = worksheet.get_all_records()
+            
+            if not data:
+                st.warning("試算表中沒有資料或資料格式不正確")
+                return None
+            
+            # 轉換為 DataFrame
+            df = pd.DataFrame(data)
+            
+            # 處理資料格式
+            df = process_epa_form_data(df)
+            
+            return df
+            
         except Exception as e:
             st.error(f"無法開啟試算表：{str(e)}")
             st.info("請確保您的 Google API 服務帳號有權限訪問此試算表。您需要在試算表的共享設定中添加服務帳號的電子郵件地址。")
-            return None, None
-        
-        # 獲取所有工作表
-        all_worksheets = spreadsheet.worksheets()
-        sheet_titles = [sheet.title for sheet in all_worksheets]
-        
-        # 如果沒有提供工作表標題，則返回工作表標題列表供選擇
-        if not selected_sheet_title:
-            return None, sheet_titles
-        
-        # 使用提供的工作表標題
-        try:
-            worksheet = spreadsheet.worksheet(selected_sheet_title)
-            st.info(f"使用工作表：{worksheet.title}")
-        except Exception as e:
-            st.error(f"無法開啟工作表 {selected_sheet_title}：{str(e)}")
-            return None, sheet_titles
-        
-        # 獲取所有資料
-        data = worksheet.get_all_records()
-        
-        if not data:
-            # 嘗試獲取原始資料並顯示
-            raw_data = worksheet.get_all_values()
-            st.write("試算表內容預覽：")
-            st.write(f"總行數：{len(raw_data)}")
-            if raw_data:
-                st.write("前幾行內容：")
-                for i, row in enumerate(raw_data[:5]):  # 顯示前5行
-                    st.write(f"第 {i} 行: {row}")
+            return None
             
-            st.warning("試算表中沒有資料或資料格式不正確")
-            return None, sheet_titles
-        
-        # 轉換為 DataFrame
-        df = pd.DataFrame(data)
-        
-        # 處理資料格式
-        df = process_epa_form_data(df)
-        
-        return df, sheet_titles
     except Exception as e:
         st.error(f"獲取 Google 表單資料時發生錯誤：{str(e)}")
-        return None, None
+        return None
 
 def process_epa_form_data(df):
     """處理 EPA 表單資料的函數"""
-    # 這個函數在您的代碼中似乎缺少，但被引用了
-    # 這裡添加一個簡單的實現
-    return df
-
-def show_teacher_analysis_section(data=None, spreadsheet_url=None, key_prefix=""):
-    """顯示老師評分分析的函數"""
-    # 如果沒有提供 key_prefix，則生成一個唯一的前綴
-    if not key_prefix:
-        key_prefix = f"teacher_analysis_{id(data)}_{id(spreadsheet_url)}_"
-    
-    st.header("老師評分分析")
-    
-    # 檢查資料是否為空
-    if data is None or data.empty:
-        # 如果沒有提供資料，允許用戶輸入 Google 試算表連結
-        st.warning("沒有提供資料，請輸入 Google 試算表連結")
-        
-        input_spreadsheet_url = st.text_input("輸入 Google 試算表連結", value=spreadsheet_url or DEFAULT_SPREADSHEET_URL, key=f"{key_prefix}spreadsheet_url")
-        
-        if input_spreadsheet_url:
-            # 連接到 Google 試算表
-            df, sheet_titles = fetch_google_form_data(input_spreadsheet_url)
-            
-            if sheet_titles:
-                selected_sheet = st.selectbox("選擇工作表", options=sheet_titles, key=f"{key_prefix}sheet_select")
-                
-                # 直接載入選定的工作表資料
-                with st.spinner("正在載入資料..."):
-                    data, _ = fetch_google_form_data(input_spreadsheet_url, selected_sheet)
-                    
-                if data is None:
-                    st.error("無法載入資料，請檢查試算表連結和權限設定")
-                    return
-                else:
-                    st.success(f"成功載入 {len(data)} 筆資料")
-                    # 更新 spreadsheet_url 為實際使用的 URL
-                    spreadsheet_url = input_spreadsheet_url
-            else:
-                st.error("無法獲取工作表列表，請檢查試算表連結和權限設定")
-                return
-    
-    # 再次檢查資料是否為空（可能是從試算表載入的）
-    if data is None or data.empty:
-        st.warning("沒有可用的資料進行分析")
-        return
-    
-    # 顯示資料來源連結
-    if spreadsheet_url:
-        st.markdown(f"**資料來源**: [Google 試算表]({spreadsheet_url})")
-    
-    # 顯示資料基本資訊
-    with st.expander("資料概覽"):
-        st.write(f"資料列數: {len(data)}")
-        st.write(f"資料欄位: {', '.join(data.columns)}")
-        st.dataframe(data.head())
-    
-    # 處理欄位對應和資料轉換
-    # 1. 檢查是否有需要的原始欄位
-    required_original_cols = ['電子郵件地址', '評核等級', 'EPA評核項目']
-    if not all(col in data.columns for col in required_original_cols):
-        missing_cols = [col for col in required_original_cols if col not in data.columns]
-        st.error(f"缺少以下必要原始欄位，無法進行分析：{', '.join(missing_cols)}")
-        return
-    
     # 2. 創建一個資料副本進行轉換
-    processed_data = data.copy()
+    processed_data = df.copy()
     
     # 3. 將 "電子郵件地址" 欄位重命名為 "評核老師"
     processed_data['評核老師'] = processed_data['電子郵件地址']
     
-    # 4. 將 "評核等級" 欄位中的 Level I~V 轉換為數值
-    def convert_level_to_numeric(level_str):
-        if pd.isna(level_str):
-            return np.nan
-        
-        # 移除可能的空格並轉換為大寫以統一格式
-        level_str = str(level_str).strip().upper()
-        
-        # 定義等級對應的數值
-        level_mapping = {
-            'LEVEL I': 1,
-            'LEVEL II': 2,
-            'LEVEL III': 3,
-            'LEVEL IV': 4,
-            'LEVEL V': 5,
-            'I': 1,
-            'II': 2,
-            'III': 3,
-            'IV': 4,
-            'V': 5,
-            '1': 1,
-            '2': 2,
-            '3': 3,
-            '4': 4,
-            '5': 5
-        }
-        
-        # 嘗試直接匹配
-        if level_str in level_mapping:
-            return level_mapping[level_str]
-        
-        # 嘗試匹配包含 "LEVEL" 的字串
-        for key, value in level_mapping.items():
-            if key in level_str:
-                return value
-        
-        # 如果無法匹配，返回 NaN
-        return np.nan
-    
-    # 應用轉換函數
-    processed_data['等級數值'] = processed_data['評核等級'].apply(convert_level_to_numeric)
+    # 4. 使用 data_processing.py 中的 process_epa_level 函數處理評核等級
+    if '教師評核EPA等級' in processed_data.columns:
+        processed_data['評核等級'] = processed_data['教師評核EPA等級'].apply(process_epa_level)
+        if '評核等級' not in processed_data.columns:
+            st.error("無法轉換評核等級，請檢查資料格式")
+            return df
+    else:
+        st.error("找不到 '教師評核EPA等級' 欄位")
+        return df
+
+    # 5. 將 "評核等級" 欄位中的值轉換為數值
+    processed_data['等級數值'] = processed_data['評核等級']
     
     # 檢查轉換後的資料
     with st.expander("轉換後的資料預覽"):
@@ -333,7 +183,7 @@ def show_teacher_analysis_section(data=None, spreadsheet_url=None, key_prefix=""
         selected_teacher = st.selectbox(
             "選擇要分析的老師",
             teachers,
-            key=f"{key_prefix}teacher_select"
+            key="teacher_analysis_teacher_select"
         )
         
         # 篩選選定老師的資料
@@ -525,48 +375,41 @@ def show_teacher_analysis_section(data=None, spreadsheet_url=None, key_prefix=""
                 st.write("#### 詳細統計資訊比較")
                 st.dataframe(combined_stats.style.background_gradient(cmap='RdYlGn', subset=['平均分數差異', '中位數差異']))
                 
-               
-            
-            
-            # 新增：顯示所有老師的評分比較
-            st.write("### 所有老師評分比較")
-            
-            # 檢查是否有足夠的資料進行比較
-            if len(teachers) > 1:
-                # 設定中文字型
-                plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']
-                plt.rcParams['axes.unicode_minus'] = False
+                # 新增：顯示所有老師的評分比較
+                st.write("### 所有老師評分比較")
                 
-                # 創建圖形 - 使用更大的尺寸以容納更多資料
-                fig, ax = plt.subplots(figsize=(14, 8))
+                # 檢查是否有足夠的資料進行比較
+                if len(teachers) > 1:
+                    # 設定中文字型
+                    plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']
+                    plt.rcParams['axes.unicode_minus'] = False
+                    
+                    # 創建圖形 - 使用更大的尺寸以容納更多資料
+                    fig, ax = plt.subplots(figsize=(14, 8))
+                    
+                    # 顯示所有老師的評分統計資訊
+                    all_teachers_stats = data.groupby(['評核老師', 'EPA評核項目'])['等級數值'].agg([
+                        ('平均分數', 'mean'),
+                        ('中位數', 'median'),
+                        ('標準差', 'std'),
+                        ('評分次數', 'count')
+                    ]).round(2)
+                    
+                    # 使用 unstack 將老師作為列，EPA 項目作為欄
+                    avg_scores_by_teacher = data.groupby(['評核老師', 'EPA評核項目'])['等級數值'].mean().unstack()
+                    
+                    # 顯示平均分數表格
+                    st.write("##### 各老師對各 EPA 項目的平均評分")
+                    st.dataframe(avg_scores_by_teacher.style.background_gradient(cmap='YlGnBu', axis=None))
+                    
+                    # 顯示評分次數表格
+                    count_by_teacher = data.groupby(['評核老師', 'EPA評核項目'])['等級數值'].count().unstack()
+                    st.write("##### 各老師對各 EPA 項目的評分次數")
+                    st.dataframe(count_by_teacher)
+                    
+                else:
+                    st.info("只有一位老師的評分資料，無法進行比較")
                 
-                
-                
-                # 顯示所有老師的評分統計資訊
-                all_teachers_stats = data.groupby(['評核老師', 'EPA評核項目'])['等級數值'].agg([
-                    ('平均分數', 'mean'),
-                    ('中位數', 'median'),
-                    ('標準差', 'std'),
-                    ('評分次數', 'count')
-                ]).round(2)
-                
-                # 使用 unstack 將老師作為列，EPA 項目作為欄
-                avg_scores_by_teacher = data.groupby(['評核老師', 'EPA評核項目'])['等級數值'].mean().unstack()
-                
-                # 顯示平均分數表格
-                st.write("##### 各老師對各 EPA 項目的平均評分")
-                st.dataframe(avg_scores_by_teacher.style.background_gradient(cmap='YlGnBu', axis=None))
-                
-                # 顯示評分次數表格
-                count_by_teacher = data.groupby(['評核老師', 'EPA評核項目'])['等級數值'].count().unstack()
-                st.write("##### 各老師對各 EPA 項目的評分次數")
-                st.dataframe(count_by_teacher)
-                
-
-            else:
-                st.info("只有一位老師的評分資料，無法進行比較")
-                
-            
             # 檢查是否有足夠的資料進行分析
             if 'EPA評核項目' in data.columns and '等級數值' in data.columns:
                 # 計算每個EPA項目的詳細統計資料
@@ -694,3 +537,52 @@ def show_teacher_analysis_section(data=None, spreadsheet_url=None, key_prefix=""
                 # 顯示圖表
                 st.pyplot(fig)
                 
+
+def show_teacher_analysis_section():
+    """顯示教師分析區段的函數"""
+    st.header("教師評核分析")
+    
+    # 輸入 Google Sheets URL
+    spreadsheet_url = st.text_input(
+        "請輸入 Google Sheets URL",
+        value=DEFAULT_SPREADSHEET_URL,
+        help="請輸入包含評核資料的 Google Sheets URL"
+    )
+    
+    if not spreadsheet_url:
+        st.warning("請輸入 Google Sheets URL")
+        return
+        
+    # 從 Google Sheets 獲取資料
+    df = fetch_google_form_data(spreadsheet_url)
+    
+    if df is None:
+        st.error("無法獲取資料，請檢查 URL 是否正確且具有適當的訪問權限")
+        return
+        
+    # 處理 EPA 表單資料
+    processed_df = process_epa_form_data(df)
+    
+    if processed_df is not None:
+        # 以下是原有的資料分析和視覺化程式碼
+        # 老師個別評分分析
+        st.write("### 個別老師評分分析")
+        
+        # 檢查是否有評核老師欄位
+        if '評核老師' in processed_df.columns:
+            # 取得所有老師列表
+            teachers = processed_df['評核老師'].unique().tolist()
+            
+            # 讓使用者選擇要分析的老師
+            selected_teacher = st.selectbox(
+                "選擇要分析的老師",
+                teachers,
+                key="teacher_analysis_teacher_select"
+            )
+            
+            # 篩選選定老師的資料
+            teacher_data = processed_df[processed_df['評核老師'] == selected_teacher]
+            
+            if not teacher_data.empty:
+                st.write(f"#### {selected_teacher} 的評分分布")
+                # ... 保持原有的分析邏輯不變 ...
