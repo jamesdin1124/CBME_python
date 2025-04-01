@@ -522,11 +522,17 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                 batch_layer_count = len(layer_batch_df)
                                 
                                 # 計算95%置信區間
-                                if batch_layer_count > 1:
-                                    t_critical = stats.t.ppf(0.975, batch_layer_count - 1)
-                                    ci_width = t_critical * batch_layer_std / np.sqrt(batch_layer_count)
-                                    lower_bound = max(0, batch_layer_mean - ci_width)
-                                    upper_bound = min(5, batch_layer_mean + ci_width)
+                                if batch_layer_count > 2:  # 至少需要3個樣本
+                                    # 使用中位數和四分位距來計算更穩健的信賴區間
+                                    median = layer_batch_df[y_col].median()
+                                    q1 = layer_batch_df[y_col].quantile(0.25)
+                                    q3 = layer_batch_df[y_col].quantile(0.75)
+                                    iqr = q3 - q1
+                                    
+                                    # 使用1.5倍IQR作為信賴區間的基礎
+                                    ci_width = min(1.5 * iqr, 1.0)  # 限制最大寬度為1.0
+                                    lower_bound = max(0, median - ci_width)
+                                    upper_bound = min(5, median + ci_width)
                                     
                                     # 繪製置信區間
                                     fig.add_trace(go.Scatter(
@@ -574,11 +580,17 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                             batch_layer_count = len(layer_batch_df)
                             
                             # 計算95%置信區間
-                            if batch_layer_count > 1:
-                                t_critical = stats.t.ppf(0.975, batch_layer_count - 1)
-                                ci_width = t_critical * batch_layer_std / np.sqrt(batch_layer_count)
-                                lower_bound = max(0, batch_layer_mean - ci_width)
-                                upper_bound = min(5, batch_layer_mean + ci_width)
+                            if batch_layer_count > 2:  # 至少需要3個樣本
+                                # 使用中位數和四分位距來計算更穩健的信賴區間
+                                median = layer_batch_df[y_col].median()
+                                q1 = layer_batch_df[y_col].quantile(0.25)
+                                q3 = layer_batch_df[y_col].quantile(0.75)
+                                iqr = q3 - q1
+                                
+                                # 使用1.5倍IQR作為信賴區間的基礎
+                                ci_width = min(1.5 * iqr, 1.0)  # 限制最大寬度為1.0
+                                lower_bound = max(0, median - ci_width)
+                                upper_bound = min(5, median + ci_width)
                                 
                                 # 繪製置信區間
                                 fig.add_trace(go.Scatter(

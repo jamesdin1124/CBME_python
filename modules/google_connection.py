@@ -19,8 +19,35 @@ def extract_gid(url):
 def setup_google_connection():
     """設定與 Google API 的連接"""
     try:
-        # 從 Streamlit Secrets 獲取憑證資訊
-        if "gcp_service_account" in st.secrets:
+        # 驗證 secrets 設定
+        if not st.secrets:
+            st.error("未找到任何 Secrets 設定")
+            st.info("請確保 .streamlit/secrets.toml 檔案存在且包含正確的設定")
+            return None
+            
+        # 檢查 secrets 內容
+        if "gcp_service_account" not in st.secrets:
+            st.error("在 Secrets 中未找到 gcp_service_account 設定")
+            st.info("請確保 Secrets 中包含完整的 Google API 憑證設定")
+            return None
+            
+        # 檢查必要的憑證欄位
+        required_fields = [
+            "type", "project_id", "private_key_id", "private_key",
+            "client_email", "client_id", "auth_uri", "token_uri",
+            "auth_provider_x509_cert_url", "client_x509_cert_url"
+        ]
+        
+        missing_fields = [field for field in required_fields 
+                         if field not in st.secrets.gcp_service_account]
+        
+        if missing_fields:
+            st.error(f"缺少必要的憑證欄位：{', '.join(missing_fields)}")
+            st.info("請確保所有必要的憑證欄位都已正確設定")
+            return None
+            
+        # 原有的認證程式碼
+        try:
             credentials = {
                 "type": st.secrets["gcp_service_account"]["type"],
                 "project_id": st.secrets["gcp_service_account"]["project_id"],
@@ -41,47 +68,26 @@ def setup_google_connection():
                 'https://www.googleapis.com/auth/drive'
             ]
             
-            # 建立認證
-            creds = Credentials.from_service_account_info(credentials, scopes=scope)
-            client = gspread.authorize(creds)
-            
-            return client
-        else:
-            # 如果沒有在 secrets 中找到憑證，則使用上傳方式
-            st.warning("未找到 Google API 憑證設定，請上傳憑證檔案")
-            
-            # 檢查是否有上傳憑證檔案
-            uploaded_file = st.file_uploader("上傳 Google API 憑證 JSON 檔案", type=['json'])
-            
-            if uploaded_file is not None:
-                # 將上傳的憑證檔案保存到臨時檔案
-                credentials_json = uploaded_file.getvalue().decode('utf-8')
-                
-                # 設定 Google API 範圍
-                scope = [
-                    'https://spreadsheets.google.com/feeds',
-                    'https://www.googleapis.com/auth/spreadsheets',
-                    'https://www.googleapis.com/auth/drive'
-                ]
-                
-                # 從憑證建立連接
-                credentials_dict = json.loads(credentials_json)
-                
+            try:
                 # 建立認證
-                creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
+                creds = Credentials.from_service_account_info(credentials, scopes=scope)
                 client = gspread.authorize(creds)
                 
-                # 儲存到 session state 以便後續使用
-                st.session_state.google_credentials = credentials_dict
-                st.session_state.google_client = client
+                # 測試連接
+                try:
+                    client.list_spreadsheet_files()
+                    st.success("Google API 連接成功！")
+                except Exception as e:
+                    st.error(f"Google API 連接測試失敗：{str(e)}")
+                    st.info("請確保服務帳戶有適當的權限，且 API 已啟用")
+                    return None
                 
-                st.success("Google API 連接成功！")
                 return client
-            
-            # 如果已經有憑證，直接使用
-            if 'google_client' in st.session_state:
-                return st.session_state.google_client
-                
+            except Exception as e:
+                st.error(f"建立 Google API 認證時發生錯誤：{str(e)}")
+                return None
+        except Exception as e:
+            st.error(f"處理 Streamlit Secrets 時發生錯誤：{str(e)}")
             return None
     except Exception as e:
         st.error(f"連接 Google API 時發生錯誤：{str(e)}")

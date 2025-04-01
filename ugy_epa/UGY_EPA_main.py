@@ -610,6 +610,8 @@ def show_UGY_EPA_section():
                             if display_mode == "選擇單一學生":
                                 # 獲取不重複的學生列表
                                 students = student_data['學員姓名'].unique().tolist()
+                                # 確保所有元素都是字串類型並排序
+                                students = [str(student) for student in students]
                                 students.sort()  # 按姓名排序
                                 
                                 # 學生選擇器
@@ -716,6 +718,8 @@ def show_UGY_EPA_section():
                             elif display_mode == "顯示所有學生":
                                 # 獲取不重複的學生列表
                                 students = student_data['學員姓名'].unique().tolist()
+                                # 確保所有元素都是字串類型並排序
+                                students = [str(student) for student in students]
                                 students.sort()  # 按姓名排序
                                 
                                 # 是否合併梯次資料
