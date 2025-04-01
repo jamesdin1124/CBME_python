@@ -6,10 +6,11 @@ from student_analysis import show_analysis_section
 import sys
 from resident_analysis import show_resident_analysis_section
 from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
-from teacher_analysis import show_teacher_analysis_section
+from teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
 from UGY_peer_analysis import show_UGY_peer_analysis_section
 from ugy_epa.UGY_EPA_main import show_UGY_EPA_section
 from modules.epa_constants import EPA_LEVEL_MAPPING
+from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
@@ -18,6 +19,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"  # 預設展開側邊欄
 )
 
+# 初始化 session state
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
 def merge_excel_files(uploaded_files):
     # ... 現有代碼 ...
@@ -64,7 +68,6 @@ def merge_excel_files(uploaded_files):
                     df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x), x))
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            
             # 加入處理過的檔案名稱欄位
             df['檔案名稱'] = clean_filename
             all_data.append(df)
@@ -112,8 +115,22 @@ def merge_excel_files(uploaded_files):
         st.error(f"合併檔案時發生錯誤：{str(e)}")
         return None
 
-
 def main():
+    # 檢查是否已登入
+    if not st.session_state.logged_in:
+        if show_login_page():
+            st.rerun()
+        return
+    
+    # 顯示登出按鈕
+    with st.sidebar:
+        if st.button("登出"):
+            st.session_state.logged_in = False
+            st.session_state.username = None
+            st.session_state.role = None
+            st.session_state.user_name = None
+            st.rerun()
+    
     st.title("臨床教師評核系統")
     
     # 定義科別列表
@@ -138,8 +155,10 @@ def main():
         "其他科別"
     ]
     
-    # 側邊欄設置 - 改為科別選擇
+    # 側邊欄設置
     with st.sidebar:
+        st.header("資料來源選擇")
+        
         st.header("科別選擇")
         
         # 科別選擇
@@ -148,88 +167,111 @@ def main():
             departments
         )
         
-        # 根據選擇的科別顯示上傳區域
-        st.subheader(f"{selected_dept}評核資料")
-        
-        # 檔案上傳區域
-        uploaded_files = st.file_uploader(
-            f"請上傳{selected_dept} Excel檔案",
-            type=['xlsx', 'xls'],
-            accept_multiple_files=True,
-            key=f"{selected_dept}_files"
-        )
-        
-        if st.button(f"合併{selected_dept}檔案") and uploaded_files:
-            result = merge_excel_files(uploaded_files)
-            if result is not None:
-                st.success(f"{selected_dept}檔案合併成功！")
-                # 將資料存入 session state，使用科別作為 key
-                st.session_state[f"{selected_dept}_data"] = result
-            else:
-                st.error(f"{selected_dept}檔案合併失敗！")
+        # 根據權限顯示上傳區域
+        if check_permission(st.session_state.role, 'can_upload_files'):
+            st.subheader(f"{selected_dept}評核資料")
+            
+            # 檔案上傳區域
+            uploaded_files = st.file_uploader(
+                f"請上傳{selected_dept} Excel檔案",
+                type=['xlsx', 'xls'],
+                accept_multiple_files=True,
+                key=f"{selected_dept}_files"
+            )
+            
+            if st.button(f"合併{selected_dept}檔案") and uploaded_files:
+                result = merge_excel_files(uploaded_files)
+                if result is not None:
+                    st.success(f"{selected_dept}檔案合併成功！")
+                    # 將資料存入 session state，使用科別作為 key
+                    st.session_state[f"{selected_dept}_data"] = result
+                    st.session_state.merged_data = result
+                else:
+                    st.error(f"{selected_dept}檔案合併失敗！")
         
         # 顯示已上傳的科別
-        st.subheader("已上傳的科別")
-        uploaded_depts = [dept for dept in departments if f"{dept}_data" in st.session_state]
-        if uploaded_depts:
-            for dept in uploaded_depts:
-                st.write(f"✅ {dept}")
-        else:
-            st.write("尚未上傳任何科別資料")
+        if check_permission(st.session_state.role, 'can_view_all'):
+            st.subheader("已上傳的科別")
+            uploaded_depts = [dept for dept in departments if f"{dept}_data" in st.session_state]
+            if uploaded_depts:
+                for dept in uploaded_depts:
+                    st.write(f"✅ {dept}")
+            else:
+                st.write("尚未上傳任何科別資料")
+        
+        # 系統管理員可以管理使用者
+        if check_permission(st.session_state.role, 'can_manage_users'):
+            st.markdown("---")
+            show_user_management()
 
-    # 分頁設置 - 改為 UGY, PGY, R, 老師評分分析
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["UGY EPA", "UGY整合", "PGY", "R", "老師評分分析"])
+    # 分頁設置 - 根據權限顯示不同的分頁
+    tabs = []
+    tab_names = []
     
-    # 獲取當前選擇的科別資料
-    current_data = st.session_state.get(f"{selected_dept}_data", None)
+    if check_permission(st.session_state.role, 'can_view_all'):
+        tabs.append("UGY EPA")
+        tab_names.append("UGY EPA")
+        tabs.append("UGY整合")
+        tab_names.append("UGY整合")
+        tabs.append("PGY")
+        tab_names.append("PGY")
+        tabs.append("R")
+        tab_names.append("R")
+        tabs.append("老師評分分析")
+        tab_names.append("老師評分分析")
+    
+    if not tabs:
+        st.warning("您沒有權限查看任何資料")
+        return
+    
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_names)
+    
+    # 獲取當前資料
+    current_data = st.session_state.get('merged_data', None)
     
     with tab1:
-        # 直接調用 main.py 中的函數
-        show_UGY_EPA_section()
-        
+        if check_permission(st.session_state.role, 'can_view_all'):
+            show_UGY_EPA_section()
+    
     with tab2:
-        st.header("UGY整合分析")
-        if current_data is not None:
-            # 將當前資料存入 session state 的 ugy_data
-            st.session_state.ugy_data = current_data
-            show_UGY_peer_analysis_section(current_data)
-        else:
-            st.warning("請先在側邊欄合併 CEPO Excel檔案")
+        if check_permission(st.session_state.role, 'can_view_all'):
+            st.header("UGY整合分析")
+            if current_data is not None:
+                st.session_state.ugy_data = current_data
+                show_UGY_peer_analysis_section(current_data)
+            else:
+                st.warning("請先載入資料")
     
     with tab3:
-        st.header(f"{selected_dept} - PGY 分析")
-        if current_data is not None:
-            # 篩選 PGY 相關資料
-            pgy_data = current_data[current_data['檔案名稱'].str.contains('PGY', case=False, na=False)]
-            if not pgy_data.empty:
-                show_analysis_section(pgy_data)
+        if check_permission(st.session_state.role, 'can_view_all'):
+            st.header("PGY 分析")
+            if current_data is not None:
+                pgy_data = current_data[current_data['檔案名稱'].str.contains('PGY', case=False, na=False)]
+                if not pgy_data.empty:
+                    show_analysis_section(pgy_data)
+                else:
+                    st.warning("沒有 PGY 資料")
             else:
-                st.warning(f"沒有 {selected_dept} 的 PGY 資料")
-        else:
-            st.warning(f"請先上傳並合併 {selected_dept} 的資料")
+                st.warning("請先載入資料")
     
     with tab4:
-        st.header(f"{selected_dept} - R 分析")
-        if current_data is not None:
-            # 篩選住院醫師相關資料
-            r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
-            if not r_data.empty:
-                # 根據科別選擇不同的分析函數
-                if selected_dept == "麻醉科":
-                    # 使用麻醉科專用的分析函數
-                    show_ANE_R_EPA_peer_analysis_section(r_data)
+        if check_permission(st.session_state.role, 'can_view_all'):
+            st.header("R 分析")
+            if current_data is not None:
+                r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
+                if not r_data.empty:
+                    if selected_dept == "麻醉科":
+                        show_ANE_R_EPA_peer_analysis_section(r_data)
+                    else:
+                        show_resident_analysis_section(r_data)
                 else:
-                    # 使用一般住院醫師分析函數
-                    show_resident_analysis_section(r_data)
+                    st.warning("沒有住院醫師資料")
             else:
-                st.warning(f"沒有 {selected_dept} 的住院醫師資料")
-        else:
-            st.warning(f"請先上傳並合併 {selected_dept} 的資料")
+                st.warning("請先載入資料")
     
     with tab5:
-        # 直接呼叫函數，不傳遞任何參數
-        show_teacher_analysis_section()
-
+        if check_permission(st.session_state.role, 'can_view_all'):
+            show_teacher_analysis_section()
 
 if __name__ == "__main__":
     main()

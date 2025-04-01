@@ -61,14 +61,47 @@ def setup_google_connection():
             
             return client
         else:
-            st.error("未找到 Google API 憑證設定，請確認 secrets.toml 檔案中包含正確的憑證資訊")
-            return None
+            # 如果沒有在 secrets 中找到憑證，則使用上傳方式
+            st.warning("未找到 Google API 憑證設定，請上傳憑證檔案")
             
+            # 檢查是否有上傳憑證檔案
+            uploaded_file = st.file_uploader("上傳 Google API 憑證 JSON 檔案", type=['json'])
+            
+            if uploaded_file is not None:
+                # 將上傳的憑證檔案保存到臨時檔案
+                credentials_json = uploaded_file.getvalue().decode('utf-8')
+                
+                # 設定 Google API 範圍
+                scope = [
+                    'https://spreadsheets.google.com/feeds',
+                    'https://www.googleapis.com/auth/spreadsheets',
+                    'https://www.googleapis.com/auth/drive'
+                ]
+                
+                # 從憑證建立連接
+                credentials_dict = json.loads(credentials_json)
+                
+                # 建立認證
+                creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
+                client = gspread.authorize(creds)
+                
+                # 儲存到 session state 以便後續使用
+                st.session_state.google_credentials = credentials_dict
+                st.session_state.google_client = client
+                
+                st.success("Google API 連接成功！")
+                return client
+            
+            # 如果已經有憑證，直接使用
+            if 'google_client' in st.session_state:
+                return st.session_state.google_client
+                
+            return None
     except Exception as e:
         st.error(f"連接 Google API 時發生錯誤：{str(e)}")
         return None
 
-def fetch_google_form_data(spreadsheet_url=None):
+def fetch_google_form_data(spreadsheet_url=None, selected_sheet_title=None):
     """從 Google 表單獲取評核資料"""
     try:
         # 如果沒有提供 URL，使用預設 URL
@@ -77,42 +110,51 @@ def fetch_google_form_data(spreadsheet_url=None):
         
         client = setup_google_connection()
         if client is None:
-            return None
+            return None, None
         
         # 從 URL 提取 spreadsheet ID
         spreadsheet_id = extract_spreadsheet_id(spreadsheet_url)
         if not spreadsheet_id:
             st.error("無法從 URL 提取 spreadsheet ID，請檢查 URL 格式")
-            return None
+            return None, None
         
         # 開啟指定的 Google 試算表
         try:
             spreadsheet = client.open_by_key(spreadsheet_id)
-            worksheet = spreadsheet.get_worksheet(0)  # 獲取第一個工作表
-            
-            # 獲取所有資料
-            data = worksheet.get_all_records()
-            
-            if not data:
-                st.warning("試算表中沒有資料或資料格式不正確")
-                return None
-            
-            # 轉換為 DataFrame
-            df = pd.DataFrame(data)
-            
-            # 處理資料格式
-            df = process_epa_form_data(df)
-            
-            return df
-            
         except Exception as e:
             st.error(f"無法開啟試算表：{str(e)}")
             st.info("請確保您的 Google API 服務帳號有權限訪問此試算表。您需要在試算表的共享設定中添加服務帳號的電子郵件地址。")
-            return None
-            
+            return None, None
+        
+        # 獲取所有工作表
+        all_worksheets = spreadsheet.worksheets()
+        sheet_titles = [sheet.title for sheet in all_worksheets]
+        
+        # 如果沒有提供工作表標題，則返回工作表標題列表供選擇
+        if not selected_sheet_title:
+            return None, sheet_titles
+        
+        # 使用提供的工作表標題
+        try:
+            worksheet = spreadsheet.worksheet(selected_sheet_title)
+        except Exception as e:
+            st.error(f"無法開啟工作表 {selected_sheet_title}：{str(e)}")
+            return None, sheet_titles
+        
+        # 獲取所有資料
+        data = worksheet.get_all_records()
+        
+        if not data:
+            st.warning("試算表中沒有資料或資料格式不正確")
+            return None, sheet_titles
+        
+        # 轉換為 DataFrame
+        df = pd.DataFrame(data)
+        
+        return df, sheet_titles
     except Exception as e:
         st.error(f"獲取 Google 表單資料時發生錯誤：{str(e)}")
-        return None
+        return None, None
 
 def process_epa_form_data(df):
     """處理 EPA 表單資料的函數"""
@@ -183,7 +225,7 @@ def process_epa_form_data(df):
         selected_teacher = st.selectbox(
             "選擇要分析的老師",
             teachers,
-            key="teacher_analysis_teacher_select"
+            key=f"teacher_analysis_{id(data)}_teacher_select"
         )
         
         # 篩選選定老師的資料
@@ -537,52 +579,56 @@ def process_epa_form_data(df):
                 # 顯示圖表
                 st.pyplot(fig)
                 
+    return processed_data
 
 def show_teacher_analysis_section():
     """顯示教師分析區段的函數"""
     st.header("教師評核分析")
     
-    # 輸入 Google Sheets URL
-    spreadsheet_url = st.text_input(
-        "請輸入 Google Sheets URL",
-        value=DEFAULT_SPREADSHEET_URL,
-        help="請輸入包含評核資料的 Google Sheets URL"
-    )
+    # 設定 Google Sheet URL
+    sheet_url = DEFAULT_SPREADSHEET_URL
     
-    if not spreadsheet_url:
-        st.warning("請輸入 Google Sheets URL")
-        return
-        
-    # 從 Google Sheets 獲取資料
-    df = fetch_google_form_data(spreadsheet_url)
+    # 自動獲取工作表列表
+    df, sheet_titles = fetch_google_form_data(sheet_url)
     
-    if df is None:
-        st.error("無法獲取資料，請檢查 URL 是否正確且具有適當的訪問權限")
-        return
+    if sheet_titles:
+        # 自動選擇第一個工作表
+        selected_sheet = sheet_titles[0] if sheet_titles else None
         
-    # 處理 EPA 表單資料
-    processed_df = process_epa_form_data(df)
-    
-    if processed_df is not None:
-        # 以下是原有的資料分析和視覺化程式碼
-        # 老師個別評分分析
-        st.write("### 個別老師評分分析")
-        
-        # 檢查是否有評核老師欄位
-        if '評核老師' in processed_df.columns:
-            # 取得所有老師列表
-            teachers = processed_df['評核老師'].unique().tolist()
-            
-            # 讓使用者選擇要分析的老師
-            selected_teacher = st.selectbox(
-                "選擇要分析的老師",
-                teachers,
-                key="teacher_analysis_teacher_select"
-            )
-            
-            # 篩選選定老師的資料
-            teacher_data = processed_df[processed_df['評核老師'] == selected_teacher]
-            
-            if not teacher_data.empty:
-                st.write(f"#### {selected_teacher} 的評分分布")
-                # ... 保持原有的分析邏輯不變 ...
+        if selected_sheet:
+            # 自動載入資料
+            df, _ = fetch_google_form_data(sheet_url, selected_sheet)
+            if df is not None:
+                st.session_state.teacher_analysis_data = df
+                
+                # 顯示資料基本資訊
+                st.write("### 資料概覽")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("總評核次數", len(df))
+                with col2:
+                    st.metric("評核教師人數", df['評核老師'].nunique() if '評核老師' in df.columns else 0)
+                with col3:
+                    st.metric("EPA項目數", df['EPA評核項目'].nunique() if 'EPA評核項目' in df.columns else 0)
+                
+                # 處理 EPA 表單資料
+                processed_df = process_epa_form_data(df)
+                
+                if processed_df is not None:
+                    # 顯示資料基本資訊
+                    st.write("### 資料概覽")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("總評核次數", len(processed_df))
+                    with col2:
+                        st.metric("評核教師人數", processed_df['評核老師'].nunique())
+                    with col3:
+                        st.metric("EPA項目數", processed_df['EPA評核項目'].nunique())
+                    
+                    # 繼續顯示其他分析...
+                    # [保留原有的分析程式碼]
+            else:
+                st.error("資料載入失敗！")
+    else:
+        st.error("無法獲取工作表列表，請檢查 Google Sheet 設定和權限。")
+
