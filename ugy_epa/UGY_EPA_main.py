@@ -132,7 +132,7 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
             full_df=full_df, 
             standard_categories=standard_categories
         )
-        st.plotly_chart(radar_fig, use_container_width=True)
+        st.plotly_chart(radar_fig, use_container_width=True, key=f"student_radar_{student_id}")
     
     # 右欄：顯示回饋表格和統計
     with col2:
@@ -273,8 +273,8 @@ def draw_student_trend(student_df, student_id, full_df):
         sort_by_date=True
     )
     
-    # 顯示趨勢圖
-    st.plotly_chart(trend_fig, use_container_width=True)
+    # 顯示趨勢圖，為學生趨勢圖添加唯一key
+    st.plotly_chart(trend_fig, use_container_width=True, key=f"student_trend_{student_id}")
 
 def display_visualizations(df):
     """顯示資料視覺化"""
@@ -396,7 +396,7 @@ def display_visualizations(df):
             )
             
             # 顯示雷達圖
-            st.plotly_chart(radar_fig, use_container_width=True)
+            st.plotly_chart(radar_fig, use_container_width=True, key="all_layers_radar_chart")
         else:
             st.error("沒有足夠的資料繪製雷達圖")
         
@@ -439,8 +439,8 @@ def display_visualizations(df):
                     margin=dict(t=30, b=30, l=30, r=30)  # 縮小邊距
                 )
                 
-                # 顯示趨勢圖
-                st.plotly_chart(trend_fig, use_container_width=True)
+                # 顯示趨勢圖，為每個趨勢圖添加唯一key
+                st.plotly_chart(trend_fig, use_container_width=True, key=f"trend_chart_{layer}")
                 
                 # 添加分隔線，除了最後一個階層
                 if layer != layers[-1]:

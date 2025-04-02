@@ -623,18 +623,27 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                             print(f"無法從 {line_color} 解析顏色以設定 CI fill color: {color_e}")
                                             # 解析失敗則維持預設灰色
                                             
+                                        # 創建一個包含單一梯次的DataFrame用於繪製CI
+                                        ci_data_valid_df_layer = pd.DataFrame({
+                                            x_col: [batch],
+                                            'mean': [batch_layer_mean],
+                                            'lower': [lower_bound],
+                                            'upper': [upper_bound]
+                                        })
+                                        
                                         fig.add_trace(go.Scatter(
                                             x=np.concatenate([ci_data_valid_df_layer[x_col], ci_data_valid_df_layer[x_col][::-1]]),
-                                            y=np.concatenate([upper_bound, lower_bound[::-1]]),
+                                            y=np.concatenate([ci_data_valid_df_layer['upper'], ci_data_valid_df_layer['lower'][::-1]]),
                                             fill='toself',
                                             fillcolor=ci_fill_color, # 使用解析出的帶 alpha 的顏色
                                             line=dict(color='rgba(0,0,0,0)'),
                                             showlegend=False,
-                                            name=f'階層 {latest_layer} {group} 95% CI'
+                                            name=f'階層 {layer} {group} 95% CI',
+                                            uid=f"student_{student_id}_line_{group}"
                                         ))
                                         # --- 結束修改 ---
                                     except ValueError as e: 
-                                        print(f"無法計算階層 {latest_layer} 組 {group} 的 CI：{e}")
+                                        print(f"無法計算階層 {layer} 組 {group} 的 CI：{e}")
                         # --- 結束計算並繪製階層 CI ---
                         
                         # 繪製學生平均值線 (在 CI 之後，使其在最上方)
@@ -644,7 +653,8 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                 y=valid_means_student,
                                 mode='lines+markers',
                                 name=f'{group}', # 圖例只顯示 EPA 項目名稱
-                                line=dict(color=line_color, width=2)
+                                line=dict(color=line_color, width=2),
+                                uid=f"student_{student_id}_line_{group}"
                             ))
 
                 else:
@@ -729,7 +739,8 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                             fillcolor='rgba(200, 200, 200, 0.2)', # 淡灰色背景
                                             line=dict(color='rgba(0,0,0,0)'),
                                             showlegend=False,
-                                            name=f'階層 {latest_layer} 95% CI'
+                                            name=f'階層 {latest_layer} 95% CI',
+                                            uid=f"student_{student_id}_trend"
                                         ))
                                         # --- 結束修改 ---
                                 except ValueError as e:
@@ -742,8 +753,9 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                 x=valid_x_student,
                                 y=valid_means_student,
                                 mode='lines+markers',
-                                name=f'{group}', # 圖例只顯示 EPA 項目名稱
-                                line=dict(color=line_color, width=2)
+                                name=f'{group if "group" in locals() else ""}', # 圖例只顯示 EPA 項目名稱
+                                line=dict(color=line_color if "line_color" in locals() else "rgba(0, 0, 255, 1.0)", width=2),
+                                uid=f"student_{student_id}_trend"
                             ))
 
             else:
@@ -854,38 +866,17 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                             lower_bound = np.maximum(0, lower_bound)
                                             upper_bound = np.minimum(5, upper_bound)
                                             
-                                            # --- 修改：使用分組顏色繪製階層 CI ---
-                                            # line_color 在循環開頭已定義
-                                            ci_fill_color = 'rgba(200, 200, 200, 0.2)' # 預設灰色
-                                            try:
-                                                # 嘗試從 line_color (rgba格式) 解析並替換 alpha
-                                                if isinstance(line_color, str) and line_color.startswith('rgba'):
-                                                    base_color = line_color.rsplit(',', 1)[0] # 取 rgba(r,g,b 
-                                                    ci_fill_color = f"{base_color}, 0.2)" # 設定 alpha 為 0.2
-                                            except Exception as color_e:
-                                                print(f"無法從 {line_color} 解析顏色以設定 CI fill color: {color_e}")
-                                                # 解析失敗則維持預設灰色
-                                                
-                                            fig.add_trace(go.Scatter(
-                                                x=np.concatenate([ci_data_valid_df[x_col], ci_data_valid_df[x_col][::-1]]),
-                                                y=np.concatenate([upper_bound, lower_bound[::-1]]),
-                                                fill='toself',
-                                                fillcolor=ci_fill_color, # 使用解析出的帶 alpha 的顏色
-                                                line=dict(color='rgba(0,0,0,0)'),
-                                                showlegend=False,
-                                                name=f'階層 {latest_layer} {group} 95% CI'
-                                            ))
-                                            # --- 結束修改 ---
                                     except ValueError as e:
                                         print(f"無法計算階層 {latest_layer} 組 {group} 的 CI：{e}")
                             
-                            # 添加平均值線 (使用原始 agg_data，包含 count=1 的點)
+                            # 添加平均值線 (使用原始 agg_data)
                             fig.add_trace(go.Scatter(
                                 x=agg_data[x_col],
                                 y=agg_data['mean'],
                                 mode='lines+markers',
                                 name=f'{group}',
-                                line=dict(color=line_color, width=2)
+                                line=dict(color=line_color, width=2),
+                                uid=f"group_{group}_line"
                             ))
                 else:
                     # 沒有分組時，繪製單一趨勢線
@@ -985,7 +976,8 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                         fillcolor=ci_fill_color, # 使用解析出的帶 alpha 的顏色
                                         line=dict(color='rgba(0,0,0,0)'),
                                         showlegend=False,
-                                        name=f'階層 {latest_layer} {group} 95% CI'
+                                        name=f'階層 {latest_layer if "latest_layer" in locals() else ""} {group if "group" in locals() else ""} 95% CI',
+                                        uid=f"group_{group}_line"
                                     ))
                                     # --- 結束修改 ---
                             except ValueError as e:
@@ -997,8 +989,17 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                 x=agg_data[x_col],
                                 y=agg_data['mean'],
                                 mode='lines+markers',
+                                name=f'{group}',
+                                line=dict(color=line_color, width=2),
+                                uid=f"group_{group}_line"
+                            ))
+                            fig.add_trace(go.Scatter(
+                                x=agg_data[x_col],
+                                y=agg_data['mean'],
+                                mode='lines+markers',
                                 name=y_col, # 圖例顯示 Y 軸名稱
-                                line=dict(color=line_color, width=2)
+                                line=dict(color=line_color, width=2),
+                                uid=f"overall_trend_line"
                             ))
             
             # 設定圖表樣式 (非學生模式標題)
