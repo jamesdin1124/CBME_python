@@ -160,10 +160,45 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
             categories = []
             score_column = '教師評核EPA等級_數值' if '教師評核EPA等級_數值' in student_df.columns else '教師評核EPA等級'
             
+            # 檢查是否有日期欄位，用於排序
+            date_columns = ['時間戳記', '評核日期', '日期', '梯次', '時間', '回饋時間']
+            date_column = None
+            for col in date_columns:
+                if col in student_df.columns:
+                    date_column = col
+                    break
+            
             for category in standard_categories:
                 category_data = student_df[student_df['EPA評核項目'] == category]
                 if not category_data.empty:
-                    avg_score = category_data[score_column].mean()
+                    # 如果有日期欄位，按日期排序並取最後三次評核
+                    if date_column:
+                        try:
+                            # 嘗試將日期列轉換為日期時間類型
+                            category_data[date_column] = pd.to_datetime(category_data[date_column], errors='coerce')
+                            # 按日期排序
+                            category_data = category_data.sort_values(by=date_column)
+                            # 取最後三次評核，如果不足三筆則使用全部
+                            last_three = category_data.tail(3)
+                            records_count = len(last_three)
+                            if records_count > 0:
+                                avg_score = last_three[score_column].mean()
+                                if records_count < 3:
+                                    print(f"警告: {category} 只有 {records_count} 筆評核記錄，少於預期的3筆")
+                            else:
+                                avg_score = category_data[score_column].mean()  # 如果轉換失敗，使用所有數據
+                        except Exception as e:
+                            # 如果日期排序出錯，使用所有資料計算平均
+                            print(f"日期排序出錯: {e}, 使用所有資料計算平均")
+                            avg_score = category_data[score_column].mean()
+                    else:
+                        # 如果沒有日期欄位，直接取最後三筆資料
+                        last_three = category_data.tail(3)
+                        records_count = len(last_three)
+                        avg_score = last_three[score_column].mean()
+                        if records_count < 3:
+                            print(f"警告: {category} 只有 {records_count} 筆評核記錄，少於預期的3筆")
+                    
                     categories.append(category)
                     student_values.append(avg_score)
                 # else: # 如果學生沒有某項目的分數，可以選擇跳過或補0
@@ -232,12 +267,18 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                         ))
 
             # 設定圖表樣式 - 使用組合標籤
+            title_text = f"學生 {student_label} 的EPA評核雷達圖"
+            # 檢查是否有任何項目少於三筆記錄
+            has_insufficient_data = any(len(student_df[student_df['EPA評核項目'] == cat]) < 3 for cat in categories if cat in standard_categories)
+            if has_insufficient_data:
+                title_text += " (部分項目少於3筆評核)"
+
             fig.update_layout(
                 polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
                 showlegend=True,
                 height=450,
                 margin=dict(t=50, b=50, l=50, r=50),
-                title=f"學生 {student_label} 的EPA評核雷達圖" # 使用組合標籤
+                title=title_text
             )
             
             return fig
