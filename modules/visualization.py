@@ -7,6 +7,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 from scipy import stats
 import re
+import traceback
+from plotly.colors import convert_colors_to_same_type, make_colorscale
 
 
 
@@ -74,6 +76,13 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
         
         # === 簡單模式 ===
         if categories is not None and values is not None:
+            # 檢查是否至少有三個項目，如不足則補充空白項目
+            if len(categories) < 3:
+                original_count = len(categories)
+                for i in range(3 - original_count):
+                    categories.append(f"空白項目{i+1}")
+                    values.append(1)  # 空白項目分數為1
+            
             categories_closed = categories + [categories[0]]
             values_closed = values + [values[0]]
             
@@ -162,22 +171,22 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                 #     student_values.append(0) 
             
             # 如果沒有足夠的資料，建立空圖
-            if len(categories) < 2:
-                fig = go.Figure()
-                fig.update_layout(
-                    title=f"學生 {student_label} 的評核項目不足，無法繪製雷達圖",
-                    annotations=[
-                        dict(
-                            text="至少需要2個評核項目才能繪製雷達圖",
-                            showarrow=False,
-                            xref="paper",
-                            yref="paper",
-                            x=0.5,
-                            y=0.5
-                        )
-                    ]
-                )
-                return fig
+            if len(categories) < 3:
+                original_count = len(categories)
+                # 使用 standard_categories 中尚未使用的項目，或創建空白項目
+                unused_categories = []
+                if standard_categories:
+                    unused_categories = [cat for cat in standard_categories if cat not in categories]
+                
+                # 首先嘗試使用未使用的標準項目
+                for i in range(min(3 - original_count, len(unused_categories))):
+                    categories.append(unused_categories[i])
+                    student_values.append(1)  # 空白項目分數為1
+                
+                # 如果標準項目不足，則補充空白項目
+                for i in range(3 - len(categories)):
+                    categories.append(f"空白項目{i+1}")
+                    student_values.append(1)  # 空白項目分數為1
             
             # 確保資料是閉合的
             categories_closed = categories + [categories[0]]
@@ -208,7 +217,7 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                             layer_avg = layer_data[full_score_column].mean()
                             layer_values.append(layer_avg)
                         else:
-                            layer_values.append(0) # 如果該階層無此項目資料，補0
+                            layer_values.append(1) # 如果該階層無此項目資料，補1
                     
                     # 檢查是否有計算出值
                     if any(v > 0 for v in layer_values): # 至少有一項大於0才繪製
@@ -253,6 +262,13 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
             fig = go.Figure()
             
             categories = df['EPA評核項目'].unique()
+            # 檢查項目數量，如不足則補充空白項目
+            if len(categories) < 3:
+                original_count = len(categories)
+                categories = list(categories)  # 先轉換為列表以便添加新項目
+                for i in range(3 - original_count):
+                    categories.append(f"空白項目{i+1}")
+                
             categories_closed = list(categories) + [categories[0]]
             
             # 檢查是否有轉換後的數值欄位
@@ -274,6 +290,9 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                         avg_scores.append(avg)
                     
                     avg_scores.append(avg_scores[0])  # 封閉雷達圖
+                    
+                    # 將所有0值替換為1
+                    avg_scores = [max(1, score) for score in avg_scores]
                     
                     fig.add_trace(go.Scatterpolar(
                         r=avg_scores,
@@ -297,6 +316,9 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                 
                 teacher_avg_scores.append(teacher_avg_scores[0])
                 
+                # 將所有0值替換為1
+                teacher_avg_scores = [max(1, score) for score in teacher_avg_scores]
+                
                 fig.add_trace(go.Scatterpolar(
                     r=teacher_avg_scores,
                     theta=categories_closed,
@@ -315,6 +337,9 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                     student_avg_scores.append(avg)
                 
                 student_avg_scores.append(student_avg_scores[0])
+                
+                # 將所有0值替換為1
+                student_avg_scores = [max(1, score) for score in student_avg_scores]
                 
                 fig.add_trace(go.Scatterpolar(
                     r=student_avg_scores,
@@ -336,6 +361,9 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                         individual_scores.append(score)
                     
                     individual_scores.append(individual_scores[0])
+                    
+                    # 將所有0值替換為1
+                    individual_scores = [max(1, score) for score in individual_scores]
                     
                     fig.add_trace(go.Scatterpolar(
                         r=individual_scores,
@@ -368,6 +396,15 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
             
     except Exception as e:
         # 捕獲所有異常，添加錯誤信息到圖表中
+        # --- 新增：印出詳細錯誤 --- 
+        print(f"\n--- ERROR in plot_radar_chart ---")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Message: {str(e)}")
+        print("Traceback:")
+        traceback.print_exc() # 印出完整的追溯信息
+        print("--- END ERROR ---\n")
+        # --- 結束新增 ---
+        
         default_fig.update_layout(
             title=f"繪製雷達圖時發生錯誤: {str(e)}",
             annotations=[dict(
@@ -381,17 +418,16 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
         )
         return default_fig
 
-def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_interval=True, title="EPA 趨勢圖", 
-                  sort_by_date=True, student_id=None, student_mode=False, full_df=None):
-    """繪製 EPA 趨勢圖
+# ==================== 新的趨勢圖函數 (使用 Plotly Express) ====================
+def plot_epa_trend_px(df, x_col, y_col, group_col=None, title="EPA 趨勢圖", 
+                      sort_by_date=True, student_id=None, student_mode=False, full_df=None):
+    """使用 Plotly Express 繪製 EPA 趨勢圖 (簡化版)
     
     Args:
         df (DataFrame): 包含EPA評核資料的DataFrame
         x_col (str): X軸的欄位名稱，通常是時間或梯次相關欄位
         y_col (str): Y軸的欄位名稱，通常是EPA等級相關欄位
         group_col (str, optional): 用於分組的欄位，如'EPA評核項目'
-        by_layer (bool): 是否依據階層分別繪製趨勢圖，預設為False
-        confidence_interval (bool): 是否顯示95%置信區間，預設為True
         title (str): 圖表標題
         sort_by_date (bool): 是否按日期排序X軸，預設為True
         student_id (str, optional): 學生學號，用於繪製學生趨勢圖
@@ -399,84 +435,58 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
         full_df (DataFrame, optional): 包含所有資料的完整DataFrame（用於計算階層整體平均）
         
     Returns:
-        dict or fig: 如果by_layer為True，返回包含各階層圖表的字典；否則返回單一圖表
+        plotly.graph_objects.Figure: 趨勢圖物件
     """
+    import plotly.express as px
     import plotly.graph_objects as go
-    
-    # 創建默認圖表物件，確保即使中途出錯，也能返回一個有效的圖表
+    import pandas as pd
+    import re # 需要 re 來輔助排序
+
+    # 創建默認圖表物件
     default_fig = go.Figure()
     default_fig.update_layout(
         title="無法繪製趨勢圖：資料不足或格式錯誤",
-        annotations=[dict(
-            text="請檢查輸入資料是否符合要求",
-            showarrow=False,
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5
-        )]
+        annotations=[dict(text="請檢查輸入資料是否符合要求", showarrow=False, xref="paper", yref="paper", x=0.5, y=0.5)]
     )
-    
+
     try:
         # 檢查輸入資料
         if df is None or df.empty:
+            st.warning(f"[plot_epa_trend_px] 輸入 df 為空")
             return default_fig
             
-        if x_col not in df.columns or y_col not in df.columns:
-            default_fig.update_layout(
-                title=f"缺少必要欄位: {x_col} 或 {y_col}",
-                annotations=[dict(
-                    text="請確認資料中包含所需欄位",
-                    showarrow=False,
-                    xref="paper",
-                    yref="paper",
-                    x=0.5,
-                    y=0.5
-                )]
-            )
+        required_cols = [x_col, y_col]
+        if group_col:
+            required_cols.append(group_col)
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            st.warning(f"[plot_epa_trend_px] 缺少必要欄位: {missing_cols}")
+            default_fig.update_layout(title=f"缺少必要欄位: {', '.join(missing_cols)}")
             return default_fig
-        
-        # 定義顏色方案
-        colors = {
-            '當班處置': 'rgba(255, 0, 0, {})',  # 紅色
-            '住院接診': 'rgba(0, 128, 0, {})',  # 綠色
-            '病歷紀錄': 'rgba(0, 0, 255, {})',  # 藍色
-        }
-        
-        # 預設顏色格式
-        default_color = 'rgba({}, {}, {}, {})'
-        
-        # 生成隨機顏色的函數
-        def get_random_color(seed_str, alpha=1.0):
-            """根據字符串生成確定性隨機顏色"""
-            import hashlib
-            # 使用字符串的hash值作為隨機數種子
-            hash_value = int(hashlib.md5(str(seed_str).encode()).hexdigest(), 16)
-            r = (hash_value & 0xFF) % 200  # 限制亮度，避免太亮的顏色
-            g = ((hash_value >> 8) & 0xFF) % 200
-            b = ((hash_value >> 16) & 0xFF) % 200
-            return f'rgba({r}, {g}, {b}, {alpha})'
-        
-        # 預處理並排序梯次
-        def preprocess_and_sort_batches(data_df, column):
-            """預處理梯次並按日期排序"""
-            # 複製DataFrame以避免修改原始數據
+            
+        # 確保 y_col 是數值類型
+        if not pd.api.types.is_numeric_dtype(df[y_col]):
+             try:
+                 df[y_col] = pd.to_numeric(df[y_col], errors='coerce')
+                 if df[y_col].isnull().all(): # 如果轉換後全是 NaN
+                      st.warning(f"[plot_epa_trend_px] Y軸欄位 '{y_col}' 無法轉換為數值或轉換後全為NaN")
+                      return default_fig
+             except Exception as convert_e:
+                 st.warning(f"[plot_epa_trend_px] 轉換Y軸欄位 '{y_col}' 為數值時出錯: {convert_e}")
+                 return default_fig
+
+        # --- 複製 preprocess_and_sort_batches 函數 --- 
+        # (直接複製過來避免依賴外部修改)
+        def _preprocess_and_sort_batches(data_df, column):
             df_copy = data_df.copy()
-            
-            # 創建臨時日期列
             df_copy['_temp_date'] = None
-            
-            # 遍歷每個梯次值，嘗試轉換為日期
-            unique_batches = df_copy[column].unique()
+            unique_batches = df_copy[column].dropna().unique()
             batch_to_date = {}
-            
             for batch in unique_batches:
                 try:
-                    # 嘗試直接解析為日期
                     date_obj = pd.to_datetime(batch)
                     batch_to_date[batch] = date_obj
                 except:
-                    # 嘗試提取日期部分
                     if isinstance(batch, str):
                         match = re.search(r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', batch)
                         if match:
@@ -486,620 +496,391 @@ def plot_epa_trend(df, x_col, y_col, group_col=None, by_layer=False, confidence_
                                 date_obj = pd.to_datetime(date_str)
                                 batch_to_date[batch] = date_obj
                                 continue
-                            except:
-                                pass
-                    
-                    # 如果無法解析，使用最大日期
-                    batch_to_date[batch] = pd.Timestamp.max
+                            except: pass
+                    batch_to_date[batch] = pd.Timestamp.max # 無法解析的排最後
             
-            # 將日期對應填入臨時列
-            for batch, date_obj in batch_to_date.items():
-                df_copy.loc[df_copy[column] == batch, '_temp_date'] = date_obj
-            
-            # 按臨時日期列排序
+            # 應用日期映射並處理NaN批次 (給它們一個非常早的日期以排在前面或忽略它們)
+            # df_copy['_temp_date'] = df_copy[column].map(batch_to_date)
+            # 更安全的方式避免 map 產生 NaN:
+            for batch_val, date_val in batch_to_date.items():
+                df_copy.loc[df_copy[column] == batch_val, '_temp_date'] = date_val
+            # 對於原始就是 NaN 的批次，給予最早日期或保持 NaT
+            df_copy['_temp_date'] = df_copy['_temp_date'].fillna(pd.Timestamp.min)
+
             df_copy = df_copy.sort_values('_temp_date')
-            
-            # 獲取排序後的唯一梯次
-            sorted_batches = df_copy[column].unique()
-            
-            # 刪除臨時列
-            df_copy.drop('_temp_date', axis=1, inplace=True)
-            
-            return sorted_batches
+            sorted_unique_batches = df_copy[column].unique()
+            # 從排序後的結果中移除 None 或 NaN (如果存在)
+            sorted_unique_batches = [b for b in sorted_unique_batches if pd.notna(b)]
+            return sorted_unique_batches
+        # --- 結束複製 --- 
+
+        # 獲取排序後的梯次
+        sorted_batches = _preprocess_and_sort_batches(df, x_col) if sort_by_date else df[x_col].dropna().unique()
+        if not sorted_batches: # 如果沒有有效的梯次
+            st.warning(f"[plot_epa_trend_px] 找不到有效的梯次 ({x_col}) 進行排序")
+            return default_fig
+
+        # === 預先定義 EPA 項目顏色 ===
+        # 定義 EPA 項目的標準顏色 (十六進制)
+        epa_colors = {
+            '病歷紀錄': '#EF553B',  # 紅色系
+            '當班處置': '#00CC96',  # 綠色系
+            '住院接診': '#636EFA',  # 深藍色系
+            '新增項目1': '#FFA15A', # 橙色系
+            '新增項目2': '#AB63FA'  # 紫色系
+        }
         
-        # 首先，獲取排序後的梯次 - 不論是否為學生模式
-        sorted_batches = preprocess_and_sort_batches(df, x_col) if sort_by_date else df[x_col].unique()
+        # --- 新增：階層顏色定義 ---
+        layer_colors = {
+            'C1': '#9C27B0',  # 紫色
+            'C2': '#03A9F4',  # 藍色
+            'PGY': '#4CAF50', # 綠色
+            'R': '#FFC107'    # 黃色
+        }
+        # --- 結束新增 ---
         
-        # === 學生趨勢圖模式 ===
+        # 處理學生模式
         if student_mode and student_id is not None:
-            fig = go.Figure()
+            # 檢查學生資料
+            if 'ID' not in df.columns and '學號' not in df.columns:
+                st.warning(f"[plot_epa_trend_px] 缺少學生識別欄位")
+                return default_fig
+                
+            # 確定學生ID欄位
+            id_column = 'ID' if 'ID' in df.columns else '學號'
             
-            # 檢查資料是否有梯次欄位
-            if x_col not in df.columns:
-                fig.update_layout(
-                    title=f"無法顯示學生 {student_id} 的趨勢圖：缺少 {x_col} 欄位",
-                    annotations=[dict(
-                        text="資料不足，無法繪製趨勢圖",
-                        showarrow=False,
-                        xref="paper",
-                        yref="paper",
-                        x=0.5,
-                        y=0.5
-                    )]
-                )
-                return fig
-            
-            # 篩選出該學生的資料 (使用學號)
-            student_df = df[df['學號'].astype(str) == str(student_id)]
-            
+            # 篩選該學生資料
+            student_df = df[df[id_column].astype(str) == str(student_id)]
             if student_df.empty:
-                fig.update_layout(
-                    title=f"無法顯示學生 {student_id} 的趨勢圖：找不到資料",
-                    annotations=[dict(
-                        text="找不到學生資料",
-                        showarrow=False,
-                        xref="paper",
-                        yref="paper",
-                        x=0.5,
-                        y=0.5
-                    )]
-                )
-                return fig
-            
-            # 獲取學生數據的梯次（可能只是整體梯次的子集）
-            student_batches = student_df[x_col].unique()
-            # 按照完整排序重新排序學生的梯次
-            student_sorted_batches = [batch for batch in sorted_batches if batch in student_batches]
-            
-            # 使用經過排序的學生梯次
-            x_values = student_sorted_batches
-            
-            if len(x_values) <= 1:
-                # 如果只有一個梯次，繪製簡單的點圖
-                if group_col and group_col in student_df.columns:
-                    # 按評核項目分組
-                    groups = student_df[group_col].unique()
-                    
-                    for group in groups:
-                        group_df = student_df[student_df[group_col] == group]
-                        if group in colors:
-                            line_color = colors[group].format(1.0)  # 完全不透明的線
-                            fill_color = colors[group].format(0.2)  # 半透明的填充
-                        else:
-                            # 生成隨機顏色
-                            r, g, b = np.random.randint(0, 200, 3)
-                            line_color = default_color.format(r, g, b, 1.0)
-                            fill_color = default_color.format(r, g, b, 0.2)
-                        
-                        # 計算該項目的平均分數
-                        batch_mean = group_df[y_col].mean()
-                        
-                        # 繪製點
-                        fig.add_trace(go.Scatter(
-                            x=x_values,
-                            y=[batch_mean],
-                            mode='markers',
-                            name=f'{group} - {student_id}',
-                            marker=dict(color=line_color, size=10)
-                        ))
-                        
-                        # 如果有階層資訊，添加階層參考線和置信區間
-                        if '階層' in student_df.columns and full_df is not None:
-                            layer = student_df['階層'].iloc[0]  # 假設學生只屬於一個階層
-                            layer_df = full_df[(full_df['階層'] == layer) & (full_df[group_col] == group)]
-                            
-                            if not layer_df.empty:
-                                # 計算該階層在該梯次的平均分數
-                                batch = x_values[0]
-                                layer_batch_df = layer_df[layer_df[x_col] == batch]
-                                
-                                if not layer_batch_df.empty:
-                                    batch_layer_mean = layer_batch_df[y_col].mean()
-                                    batch_layer_std = layer_batch_df[y_col].std() if len(layer_batch_df) > 1 else 0
-                                    batch_layer_count = len(layer_batch_df)
-                                    
-                                    # 計算95%置信區間
-                                    try:
-                                        # 使用中位數和四分位距來計算更穩健的信賴區間
-                                        median = layer_batch_df[y_col].median()
-                                        q1 = layer_batch_df[y_col].quantile(0.25)
-                                        q3 = layer_batch_df[y_col].quantile(0.75)
-                                        iqr = q3 - q1
-                                        
-                                        # 使用1.5倍IQR作為信賴區間的基礎
-                                        ci_width = min(1.5 * iqr, 1.0)  # 限制最大寬度為1.0
-                                        lower_bound = max(0, median - ci_width)
-                                        upper_bound = min(5, median + ci_width)
-                                        
-                                        # --- 修改：使用分組顏色繪製階層 CI ---
-                                        # line_color 在循環開頭已定義
-                                        ci_fill_color = 'rgba(200, 200, 200, 0.2)' # 預設灰色
-                                        try:
-                                            # 嘗試從 line_color (rgba格式) 解析並替換 alpha
-                                            if isinstance(line_color, str) and line_color.startswith('rgba'):
-                                                base_color = line_color.rsplit(',', 1)[0] # 取 rgba(r,g,b 
-                                                ci_fill_color = f"{base_color}, 0.2)" # 設定 alpha 為 0.2
-                                        except Exception as color_e:
-                                            print(f"無法從 {line_color} 解析顏色以設定 CI fill color: {color_e}")
-                                            # 解析失敗則維持預設灰色
-                                            
-                                        # 創建一個包含單一梯次的DataFrame用於繪製CI
-                                        ci_data_valid_df_layer = pd.DataFrame({
-                                            x_col: [batch],
-                                            'mean': [batch_layer_mean],
-                                            'lower': [lower_bound],
-                                            'upper': [upper_bound]
-                                        })
-                                        
-                                        fig.add_trace(go.Scatter(
-                                            x=np.concatenate([ci_data_valid_df_layer[x_col], ci_data_valid_df_layer[x_col][::-1]]),
-                                            y=np.concatenate([ci_data_valid_df_layer['upper'], ci_data_valid_df_layer['lower'][::-1]]),
-                                            fill='toself',
-                                            fillcolor=ci_fill_color, # 使用解析出的帶 alpha 的顏色
-                                            line=dict(color='rgba(0,0,0,0)'),
-                                            showlegend=False,
-                                            name=f'階層 {layer} {group} 95% CI',
-                                            uid=f"student_{student_id}_line_{group}"
-                                        ))
-                                        # --- 結束修改 ---
-                                    except ValueError as e: 
-                                        print(f"無法計算階層 {layer} 組 {group} 的 CI：{e}")
-                        # --- 結束計算並繪製階層 CI ---
-                        
-                        # 繪製學生平均值線 (在 CI 之後，使其在最上方)
-                        if valid_means_student:
-                            fig.add_trace(go.Scatter(
-                                x=valid_x_student,
-                                y=valid_means_student,
-                                mode='lines+markers',
-                                name=f'{group}', # 圖例只顯示 EPA 項目名稱
-                                line=dict(color=line_color, width=2),
-                                uid=f"student_{student_id}_line_{group}"
-                            ))
-
-                else:
-                    # 不分組，直接使用所有資料計算學生趨勢
-                    means = []
-                    
-                    # 按排序後的梯次計算學生平均分數
-                    for batch in x_values:
-                        batch_data = student_df[student_df[x_col] == batch][y_col]
-                        means.append(batch_data.mean() if not batch_data.empty else None)
-                    
-                    # 處理可能的None值 (學生線)
-                    valid_indices = [i for i, m in enumerate(means) if m is not None]
-                    valid_x_student = [x_values[i] for i in valid_indices]
-                    valid_means_student = [means[i] for i in valid_indices]
-
-                    # --- 新增：獲取學生最新階層 (無分組) --- 
-                    latest_layer = None
-                    if '階層' in student_df.columns and full_df is not None and '階層' in full_df.columns:
-                        if not student_df.empty:
-                            latest_layer = student_df['階層'].iloc[0]
-                    # --- 結束新增 ---
-
-                    # --- 新增：計算並繪製階層 CI (無分組) --- 
-                    if latest_layer and confidence_interval:
-                        layer_df = full_df[full_df['階層'] == latest_layer]
-                        
-                        layer_means = []
-                        layer_counts = []
-                        layer_stds = []
-                        
-                        for batch in sorted_batches:
-                            batch_layer_data = layer_df[layer_df[x_col] == batch][y_col]
-                            if not batch_layer_data.empty:
-                                layer_means.append(batch_layer_data.mean())
-                                layer_counts.append(len(batch_layer_data))
-                                layer_stds.append(batch_layer_data.std())
-                            else:
-                                layer_means.append(None)
-                                layer_counts.append(0)
-                                layer_stds.append(0)
-                                
-                        valid_layer_indices = [i for i, m in enumerate(layer_means) if m is not None]
-                        valid_x_layer = [sorted_batches[i] for i in valid_layer_indices]
-                        valid_means_layer = [layer_means[i] for i in valid_layer_indices]
-                        valid_counts_layer = [layer_counts[i] for i in valid_layer_indices]
-                        valid_stds_layer = [layer_stds[i] for i in valid_layer_indices]
-                        
-                        if valid_means_layer:
-                            agg_layer_data = pd.DataFrame({
-                                x_col: valid_x_layer,
-                                'mean': valid_means_layer,
-                                'count': valid_counts_layer,
-                                'std': valid_stds_layer
-                            })
-                            
-                            ci_layer_data = agg_layer_data[agg_layer_data['count'] >= 2].copy()
-                            
-                            if not ci_layer_data.empty:
-                                ci_layer_data['std'] = ci_layer_data['std'].fillna(0)
-                                try:
-                                    degrees_freedom = ci_layer_data['count'] - 1
-                                    valid_ci_indices_layer = degrees_freedom > 0
-                                    if valid_ci_indices_layer.any():
-                                        degrees_freedom = degrees_freedom[valid_ci_indices_layer]
-                                        ci_data_valid_df_layer = ci_layer_data[valid_ci_indices_layer]
-                                        
-                                        t_critical = stats.t.ppf(0.975, degrees_freedom)
-                                        sqrt_counts = np.sqrt(ci_data_valid_df_layer['count'])
-                                        ci_width = np.where(ci_data_valid_df_layer['std'] == 0, 0, 
-                                                            t_critical * ci_data_valid_df_layer['std'] / sqrt_counts)
-                                        lower_bound = ci_data_valid_df_layer['mean'] - ci_width
-                                        upper_bound = ci_data_valid_df_layer['mean'] + ci_width
-                                        lower_bound = np.maximum(0, lower_bound)
-                                        upper_bound = np.minimum(5, upper_bound)
-                                        
-                                        # --- 修改：不分組時使用固定的淡灰色 CI 背景 ---
-                                        fig.add_trace(go.Scatter(
-                                            x=np.concatenate([ci_data_valid_df_layer[x_col], ci_data_valid_df_layer[x_col][::-1]]),
-                                            y=np.concatenate([upper_bound, lower_bound[::-1]]),
-                                            fill='toself',
-                                            fillcolor='rgba(200, 200, 200, 0.2)', # 淡灰色背景
-                                            line=dict(color='rgba(0,0,0,0)'),
-                                            showlegend=False,
-                                            name=f'階層 {latest_layer} 95% CI',
-                                            uid=f"student_{student_id}_trend"
-                                        ))
-                                        # --- 結束修改 ---
-                                except ValueError as e:
-                                    print(f"無法計算階層 {latest_layer} 的 CI：{e}")
-                        # --- 結束計算並繪製階層 CI (無分組) ---
-                        
-                        # 繪製學生平均值線 (在 CI 之後，使其在最上方)
-                        if valid_means_student:
-                            fig.add_trace(go.Scatter(
-                                x=valid_x_student,
-                                y=valid_means_student,
-                                mode='lines+markers',
-                                name=f'{group if "group" in locals() else ""}', # 圖例只顯示 EPA 項目名稱
-                                line=dict(color=line_color if "line_color" in locals() else "rgba(0, 0, 255, 1.0)", width=2),
-                                uid=f"student_{student_id}_trend"
-                            ))
-
+                st.warning(f"[plot_epa_trend_px] 找不到學生 {student_id} 的資料")
+                return default_fig
+                
+            # 獲取學生階層
+            student_layer = None
+            if '階層' in student_df.columns:
+                student_layer = student_df['階層'].iloc[0] if not student_df.empty else None
+                
+            # 處理學生資料
+            plot_df = student_df.dropna(subset=[y_col])
+            if plot_df.empty:
+                st.warning(f"[plot_epa_trend_px] 學生 {student_id} 沒有有效的評分資料")
+                return default_fig
+                
+            # 獲取學生姓名
+            student_name = ""
+            name_col = '學員姓名' if '學員姓名' in student_df.columns else '姓名' if '姓名' in student_df.columns else None
+            if name_col and not student_df.empty:
+                student_name = student_df[name_col].iloc[0]
+                
+            # 調整標題
+            if student_name:
+                title = f"學生 {student_id} ({student_name}) 的EPA評核趨勢"
             else:
-                # === 開始 非學生模式 / 階層趨勢圖模式 ===
-                # 單一圖表繪製邏輯 (保持不變)
-                fig = go.Figure()
+                title = f"學生 {student_id} 的EPA評核趨勢"
                 
-                # 使用排序後的全局梯次
-                x_values = sorted_batches
+            # 執行學生資料的分組聚合
+            agg_cols = [x_col]
+            if group_col:
+                agg_cols.append(group_col)
                 
-                if group_col:
-                    # 獲取所有分組值
-                    groups = df[group_col].unique()
-                    
-                    for group in groups:
-                        # 選擇顏色 - 如果在預定義色表中則使用，否則生成隨機顏色
-                        if group in colors:
-                            line_color = colors[group].format(1.0)  # 完全不透明的線
-                            fill_color = colors[group].format(0.2)  # 半透明的填充
-                        else:
-                            line_color = get_random_color(group, 1.0)
-                            fill_color = get_random_color(group, 0.2)
-                        
-                        group_df = df[df[group_col] == group]
-                        
-                        # 初始化聚合數據結果
-                        means = []
-                        counts = []
-                        stds = []
-                        
-                        # 按排序後的梯次計算統計值
-                        for batch in x_values:
-                            batch_data = group_df[group_df[x_col] == batch][y_col]
-                            if not batch_data.empty:
-                                means.append(batch_data.mean())
-                                counts.append(len(batch_data))
-                                stds.append(batch_data.std())
-                            else:
-                                # 如果沒有數據，使用 None
-                                means.append(None)
-                                counts.append(0)
-                                stds.append(0)
-                        
-                        # 過濾掉沒有數據的梯次
-                        valid_indices = [i for i, m in enumerate(means) if m is not None]
-                        valid_x = [x_values[i] for i in valid_indices]
-                        valid_means = [means[i] for i in valid_indices]
-                        valid_counts = [counts[i] for i in valid_indices]
-                        valid_stds = [stds[i] for i in valid_indices]
-                        
-                        # 只有在有效數據存在時才繪製
-                        if valid_means:
-                            # --- DEBUGGING --- 
-                            print("--- DEBUG: Non-Student, Grouped --- ")
-                            print(f"Group: {group}")
-                            print(f"Length of valid_x: {len(valid_x)}")
-                            print(f"Length of valid_means: {len(valid_means)}")
-                            print(f"Length of valid_counts: {len(valid_counts)}")
-                            print(f"Length of valid_stds: {len(valid_stds)}")
-                            # --- END DEBUGGING ---
-                            
-                            # 創建聚合數據框
-                            agg_data = pd.DataFrame({
-                                x_col: valid_x,
-                                'mean': valid_means,
-                                'count': valid_counts,
-                                'std': valid_stds
-                            })
-                            
-                            # 計算95%置信區間
-                            if confidence_interval and len(agg_data) > 1:
-                                # 只對 count >= 2 的數據計算 CI
-                                ci_data = agg_data[agg_data['count'] >= 2].copy()
-                                
-                                # --- DEBUGGING --- 
-                                print(f"--- DEBUG CI for Group: '{group}' ---")
-                                print(f"Shape of agg_data: {agg_data.shape}")
-                                print(f"Shape of ci_data (count>=2): {ci_data.shape}")
-                                print(f"Is ci_data empty? {ci_data.empty}")
-                                # --- END DEBUGGING ---
-
-                                if not ci_data.empty:
-                                    # 處理可能的NaN std (雖然 count>=2 時不太可能)
-                                    ci_data['std'] = ci_data['std'].fillna(0)
-                                    
-                                    # 使用t分布計算95%置信區間 (df = count - 1 >= 1)
-                                    try:
-                                        # 確保自由度 > 0
-                                        degrees_freedom = ci_data['count'] - 1
-                                        valid_ci_indices = degrees_freedom > 0
-                                        if valid_ci_indices.any():
-                                            degrees_freedom = degrees_freedom[valid_ci_indices]
-                                            ci_data_valid_df = ci_data[valid_ci_indices]
-
-                                            t_critical = stats.t.ppf(0.975, degrees_freedom)
-                                            
-                                            # 防止除以零錯誤
-                                            sqrt_counts = np.sqrt(ci_data_valid_df['count'])
-                                            
-                                            # 計算 CI 寬度, 處理 std=0 的情況
-                                            ci_width = np.where(ci_data_valid_df['std'] == 0, 0, 
-                                                                t_critical * ci_data_valid_df['std'] / sqrt_counts)
-                                            
-                                            lower_bound = ci_data_valid_df['mean'] - ci_width
-                                            upper_bound = ci_data_valid_df['mean'] + ci_width
-                                            
-                                            # 確保邊界在有效範圍內
-                                            lower_bound = np.maximum(0, lower_bound)
-                                            upper_bound = np.minimum(5, upper_bound)
-                                            
-                                    except ValueError as e:
-                                        print(f"無法計算階層 {latest_layer} 組 {group} 的 CI：{e}")
-                            
-                            # 添加平均值線 (使用原始 agg_data)
-                            fig.add_trace(go.Scatter(
-                                x=agg_data[x_col],
-                                y=agg_data['mean'],
-                                mode='lines+markers',
-                                name=f'{group}',
-                                line=dict(color=line_color, width=2),
-                                uid=f"group_{group}_line"
-                            ))
-                else:
-                    # 沒有分組時，繪製單一趨勢線
-                    # 初始化聚合數據結果
-                    means = []
-                    counts = []
-                    stds = []
+            try:
+                agg_df = plot_df.groupby(agg_cols, observed=True)[y_col].mean().reset_index()
+            except Exception as agg_e:
+                st.error(f"[plot_epa_trend_px] 學生資料聚合時發生錯誤: {agg_e}")
+                return default_fig
                 
-                # 按排序後的梯次計算統計值
-                for batch in x_values:
-                    batch_data = df[df[x_col] == batch][y_col]
-                    if not batch_data.empty:
-                        means.append(batch_data.mean())
-                        counts.append(len(batch_data))
-                        stds.append(batch_data.std())
-                    else:
-                        # 如果沒有數據，使用 None
-                        means.append(None)
-                        counts.append(0)
-                        stds.append(0)
+            if agg_df.empty:
+                st.warning(f"[plot_epa_trend_px] 聚合後無學生資料可繪製")
+                return default_fig
                 
-                # 過濾掉沒有數據的梯次
-                valid_indices = [i for i, m in enumerate(means) if m is not None]
-                valid_x = [x_values[i] for i in valid_indices]
-                valid_means = [means[i] for i in valid_indices]
-                valid_counts = [counts[i] for i in valid_indices]
-                valid_stds = [stds[i] for i in valid_indices]
-                
-                # 只有在有效數據存在時才繪製
-                if valid_means:
-                    # --- DEBUGGING --- 
-                    print("--- DEBUG: Non-Student, No Group --- ")
-                    print(f"Length of valid_x: {len(valid_x)}")
-                    print(f"Length of valid_means: {len(valid_means)}")
-                    print(f"Length of valid_counts: {len(valid_counts)}")
-                    print(f"Length of valid_stds: {len(valid_stds)}")
-                    # --- END DEBUGGING ---
-                    
-                    # 創建聚合數據框
-                    agg_data = pd.DataFrame({
-                        x_col: valid_x,
-                        'mean': valid_means,
-                        'count': valid_counts,
-                        'std': valid_stds
-                    })
-                    
-                    line_color = "rgba(31, 119, 180, 1)"  # 標準藍色
-                    fill_color = "rgba(31, 119, 180, 0.2)"  # 半透明藍色
-                    
-                    # 計算95%置信區間
-                    if confidence_interval and len(agg_data) > 1:
-                        # 只對 count >= 2 的數據計算 CI
-                        ci_data = agg_data[agg_data['count'] >= 2].copy()
-                        
-                        # --- DEBUGGING --- 
-                        print(f"--- DEBUG CI (No Group) ---")
-                        print(f"Shape of agg_data: {agg_data.shape}")
-                        print(f"Shape of ci_data (count>=2): {ci_data.shape}")
-                        print(f"Is ci_data empty? {ci_data.empty}")
-                        # --- END DEBUGGING ---
-
-                        if not ci_data.empty:
-                            ci_data['std'] = ci_data['std'].fillna(0)
-                            try:
-                                # 確保自由度 > 0
-                                degrees_freedom = ci_data['count'] - 1
-                                valid_ci_indices = degrees_freedom > 0
-                                if valid_ci_indices.any():
-                                    degrees_freedom = degrees_freedom[valid_ci_indices]
-                                    ci_data_valid_df = ci_data[valid_ci_indices]
-
-                                    t_critical = stats.t.ppf(0.975, degrees_freedom)
-                                    sqrt_counts = np.sqrt(ci_data_valid_df['count'])
-                                    ci_width = np.where(ci_data_valid_df['std'] == 0, 0, 
-                                                        t_critical * ci_data_valid_df['std'] / sqrt_counts)
-                                    lower_bound = ci_data_valid_df['mean'] - ci_width
-                                    upper_bound = ci_data_valid_df['mean'] + ci_width
-                                    lower_bound = np.maximum(0, lower_bound)
-                                    upper_bound = np.minimum(5, upper_bound)
-                                    
-                                    # --- 修改：使用分組顏色繪製階層 CI ---
-                                    # line_color 在循環開頭已定義
-                                    ci_fill_color = 'rgba(200, 200, 200, 0.2)' # 預設灰色
-                                    try:
-                                        # 嘗試從 line_color (rgba格式) 解析並替換 alpha
-                                        if isinstance(line_color, str) and line_color.startswith('rgba'):
-                                            base_color = line_color.rsplit(',', 1)[0] # 取 rgba(r,g,b 
-                                            ci_fill_color = f"{base_color}, 0.2)" # 設定 alpha 為 0.2
-                                    except Exception as color_e:
-                                        print(f"無法從 {line_color} 解析顏色以設定 CI fill color: {color_e}")
-                                        # 解析失敗則維持預設灰色
-                                        
-                                    fig.add_trace(go.Scatter(
-                                        x=np.concatenate([ci_data_valid_df[x_col], ci_data_valid_df[x_col][::-1]]),
-                                        y=np.concatenate([upper_bound, lower_bound[::-1]]),
-                                        fill='toself',
-                                        fillcolor=ci_fill_color, # 使用解析出的帶 alpha 的顏色
-                                        line=dict(color='rgba(0,0,0,0)'),
-                                        showlegend=False,
-                                        name=f'階層 {latest_layer if "latest_layer" in locals() else ""} {group if "group" in locals() else ""} 95% CI',
-                                        uid=f"group_{group}_line"
-                                    ))
-                                    # --- 結束修改 ---
-                            except ValueError as e:
-                                print(f"無法計算整體的 CI：{e}")
-                                # 可以選擇添加日誌或錯誤處理
-                            
-                            # 添加平均值線 (使用原始 agg_data)
-                            fig.add_trace(go.Scatter(
-                                x=agg_data[x_col],
-                                y=agg_data['mean'],
-                                mode='lines+markers',
-                                name=f'{group}',
-                                line=dict(color=line_color, width=2),
-                                uid=f"group_{group}_line"
-                            ))
-                            fig.add_trace(go.Scatter(
-                                x=agg_data[x_col],
-                                y=agg_data['mean'],
-                                mode='lines+markers',
-                                name=y_col, # 圖例顯示 Y 軸名稱
-                                line=dict(color=line_color, width=2),
-                                uid=f"overall_trend_line"
-                            ))
+            # 準備繪製學生圖表
+            px_args = {
+                'data_frame': agg_df,
+                'x': x_col,
+                'y': y_col,
+                'markers': True,
+                'title': title
+            }
             
-            # 設定圖表樣式 (非學生模式標題)
+            if group_col:
+                px_args['color'] = group_col
+                px_args['color_discrete_map'] = epa_colors
+                
+            # 繪製學生資料線條
+            fig = px.line(**px_args)
+            
+            # === 繪製階層背景 (該學生所屬階層的平均CI) ===
+            if student_layer and full_df is not None and '階層' in full_df.columns:
+                # 篩選該階層的所有數據
+                layer_df = full_df[full_df['階層'] == student_layer].dropna(subset=[y_col])
+                
+                if not layer_df.empty:
+                    # 計算該階層在各梯次的統計數據
+                    layer_stats_cols = [x_col]
+                    if group_col:
+                        layer_stats_cols.append(group_col)
+                        
+                    layer_stats = layer_df.groupby(layer_stats_cols, observed=True)[y_col].agg(['mean', 'count', 'std']).reset_index()
+                    
+                    # 獲取所有組合
+                    if group_col:
+                        all_groups = layer_df[group_col].unique()
+                        layer_full_index = pd.MultiIndex.from_product([sorted_batches, all_groups], names=[x_col, group_col])
+                        layer_stats_full = pd.DataFrame(index=layer_full_index).reset_index()
+                        layer_stats_full = layer_stats_full.merge(layer_stats, on=layer_stats_cols, how='left')
+                        layer_stats_full[['count', 'std']] = layer_stats_full[['count', 'std']].fillna(0)
+                        layer_stats_full['mean'] = layer_stats_full.groupby(group_col)['mean'].ffill().bfill()
+                        layer_stats_full['mean'] = layer_stats_full['mean'].fillna(0)
+                        
+                        # 為每個評核項目繪製階層背景CI
+                        for group_name, group_data in layer_stats_full.groupby(group_col):
+                            # 篩選 count >= 2 的數據計算CI
+                            ci_data = group_data[group_data['count'] >= 2].copy()
+                            
+                            if not ci_data.empty:
+                                try:
+                                    # 計算CI
+                                    degrees_freedom = ci_data['count'] - 1
+                                    t_critical = stats.t.ppf(0.975, degrees_freedom)
+                                    ci_data['sem'] = ci_data['std'] / np.sqrt(ci_data['count'])
+                                    ci_width = t_critical * ci_data['sem']
+                                    ci_data['lower'] = (ci_data['mean'] - ci_width).clip(0, 5)
+                                    ci_data['upper'] = (ci_data['mean'] + ci_width).clip(0, 5)
+                                    
+                                    # 準備繪圖資料
+                                    ci_data = ci_data.set_index(x_col).reindex(sorted_batches).reset_index()
+                                    ci_data = ci_data.dropna(subset=['lower', 'upper'])
+                                    
+                                    if not ci_data.empty:
+                                        # 獲取該項目顏色
+                                        hex_color = epa_colors.get(group_name, '#808080')
+                                        # 將十六進制顏色轉換為更淺的半透明RGBA (透明度提高)
+                                        r = int(hex_color[1:3], 16)
+                                        g = int(hex_color[3:5], 16)
+                                        b = int(hex_color[5:7], 16)
+                                        fill_color = f"rgba({r},{g},{b},0.1)" # 更淺的透明度
+                                        
+                                        # 添加階層CI區域
+                                        fig.add_trace(go.Scatter(
+                                            x=np.concatenate([ci_data[x_col], ci_data[x_col][::-1]]),
+                                            y=np.concatenate([ci_data['upper'], ci_data['lower'][::-1]]),
+                                            fill='toself',
+                                            fillcolor=fill_color,
+                                            line=dict(color='rgba(0,0,0,0)'),
+                                            showlegend=False,
+                                            name=f'{student_layer} 階層 {group_name} 95% CI',
+                                            hoverinfo='skip'
+                                        ))
+                                except Exception as layer_ci_e:
+                                    print(f"[ERROR] 計算階層 '{student_layer}' 項目 '{group_name}' 的CI時出錯: {layer_ci_e}")
+                    else:
+                        # 不分組的情況
+                        layer_stats = layer_df.groupby([x_col], observed=True)[y_col].agg(['mean', 'count', 'std']).reset_index()
+                        # 接下來的處理邏輯與分組情況類似
+                        # ...
+                    
+                    # 將階層CI移到最底層
+                    layer_ci_traces = [trace for trace in fig.data if '階層' in trace.name]
+                    student_traces = [trace for trace in fig.data if '階層' not in trace.name]
+                    fig.data = layer_ci_traces + student_traces
+                    
+                    # 添加階層標籤
+                    layer_color = layer_colors.get(student_layer, '#808080')
+                    layer_label = f"階層: {student_layer}"
+                    fig.add_annotation(
+                        x=0.02, y=0.98,
+                        xref="paper", yref="paper",
+                        text=layer_label,
+                        showarrow=False,
+                        font=dict(color=layer_color, size=12),
+                        bgcolor="rgba(255,255,255,0.7)",
+                        bordercolor=layer_color,
+                        borderwidth=1,
+                        borderpad=4,
+                        align="left"
+                    )
+            # === 結束繪製階層背景 ===
+            
+            # 更新圖表佈局
             fig.update_layout(
-                title=title, # 使用傳入的標題
                 xaxis=dict(
                     title=x_col,
                     type='category',
                     categoryorder='array',
-                    categoryarray=x_values # 使用全局排序的 x_values
+                    categoryarray=sorted_batches
                 ),
                 yaxis=dict(
-                    title=y_col,
-                    range=[0, 5.1]  # EPA等級範圍為0-5
+                    title=f"平均 {y_col}",
+                    range=[0, 5.1]
                 ),
                 showlegend=True,
                 legend=dict(
-                    orientation="h",  # 水平圖例
-                    yanchor="bottom",
-                    y=1.02,  # 放在圖表上方
-                    xanchor="center",
-                    x=0.5
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
                 )
             )
             
-            return fig # 返回非學生模式的圖表
-            # === 結束 非學生模式 / 階層趨勢圖模式 ===
-
-        # 返回之前先檢查fig是否已定義
-        if 'fig' not in locals() or fig is None:
-            if by_layer:
-                # 如果應該按層顯示但沒有成功創建圖表，返回默認圖
-                return default_fig
-            else:
-                return default_fig
-                
-        return fig
+            return fig
+        
+        # 如果不是學生模式，則執行標準的分組聚合
+        plot_df = df.dropna(subset=[y_col]).copy()
+        agg_cols = [x_col]
+        if group_col:
+            agg_cols.append(group_col)
+        
+        try:
+            agg_df = plot_df.groupby(agg_cols, observed=True)[y_col].mean().reset_index()
+        except Exception as agg_e:
+            st.error(f"[plot_epa_trend_px] 資料聚合時發生錯誤: {agg_e}")
+            traceback.print_exc()
+            return default_fig
             
-    except Exception as e:
-        # 捕獲所有異常，添加錯誤信息到圖表中
-        default_fig.update_layout(
-            title=f"繪製趨勢圖時發生錯誤: {str(e)}",
-            annotations=[dict(
-                text="請檢查輸入資料和參數",
-                showarrow=False,
-                xref="paper",
-                yref="paper",
-                x=0.5,
-                y=0.5
-            )]
+        if agg_df.empty:
+            st.warning("[plot_epa_trend_px] 聚合後無資料可繪製")
+            return default_fig
+        
+        # 若有未定義的項目，補充顏色
+        if group_col:
+            all_groups = plot_df[group_col].unique()
+            
+            # 標準 Plotly 顏色序列
+            default_colors = px.colors.qualitative.Plotly
+            
+            # 為未預定義的項目添加顏色
+            undefined_groups = [g for g in all_groups if g not in epa_colors]
+            for i, group in enumerate(undefined_groups):
+                color_idx = i % len(default_colors)
+                epa_colors[group] = default_colors[color_idx]
+            
+            # 顯示顏色映射
+            for group, color in epa_colors.items():
+                if group in all_groups:  # 只顯示實際存在的項目
+                    print(f"[INFO] EPA項目 '{group}' 使用顏色: {color}")
+            
+            # 將 agg_df 中的組別轉換為類別型，以確保顏色映射一致
+            if group_col in agg_df.columns:
+                agg_df[group_col] = pd.Categorical(
+                    agg_df[group_col], 
+                    categories=list(epa_colors.keys()), 
+                    ordered=True
+                )
+
+        # 準備 Plotly Express 參數
+        px_args = {
+            'data_frame': agg_df,
+            'x': x_col,
+            'y': y_col, # y 軸現在是聚合後的平均值
+            'markers': True, # 顯示點
+            'title': title
+        }
+        
+        if group_col:
+            px_args['color'] = group_col # 按評核項目分色
+            px_args['color_discrete_map'] = epa_colors # 使用自定義顏色
+        
+        # 繪圖
+        fig = px.line(**px_args)
+
+        # --- 新增：計算並繪製 95% CI ---
+        if group_col: # 僅在分組時計算 CI
+            # 計算統計數據 (mean, count, std)
+            stats_df = plot_df.groupby([x_col, group_col], observed=True)[y_col].agg(['mean', 'count', 'std']).reset_index()
+            
+            # 合併回 agg_df 以確保所有組合都在，並填充缺失統計值
+            all_groups = plot_df[group_col].unique()
+            full_index = pd.MultiIndex.from_product([sorted_batches, all_groups], names=[x_col, group_col])
+            stats_full_df = pd.DataFrame(index=full_index).reset_index()
+            stats_full_df = stats_full_df.merge(stats_df, on=[x_col, group_col], how='left')
+            stats_full_df[['count', 'std']] = stats_full_df[['count', 'std']].fillna(0)
+            # 重新計算 mean 以處理原始缺失值
+            stats_full_df['mean'] = stats_full_df.groupby(group_col)['mean'].ffill().bfill()
+            stats_full_df['mean'] = stats_full_df['mean'].fillna(stats_full_df.groupby(x_col)['mean'].transform('mean'))
+            stats_full_df['mean'] = stats_full_df['mean'].fillna(0)
+            
+            # 每個 EPA 項目分別繪製 CI
+            for group_name, group_data in stats_full_df.groupby(group_col):
+                # 篩選 count >= 2 的數據計算 CI
+                ci_data = group_data[group_data['count'] >= 2].copy()
+                
+                if not ci_data.empty:
+                    try:
+                        degrees_freedom = ci_data['count'] - 1
+                        t_critical = stats.t.ppf(0.975, degrees_freedom)
+                        
+                        # 計算標準誤差和CI寬度
+                        ci_data['sem'] = ci_data['std'] / np.sqrt(ci_data['count']) 
+                        ci_width = t_critical * ci_data['sem']
+                        
+                        # 計算上下界並限制在 [0, 5] 範圍
+                        ci_data['lower'] = (ci_data['mean'] - ci_width).clip(0, 5)
+                        ci_data['upper'] = (ci_data['mean'] + ci_width).clip(0, 5)
+                        
+                        # 準備繪圖數據
+                        ci_data = ci_data.set_index(x_col).reindex(sorted_batches).reset_index()
+                        ci_data = ci_data.dropna(subset=['lower', 'upper'])
+                        
+                        if not ci_data.empty:
+                            # 從預定義顏色中獲取該項目的顏色
+                            hex_color = epa_colors.get(group_name, '#808080')  # 默認灰色
+                            
+                            # 將十六進制顏色轉換為半透明 RGBA
+                            r = int(hex_color[1:3], 16)
+                            g = int(hex_color[3:5], 16)
+                            b = int(hex_color[5:7], 16)
+                            fill_color = f"rgba({r},{g},{b},0.2)"
+                            
+                            print(f"[INFO] 繪製 '{group_name}' 的 CI: {hex_color} -> {fill_color}")
+                            
+                            # 添加 CI 區域
+                            fig.add_trace(go.Scatter(
+                                x=np.concatenate([ci_data[x_col], ci_data[x_col][::-1]]),
+                                y=np.concatenate([ci_data['upper'], ci_data['lower'][::-1]]),
+                                fill='toself',
+                                fillcolor=fill_color,
+                                line=dict(color='rgba(0,0,0,0)'), # 隱藏邊界線
+                                showlegend=False,
+                                name=f'{group_name} 95% CI',
+                                hoverinfo='skip'
+                            ))
+                    except Exception as ci_e:
+                        print(f"[ERROR] 計算 '{group_name}' 的 CI 時出錯: {ci_e}")
+            
+            # 將 CI 區域移到線條下方
+            ci_traces = [trace for trace in fig.data if 'CI' in trace.name]
+            line_traces = [trace for trace in fig.data if 'CI' not in trace.name]
+            fig.data = ci_traces + line_traces
+        # --- 結束 CI 繪製 ---
+
+        # 更新圖表佈局
+        fig.update_layout(
+            xaxis=dict(
+                title=x_col,
+                type='category',
+                categoryorder='array',
+                categoryarray=sorted_batches # 強制按排序後的梯次顯示
+            ),
+            yaxis=dict(
+                title=f"平均 {y_col}",
+                range=[0, 5.1]  # EPA等級範圍
+            ),
+            showlegend=True,
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
+            )
         )
+
+        return fig
+
+    except Exception as e:
+        # 捕獲所有異常
+        st.error(f"[plot_epa_trend_px] 繪製趨勢圖時發生未預期錯誤: {e}")
+        print(f"\n--- ERROR in plot_epa_trend_px ---")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Message: {str(e)}")
+        print("Traceback:")
+        traceback.print_exc()
+        print("--- END ERROR ---")
         return default_fig
-
-def plot_epa_distribution(df, column, title="EPA 分布圖"):
-    """繪製 EPA 分布圖"""
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # 繪製分布圖
-    sns.histplot(data=df, x=column, bins=20, ax=ax)
-    
-    # 設定圖表屬性
-    ax.set_title(title)
-    ax.set_xlabel(column)
-    ax.set_ylabel("頻率")
-    
-    return fig
-
-def plot_epa_boxplot(df, x_col, y_col, title="EPA 箱型圖"):
-    """繪製 EPA 箱型圖"""
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # 繪製箱型圖
-    sns.boxplot(data=df, x=x_col, y=y_col, ax=ax)
-    
-    # 設定圖表屬性
-    ax.set_title(title)
-    ax.set_xlabel(x_col)
-    ax.set_ylabel(y_col)
-    
-    # 旋轉 x 軸標籤
-    plt.xticks(rotation=45)
-    
-    return fig
-
-def display_epa_stats(df, group_col, value_col):
-    """顯示 EPA 統計資訊"""
-    stats = df.groupby(group_col)[value_col].agg([
-        ('平均值', 'mean'),
-        ('中位數', 'median'),
-        ('標準差', 'std'),
-        ('最小值', 'min'),
-        ('最大值', 'max'),
-        ('評核次數', 'count')
-    ]).round(2)
-    
-    return stats
-
-
-
-
+# ==================== 結束新的趨勢圖函數 ====================
 
 # 為了向後相容，設定別名
 plot_epa_radar = plot_radar_chart

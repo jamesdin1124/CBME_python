@@ -8,7 +8,7 @@ from modules.data_processing import (
     convert_date_to_batch, 
     convert_tw_time
 )
-from modules.visualization import plot_radar_chart, plot_epa_trend
+from modules.visualization import plot_radar_chart, plot_epa_trend_px
 # 暫時註解掉不需要的導入
 # from modules.data_analysis import analyze_epa_data
 
@@ -261,7 +261,7 @@ def draw_student_trend(student_df, student_id, full_df):
         full_df: 包含所有資料的完整DataFrame（用於計算階層整體平均）
     """
     # 使用整合後的plot_epa_trend函數繪製學生趨勢圖
-    trend_fig = plot_epa_trend(
+    trend_fig = plot_epa_trend_px(
         df=student_df,
         x_col='梯次',
         y_col='教師評核EPA等級_數值',
@@ -269,7 +269,6 @@ def draw_student_trend(student_df, student_id, full_df):
         student_id=student_id,  # 改用student_id
         student_mode=True,
         full_df=full_df,
-        confidence_interval=True,
         sort_by_date=True
     )
     
@@ -415,17 +414,44 @@ def display_visualizations(df):
             st.caption(f"階層 {layer} 的EPA評核趨勢")
             
             try:
+                # === 更新：更詳細的偵錯輸出 ===
+                st.write(f"--- Debug: 檢查階層 {layer} 的資料 ---")
+                st.write(f"Shape of layer_df: {layer_df.shape}") # 顯示形狀
+                
+                st.write("layer_df Columns and Dtypes:")
+                st.dataframe(layer_df.dtypes.astype(str)) # 顯示欄位和類型
+                
+                st.write("layer_df Head:")
+                st.dataframe(layer_df.head())
+
+                # 檢查必要欄位是否存在
+                required_cols_check = ['梯次', '教師評核EPA等級_數值', 'EPA評核項目']
+                missing_in_layer = [col for col in required_cols_check if col not in layer_df.columns]
+                if missing_in_layer:
+                    st.warning(f"階層 {layer} 的 layer_df 缺少欄位: {missing_in_layer}")
+                else: 
+                    # 檢查必要欄位的缺失值
+                    st.write("檢查必要欄位的缺失值 (NaN count):")
+                    st.dataframe(layer_df[required_cols_check].isnull().sum().reset_index(name='NaN Count'))
+                    
+                    # 檢查梯次數量
+                    unique_batches = layer_df['梯次'].nunique()
+                    st.write(f"不同梯次的數量: {unique_batches}")
+                    if unique_batches < 2:
+                        st.warning("趨勢圖需要至少兩個不同的梯次才能繪製。")
+
+                st.write("--- End Debug ---")
+                # === 結束更新 ===
+
                 # 獲取該階層的梯次順序
                 batch_order = layer_batch_orders.get(layer, global_sorted_batches)
                 
                 # 繪製趨勢圖
-                trend_fig = plot_epa_trend(
+                trend_fig = plot_epa_trend_px(
                     df=layer_df,
                     x_col='梯次',
                     y_col='教師評核EPA等級_數值',
                     group_col='EPA評核項目',
-                    by_layer=False,
-                    confidence_interval=True,
                     title=''  # 移除標題，因為上方已有標題
                 )
                 
