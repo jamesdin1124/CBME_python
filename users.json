@@ -3,5 +3,10 @@
         "password": "6bb294618a900d422c0b51b7e22c9c40b3a8285cdb23cf71fb33795a79932d74",
         "role": "admin",
         "name": "丁肇壯"
+    },
+    "NDMC": {
+        "password": "6dc8415d7fdd761d8d81f07f570ee2ac4d28a5dfb42eab2439738e7cd4429660",
+        "role": "teacher",
+        "name": "test"
     }
 }

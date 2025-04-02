@@ -101,18 +101,18 @@ def display_data_preview(df):
 
 # ==================== 視覺化函數 ====================
 
-def display_student_data(student_df, student_name, full_df=None, standard_categories=None):
+def display_student_data(student_df, student_id, full_df=None, standard_categories=None):
     """顯示學生資料，包含雷達圖、趨勢圖和回饋表格
     
     Args:
         student_df: 包含該學生資料的DataFrame
-        student_name: 學生姓名
+        student_id: 學生學號
         full_df: 包含所有資料的完整DataFrame（用於計算階層整體平均）
         standard_categories: 標準的EPA評核項目順序列表
     """
     # 檢查是否有學生資料
     if student_df.empty:
-        st.warning(f"找不到學生 {student_name} 的資料")
+        st.warning(f"找不到學生 {student_id} 的資料")
         return
     
     # 檢查梯次數量
@@ -128,7 +128,7 @@ def display_student_data(student_df, student_name, full_df=None, standard_catego
         # 使用整合後的plot_radar_chart函數替代draw_student_radar
         radar_fig = plot_radar_chart(
             df=student_df, 
-            student_name=student_name, 
+            student_id=student_id,  # 改用student_id
             full_df=full_df, 
             standard_categories=standard_categories
         )
@@ -246,27 +246,27 @@ def display_student_data(student_df, student_name, full_df=None, standard_catego
     # 如果有多個梯次，顯示趨勢圖
     if multiple_batches:
         st.caption("EPA評核趨勢圖")
-        draw_student_trend(student_df, student_name, full_df)
+        draw_student_trend(student_df, student_id, full_df)
     elif '梯次' in student_df.columns:
         # 單一梯次，仍然顯示趨勢圖但添加說明
         st.caption("EPA評核趨勢圖 (僅單一梯次資料)")
-        draw_student_trend(student_df, student_name, full_df)
+        draw_student_trend(student_df, student_id, full_df)
 
-def draw_student_trend(student_df, student_name, full_df):
+def draw_student_trend(student_df, student_id, full_df):
     """繪製學生EPA評核趨勢圖
     
     Args:
         student_df: 包含該學生資料的DataFrame
-        student_name: 學生姓名
+        student_id: 學生學號
         full_df: 包含所有資料的完整DataFrame（用於計算階層整體平均）
     """
     # 使用整合後的plot_epa_trend函數繪製學生趨勢圖
     trend_fig = plot_epa_trend(
         df=student_df,
         x_col='梯次',
-        y_col='教師評核EPA等級_數值',  # 使用新欄位
+        y_col='教師評核EPA等級_數值',
         group_col='EPA評核項目',
-        student_name=student_name,
+        student_id=student_id,  # 改用student_id
         student_mode=True,
         full_df=full_df,
         confidence_interval=True,
@@ -593,11 +593,14 @@ def show_UGY_EPA_section():
                             batch_df = processed_df[processed_df['梯次'].isin(selected_batches)]
                             
                             # 獲取選定梯次的所有學生
-                            student_data = batch_df.groupby(['學員姓名', '梯次']).size().reset_index()
-                            student_data.columns = ['學員姓名', '梯次', '評核數量']
+                            student_data = batch_df.groupby(['學號', '梯次']).size().reset_index()
+                            student_data.columns = ['學號', '梯次', '評核數量']
+                            
+                            # 只使用學號來識別學生
+                            student_numbers = batch_df['學號'].dropna().unique()
                             
                             # 顯示學生數量統計
-                            total_students = student_data['學員姓名'].nunique()
+                            total_students = len(student_numbers)
                             st.success(f"已選擇 {len(selected_batches)} 個梯次，共有 {total_students} 名不重複學生")
                             
                             # 決定顯示方式
@@ -608,158 +611,169 @@ def show_UGY_EPA_section():
                             )
                             
                             if display_mode == "選擇單一學生":
-                                # 獲取不重複的學生列表
-                                students = student_data['學員姓名'].unique().tolist()
-                                # 確保所有元素都是字串類型並排序
-                                students = [str(student) for student in students]
-                                students.sort()  # 按姓名排序
+                                # 獲取不重複的學生學號列表
+                                students = sorted([str(num) for num in student_numbers])
                                 
                                 # 學生選擇器
                                 selected_student = st.selectbox(
-                                    "選擇學生",
+                                    "選擇學生學號",
                                     options=students
                                 )
                                 
                                 if selected_student:
-                                    # 獲取該學生參與的所有梯次
-                                    student_batches = student_data[student_data['學員姓名'] == selected_student]['梯次'].tolist()
-                                    
+                                    # 篩選一次學生資料並創建副本
+                                    student_df_filtered = batch_df[batch_df['學號'].astype(str) == str(selected_student)].copy()
+
+                                    # 新增：顯示該學生的原始資料
+                                    st.subheader(f"學生 {selected_student} 的原始資料")
+                                    display_columns = [
+                                        '時間戳記', 
+                                        '學號', 
+                                        '學員姓名', 
+                                        '梯次', 
+                                        'EPA評核項目', 
+                                        '教師評核EPA等級',
+                                        '教師評核EPA等級_數值',
+                                        '回饋'
+                                    ]
+                                    # 確保欄位存在才選取
+                                    display_columns_exist = [col for col in display_columns if col in student_df_filtered.columns]
+                                    if not student_df_filtered.empty:
+                                        display_df_raw = student_df_filtered[display_columns_exist].copy()
+                                        # 排序資料 - 先依梯次，再依EPA評核項目
+                                        if '梯次' in display_df_raw.columns and 'EPA評核項目' in display_df_raw.columns:
+                                            display_df_raw = display_df_raw.sort_values(['梯次', 'EPA評核項目'])
+                                    else:
+                                        display_df_raw = pd.DataFrame(columns=display_columns_exist) # 創建空 df 以防萬一
+
+                                    # 顯示資料框
+                                    st.dataframe(
+                                        display_df_raw,
+                                        use_container_width=True,
+                                        hide_index=True
+                                    )
+                                    st.info(f"共有 {len(display_df_raw)} 筆資料")
+                                    st.markdown("---")
+
+                                    # 檢查篩選後的資料是否為空
+                                    if student_df_filtered.empty:
+                                        st.warning(f"在選定的梯次中找不到學生 {selected_student} 的有效資料，無法進行後續分析。")
+                                        # 可以選擇在此 return 或 st.stop()
+                                        return None # 或者 pass
+
+                                    # 獲取該學生參與的所有梯次 (從已篩選的 df)
+                                    student_batches = student_df_filtered['梯次'].unique().tolist()
+
                                     # 如果學生參與了多個梯次，提供梯次選擇
                                     if len(student_batches) > 1:
                                         batch_for_student = st.radio(
                                             "選擇要顯示的梯次",
-                                            options=["所有梯次合併"] + student_batches,
-                                            horizontal=True
+                                            options=["所有梯次合併"] + sorted(student_batches), # 排序梯次選項
+                                            horizontal=True,
+                                            key=f"batch_select_{selected_student}" # 添加 key 避免狀態問題
                                         )
-                                        
+
                                         if batch_for_student == "所有梯次合併":
-                                            # 顯示所有梯次合併的資料
                                             st.subheader(f"學生 {selected_student} 的EPA評核 (所有梯次合併)")
-                                            
-                                            # 新增：顯示資料充足性分析
-                                            student_df = batch_df[batch_df['學員姓名'] == selected_student]
-                                            all_epa_items = sorted(processed_df['EPA評核項目'].unique().tolist())
-                                            completeness_analysis = analyze_student_data_completeness(student_df, all_epa_items)
-                                            
-                                            if not completeness_analysis.empty:
-                                                st.subheader("資料充足性分析")
-                                                st.caption("評核數量>=2為充足，<2為不足")
-                                                
-                                                # 根據資料充足性設定樣式
-                                                def highlight_completeness(val):
-                                                    if val == "✅ 充足":
-                                                        return 'background-color: rgba(0, 255, 0, 0.2)'
-                                                    elif val == "❌ 不足":
-                                                        return 'background-color: rgba(255, 0, 0, 0.2)'
-                                                    return ''
-                                                
-                                                # 顯示帶有條件格式的分析表格
-                                                styled_analysis = completeness_analysis.style.applymap(
-                                                    highlight_completeness, subset=['資料充足性']
-                                                )
-                                                st.dataframe(styled_analysis, use_container_width=True)
-                                                
-                                                # 統計分析
-                                                insufficient_count = (completeness_analysis['評核數量'] < 2).sum()
-                                                total_count = len(completeness_analysis)
-                                                
-                                                if insufficient_count > 0:
-                                                    st.warning(f"共有 {insufficient_count}/{total_count} 個項目評核數量不足 (少於2份)")
-                                                else:
-                                                    st.success(f"所有 {total_count} 個項目都有充足的評核資料 (2份或以上)")
-                                            
-                                            # 原有的顯示內容
-                                            display_student_data(student_df, selected_student, full_df=processed_df, standard_categories=standard_epa_categories)
+                                            # 直接使用已篩選的 df
+                                            df_to_display = student_df_filtered
                                         else:
-                                            # 顯示特定梯次的資料
                                             st.subheader(f"學生 {selected_student} 的EPA評核 (梯次: {batch_for_student})")
-                                            student_df = batch_df[(batch_df['學員姓名'] == selected_student) & 
-                                                                 (batch_df['梯次'] == batch_for_student)]
-                                            
-                                            # 新增：顯示資料充足性分析
-                                            all_epa_items = sorted(processed_df['EPA評核項目'].unique().tolist())
-                                            completeness_analysis = analyze_student_data_completeness(student_df, all_epa_items)
-                                            
-                                            if not completeness_analysis.empty:
-                                                st.subheader("資料充足性分析")
-                                                st.caption("評核數量>=2為充足，<2為不足")
-                                                
-                                                # 根據資料充足性設定樣式
-                                                def highlight_completeness(val):
-                                                    if val == "✅ 充足":
-                                                        return 'background-color: rgba(0, 255, 0, 0.2)'
-                                                    elif val == "❌ 不足":
-                                                        return 'background-color: rgba(255, 0, 0, 0.2)'
-                                                    return ''
-                                                
-                                                # 顯示帶有條件格式的分析表格
-                                                styled_analysis = completeness_analysis.style.applymap(
-                                                    highlight_completeness, subset=['資料充足性']
-                                                )
-                                                st.dataframe(styled_analysis, use_container_width=True)
-                                                
-                                                # 統計分析
-                                                insufficient_count = (completeness_analysis['評核數量'] < 2).sum()
-                                                total_count = len(completeness_analysis)
-                                                
-                                                if insufficient_count > 0:
-                                                    st.warning(f"共有 {insufficient_count}/{total_count} 個項目評核數量不足 (少於2份)")
-                                                else:
-                                                    st.success(f"所有 {total_count} 個項目都有充足的評核資料 (2份或以上)")
-                                            
-                                            # 原有的顯示內容
-                                            display_student_data(student_df, selected_student, full_df=processed_df, standard_categories=standard_epa_categories)
-                                    else:
-                                        # 只有一個梯次，直接顯示
+                                            # 從已篩選的 df 中進一步篩選梯次
+                                            df_to_display = student_df_filtered[student_df_filtered['梯次'] == batch_for_student].copy()
+
+                                    elif len(student_batches) == 1:
+                                         # 只有一個梯次，直接顯示
                                         st.subheader(f"學生 {selected_student} 的EPA評核 (梯次: {student_batches[0]})")
-                                        student_df = batch_df[batch_df['學員姓名'] == selected_student]
-                                        display_student_data(student_df, selected_student, full_df=processed_df, standard_categories=standard_epa_categories)
+                                        # 直接使用已篩選的 df
+                                        df_to_display = student_df_filtered
+                                    else: # student_batches 為空 (理論上 student_df_filtered.empty 檢查會攔截)
+                                         st.error(f"內部錯誤：找不到學生 {selected_student} 的梯次資訊。")
+                                         return None # 或者 pass
+
+                                    # --- 統一呼叫 display_student_data ---
+                                    # 檢查最終要顯示的 df 是否為空
+                                    if df_to_display.empty:
+                                         st.warning(f"找不到學生 {selected_student} 在梯次 '{batch_for_student if len(student_batches)>1 else (student_batches[0] if student_batches else 'N/A')}' 的資料。")
+                                    else:
+                                         # 新增：顯示資料充足性分析 (移到這裡)
+                                         all_epa_items = sorted(processed_df['EPA評核項目'].unique().tolist()) # 從全局獲取標準項目
+                                         completeness_analysis = analyze_student_data_completeness(df_to_display, all_epa_items)
+                                         if not completeness_analysis.empty:
+                                             st.subheader("資料充足性分析")
+                                             st.caption("評核數量>=2為充足，<2為不足")
+                                             # (省略樣式和顯示代碼 - 需要恢復)
+                                             # 根據資料充足性設定樣式
+                                             def highlight_completeness(val):
+                                                 if val == "✅ 充足":
+                                                     return 'background-color: rgba(0, 255, 0, 0.2)'
+                                                 elif val == "❌ 不足":
+                                                     return 'background-color: rgba(255, 0, 0, 0.2)'
+                                                 return ''
+                                             styled_analysis = completeness_analysis.style.applymap(
+                                                 highlight_completeness, subset=['資料充足性']
+                                             )
+                                             st.dataframe(styled_analysis, use_container_width=True)
+                                             # (省略統計代碼 - 需要恢復)
+                                             insufficient_count = (completeness_analysis['評核數量'] < 2).sum()
+                                             total_count = len(completeness_analysis)
+                                             if insufficient_count > 0:
+                                                 st.warning(f"共有 {insufficient_count}/{total_count} 個項目評核數量不足 (少於2份)")
+                                             else:
+                                                 st.success(f"所有 {total_count} 個項目都有充足的評核資料 (2份或以上)")
+
+                                         # ========== Debugging ========== 
+                                         st.markdown("--- DEBUG INFO ---")
+                                         st.write(f"呼叫 display_student_data 前檢查:")
+                                         st.write(f"df_to_display 的 Shape: {df_to_display.shape}")
+                                         st.write(f"df_to_display 是否為空: {df_to_display.empty}")
+                                         st.write(f"傳遞的 student_id: {selected_student}")
+                                         st.write(f"df_to_display 的前幾行:")
+                                         st.dataframe(df_to_display.head())
+                                         st.markdown("--- END DEBUG INFO ---")
+                                         # ========== End Debugging ========== 
+
+                                         # 呼叫圖表顯示函數
+                                         display_student_data(df_to_display, selected_student, full_df=processed_df, standard_categories=standard_epa_categories)
                                 
                             elif display_mode == "顯示所有學生":
-                                # 獲取不重複的學生列表
-                                students = student_data['學員姓名'].unique().tolist()
-                                # 確保所有元素都是字串類型並排序
-                                students = [str(student) for student in students]
-                                students.sort()  # 按姓名排序
+                                # 獲取不重複的學生列表 (從已篩選梯次的 batch_df 中)
+                                student_numbers_in_batches = batch_df['學號'].dropna().unique()
+                                students_to_show = sorted([str(num) for num in student_numbers_in_batches])
                                 
                                 # 是否合併梯次資料
-                                merge_batches = st.checkbox("合併所有梯次資料", value=True)
+                                merge_batches = st.checkbox("合併所有梯次資料", value=True, key="merge_batches_all_students")
                                 
-                                # 繪製所有學生的雷達圖，每層一個學生
                                 st.subheader(f"所有學生的EPA評核雷達圖" + 
-                                           (" (所有梯次合併)" if merge_batches else ""))
+                                           (" (所有梯次合併)" if merge_batches else " (按梯次或合併顯示)"))
                                 
                                 # 循環顯示每個學生
-                                for student in students:
+                                for student_id_str in students_to_show:
+                                    # --- 獲取學生資料 (統一使用 astype(str)) ---
+                                    student_df_all_batches = batch_df[batch_df['學號'].astype(str) == student_id_str].copy()
+                                    
+                                    # 檢查是否有資料
+                                    if student_df_all_batches.empty:
+                                        st.warning(f"找不到學生 {student_id_str} 在所選梯次中的資料，跳過顯示。")
+                                        continue # 處理下一個學生
+
                                     # 使用水平線分隔不同學生
                                     st.markdown("---")
                                     
-                                    # 顯示學生姓名作為子標題
-                                    if merge_batches:
-                                        st.subheader(f"學生: {student} (所有梯次)")
-                                    else:
-                                        # 獲取該學生參與的所有梯次
-                                        student_batches = student_data[student_data['學員姓名'] == student]['梯次'].tolist()
-                                        if len(student_batches) == 1:
-                                            st.subheader(f"學生: {student} (梯次: {student_batches[0]})")
-                                        else:
-                                            st.subheader(f"學生: {student} (參與 {len(student_batches)} 個梯次)")
-                                    
-                                    # 獲取學生資料
-                                    if merge_batches:
-                                        # 合併所有梯次的資料
-                                        student_df = batch_df[batch_df['學員姓名'] == student]
-                                    else:
-                                        # 如果只有一個梯次，直接顯示
-                                        if len(student_batches) == 1:
-                                            student_df = batch_df[(batch_df['學員姓名'] == student) & 
-                                                                 (batch_df['梯次'] == student_batches[0])]
-                                        else:
-                                            # 有多個梯次，顯示合併資料
-                                            student_df = batch_df[batch_df['學員姓名'] == student]
-                                    
+                                    # 顯示學生子標題
+                                    student_batches = student_df_all_batches['梯次'].unique().tolist()
+                                    if merge_batches or len(student_batches) > 1:
+                                        st.subheader(f"學生: {student_id_str} ({'所有梯次合併' if merge_batches else f'參與 {len(student_batches)} 個梯次'}) ")
+                                        df_to_display_all = student_df_all_batches
+                                    elif len(student_batches) == 1:
+                                        st.subheader(f"學生: {student_id_str} (梯次: {student_batches[0]})")
+                                        df_to_display_all = student_df_all_batches # 因為只有一個梯次，等同合併
+                                    else: # student_batches is empty (理論上已被上面 empty 檢查攔截)
+                                        st.error(f"內部錯誤：找不到學生 {student_id_str} 的梯次資訊。")
+                                        continue
+
                                     # 顯示學生資料（雷達圖和回饋）
-                                    display_student_data(student_df, student, full_df=processed_df, 
+                                    display_student_data(df_to_display_all, student_id_str, full_df=processed_df, 
                                                         standard_categories=standard_epa_categories)
                     
                     return processed_df  # 返回處理後的資料
