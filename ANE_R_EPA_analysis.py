@@ -382,6 +382,15 @@ def show_ANE_R_EPA_peer_analysis_section(df):
         
         # 確保有資料才繪製雷達圖
         if categories:
+            # 當只有兩個項目時，添加一個空白項目以改善可讀性
+            if len(categories) == 2:
+                categories.append("空白項目")
+                self_eval.append(0)
+                teacher_eval.append(0)
+                teacher_review.append(0)
+                student_avg.append(0)
+                all_students_avg.append(0)
+            
             # 確保資料首尾相連
             categories.append(categories[0])
             self_eval.append(self_eval[0])
@@ -443,7 +452,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     showlegend=True,
                     legend=dict(
                         yanchor="top",
-                        y=1.0,
+                        y=1.2,
                         xanchor="right",  # 將圖例置於右側
                         x=1.1  # 調整水平位置
                     ),
@@ -459,7 +468,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     margin=dict(
                         l=100,  # 增加左邊距
                         r=100,  # 增加右邊距
-                        t=120,  # 增加上邊距
+                        t=140,  # 增加上邊距
                         b=100,  # 增加下邊距
                         pad=10
                     ),
@@ -510,7 +519,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     showlegend=True,
                     legend=dict(
                         yanchor="top",
-                        y=1.0,
+                        y=1.2,
                         xanchor="right",  # 將圖例置於右側
                         x=1.1  # 調整水平位置
                     ),
@@ -526,7 +535,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     margin=dict(
                         l=100,  # 增加左邊距
                         r=100,  # 增加右邊距
-                        t=120,  # 增加上邊距
+                        t=140,  # 增加上邊距
                         b=100,  # 增加下邊距
                         pad=10
                     ),
@@ -630,6 +639,12 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                 scores = [skill_scores[skill] for skill in skills]
                 peer_scores = [peer_averages[skill] for skill in skills]
                 
+                # 當只有兩個項目時，添加一個空白項目以改善可讀性
+                if len(skills) == 2:
+                    skills.append("空白項目")
+                    scores.append(0)
+                    peer_scores.append(0)
+                
                 skills_closed = skills + [skills[0]]
                 scores_closed = scores + [scores[0]]
                 peer_scores_closed = peer_scores + [peer_scores[0]]
@@ -662,13 +677,20 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     showlegend=True,
                     legend=dict(
                         yanchor="top",
-                        y=1.0,
+                        y=1.2,
                         xanchor="right",  # 將圖例置於右側
                         x=1.1  # 調整水平位置
                     ),
                     title=f"{student} ({training_plan}) - 核心技能評核",
                     height=400,
-                    width=400
+                    width=400,
+                    margin=dict(
+                        l=50,  # 左邊距
+                        r=50,  # 右邊距
+                        t=100,  # 上邊距
+                        b=50,  # 下邊距
+                        pad=10
+                    )
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -762,6 +784,12 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                         st.warning(f"無法轉換評核分數：{col}")
                 
                 if student_scores and peer_scores and display_labels:
+                    # 當只有兩個項目時，添加一個空白項目以改善可讀性
+                    if len(display_labels) == 2:
+                        display_labels.append("空白項目")
+                        student_scores.append(0)
+                        peer_scores.append(0)
+                    
                     # 確保數據點首尾相連
                     display_labels_closed = display_labels + [display_labels[0]]
                     student_scores_closed = student_scores + [student_scores[0]]
@@ -798,13 +826,20 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                         showlegend=True,
                         legend=dict(
                             yanchor="top",
-                            y=1.0,
+                            y=1.2,
                             xanchor="right",  # 將圖例置於右側
                             x=1.1  # 調整水平位置
                         ),
                         title=f"{student} ({training_plan}) - EPA評量",
                         height=400,
-                        width=400
+                        width=400,
+                        margin=dict(
+                            l=50,  # 左邊距
+                            r=50,  # 右邊距
+                            t=100,  # 上邊距
+                            b=50,  # 下邊距
+                            pad=10
+                        )
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
