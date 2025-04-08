@@ -58,14 +58,23 @@ def merge_excel_files(uploaded_files):
                 df[col] = df[col].replace("本表單與畢業成績無關，請依學生表現落實評量;", "")
                 
                 if '教師評核' in col:
+                    # 保留原始欄位
+                    original_col_name = f"{col} [原始]"
+                    df[original_col_name] = df[col].copy()
                     # 確保轉換後的值是數值型態
                     df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x).strip(), x))
                     # 強制轉換為數值型態
                     df[col] = pd.to_numeric(df[col], errors='coerce')
                 elif '學員自評' in col:
+                    # 保留原始欄位
+                    original_col_name = f"{col} [原始]"
+                    df[original_col_name] = df[col].copy()
                     df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x), x))
                     df[col] = pd.to_numeric(df[col], errors='coerce')
                 elif 'EPA' in col:
+                    # 保留原始欄位
+                    original_col_name = f"{col} [原始]"
+                    df[original_col_name] = df[col].copy()
                     df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x), x))
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 

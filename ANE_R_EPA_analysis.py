@@ -5,6 +5,7 @@ import re
 import plotly.express as px
 import numpy as np
 
+
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     """用於自然排序的鍵函數"""
     return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, s)]
@@ -66,6 +67,14 @@ def show_ANE_R_EPA_peer_analysis_section(df):
     """顯示ANE_R同梯次分析的函數"""
     
     st.subheader("麻醉科住院醫師分析")
+    
+    # 檢查是否從 new_dashboard.py 獲取資料
+    if 'merged_data' not in st.session_state:
+        st.warning("請先在側邊欄合併 Excel 檔案")
+        return
+        
+    # 使用 new_dashboard.py 中的合併資料
+    df = st.session_state.merged_data
     
     # 在最上方顯示匯入的資料表
     st.markdown("### 匯入資料總覽")
