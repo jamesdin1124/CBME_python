@@ -468,7 +468,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     margin=dict(
                         l=100,  # 增加左邊距
                         r=100,  # 增加右邊距
-                        t=140,  # 增加上邊距
+                        t=120,  # 增加上邊距
                         b=100,  # 增加下邊距
                         pad=10
                     ),
@@ -535,7 +535,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     margin=dict(
                         l=100,  # 增加左邊距
                         r=100,  # 增加右邊距
-                        t=140,  # 增加上邊距
+                        t=120,  # 增加上邊距
                         b=100,  # 增加下邊距
                         pad=10
                     ),
@@ -683,14 +683,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                     ),
                     title=f"{student} ({training_plan}) - 核心技能評核",
                     height=400,
-                    width=400,
-                    margin=dict(
-                        l=50,  # 左邊距
-                        r=50,  # 右邊距
-                        t=100,  # 上邊距
-                        b=50,  # 下邊距
-                        pad=10
-                    )
+                    width=400
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -832,14 +825,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                         ),
                         title=f"{student} ({training_plan}) - EPA評量",
                         height=400,
-                        width=400,
-                        margin=dict(
-                            l=50,  # 左邊距
-                            r=50,  # 右邊距
-                            t=100,  # 上邊距
-                            b=50,  # 下邊距
-                            pad=10
-                        )
+                        width=400
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)

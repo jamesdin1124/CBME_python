@@ -11,7 +11,7 @@ from teacher_analysis import show_teacher_analysis_section, fetch_google_form_da
 from UGY_peer_analysis import show_UGY_peer_analysis_section
 from ugy_epa.UGY_EPA_main import show_UGY_EPA_section
 from modules.epa_constants import EPA_LEVEL_MAPPING
-from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES
+from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
@@ -119,8 +119,18 @@ def merge_excel_files(uploaded_files):
 def main():
     # 檢查是否已登入
     if not st.session_state.logged_in:
-        if show_login_page():
-            st.rerun()
+        # 建立選項卡讓用戶選擇登入或註冊
+        login_tab, register_tab = st.tabs(["登入", "申請帳號"])
+        
+        with login_tab:
+            if show_login_page():
+                st.rerun()
+        
+        with register_tab:
+            if show_registration_page():
+                st.success("帳號申請成功！請等待管理員審核後即可登入。")
+                # 不需要立即重新運行，讓用戶看到成功訊息
+        
         return
     
     # 顯示登出按鈕
