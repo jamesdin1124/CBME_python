@@ -25,104 +25,182 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 def merge_excel_files(uploaded_files):
-    # ... 現有代碼 ...
+    """
+    合併上傳的多個 Excel 檔案。
+
+    Args:
+        uploaded_files (list): Streamlit file_uploader 上傳的檔案列表。
+
+    Returns:
+        pandas.DataFrame or None: 合併後的 DataFrame，如果失敗則返回 None。
+    """
     try:
         if not uploaded_files:
             st.warning("請上傳Excel檔案！")
             return None
-            
-        # 合併所有Excel檔案
+
         all_data = []
+        all_columns = set() # 記錄所有檔案中出現過的欄位
+        epa_related_columns = set() # 記錄所有 EPA 相關欄位 (教師評核, 學員自評, EPA)
+
+        # 第一遍：讀取檔案，預處理，並收集所有欄位名稱
         for uploaded_file in uploaded_files:
-            # ... 處理檔案的代碼 ...
-            df = pd.read_excel(uploaded_file)
-            
+            # 讀取 Excel 檔案
+            try:
+                df = pd.read_excel(uploaded_file)
+            except Exception as read_error:
+                st.error(f"讀取檔案 {uploaded_file.name} 時發生錯誤: {read_error}")
+                continue # 跳過這個檔案
+
             # 處理檔案名稱，移除括號內的版本號
             clean_filename = re.sub(r'\s*\([0-9]+\)\.xls$', '.xls', uploaded_file.name)
-            
+            df['檔案名稱'] = clean_filename # 先加入檔案名稱
+
+            # 記錄原始欄位
+            all_columns.update(df.columns)
+
             # 處理訓練階段期間
             if '訓練階段期間' in df.columns:
-                # 將期間字串分割成開始和結束日期
-                df[['開始日期', '結束日期']] = df['訓練階段期間'].str.extract(r'(\d{4}-\d{2}-\d{2})\s*~\s*(\d{4}-\d{2}-\d{2})')
-                
-                # 轉換為日期格式
-                df['開始日期'] = pd.to_datetime(df['開始日期'])
-                df['結束日期'] = pd.to_datetime(df['結束日期'])
-                
-                # 計算訓練天數
-                df['訓練天數'] = (df['結束日期'] - df['開始日期']).dt.days + 1
-            
-            # 轉換欄位（如果存在）
-            for col in df.columns:
-                # 移除特定文字
-                df[col] = df[col].replace("本表單與畢業成績無關，請依學生表現落實評量;", "")
-                
-                if '教師評核' in col:
-                    # 保留原始欄位
+                try:
+                    # 將期間字串分割成開始和結束日期
+                    date_extracted = df['訓練階段期間'].str.extract(r'(\d{4}-\d{2}-\d{2})\s*~\s*(\d{4}-\d{2}-\d{2})')
+                    df[['開始日期', '結束日期']] = date_extracted
+
+                    # 轉換為日期格式
+                    df['開始日期'] = pd.to_datetime(df['開始日期'], errors='coerce')
+                    df['結束日期'] = pd.to_datetime(df['結束日期'], errors='coerce')
+
+                    # 計算訓練天數 (僅在日期有效時計算)
+                    valid_dates = df['開始日期'].notna() & df['結束日期'].notna()
+                    df.loc[valid_dates, '訓練天數'] = (df.loc[valid_dates, '結束日期'] - df.loc[valid_dates, '開始日期']).dt.days + 1
+                    # 記錄新增的欄位
+                    all_columns.update(['開始日期', '結束日期', '訓練天數'])
+                except Exception as date_error:
+                    st.warning(f"處理檔案 {uploaded_file.name} 的 '訓練階段期間' 時發生錯誤: {date_error}")
+                    # 即使出錯，也確保欄位存在，避免後續合併問題
+                    if '開始日期' not in df.columns: df['開始日期'] = pd.NaT
+                    if '結束日期' not in df.columns: df['結束日期'] = pd.NaT
+                    if '訓練天數' not in df.columns: df['訓練天數'] = pd.NA
+                    all_columns.update(['開始日期', '結束日期', '訓練天數'])
+
+            # 預處理欄位值 和 識別 EPA 相關欄位
+            cols_to_process = df.columns.tolist()
+            for col in cols_to_process:
+                # 移除特定文字 (先轉換成字串避免錯誤)
+                if df[col].dtype == 'object':
+                    df[col] = df[col].astype(str).str.replace("本表單與畢業成績無關，請依學生表現落實評量;", "", regex=False)
+
+                is_epa_col = False
+                if '教師評核' in col or '學員自評' in col or 'EPA' in col:
+                    is_epa_col = True
                     original_col_name = f"{col} [原始]"
-                    df[original_col_name] = df[col].copy()
-                    # 確保轉換後的值是數值型態
+                     # 檢查原始欄位是否已存在 (避免重複添加)
+                    if original_col_name not in df.columns:
+                         df[original_col_name] = df[col].copy()
+                         all_columns.add(original_col_name) # 記錄原始欄位名稱
+                    epa_related_columns.add(col) # 記錄 EPA 欄位名稱
+                    epa_related_columns.add(original_col_name) # 也記錄原始欄位
+
+                    # 應用 EPA 等級映射 (轉換前確保是字串)
                     df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x).strip(), x))
-                    # 強制轉換為數值型態
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                elif '學員自評' in col:
-                    # 保留原始欄位
-                    original_col_name = f"{col} [原始]"
-                    df[original_col_name] = df[col].copy()
-                    df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x), x))
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                elif 'EPA' in col:
-                    # 保留原始欄位
-                    original_col_name = f"{col} [原始]"
-                    df[original_col_name] = df[col].copy()
-                    df[col] = df[col].apply(lambda x: EPA_LEVEL_MAPPING.get(str(x), x))
+                    # 轉換為數值，無法轉換的變為 NaN
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # 加入處理過的檔案名稱欄位
-            df['檔案名稱'] = clean_filename
             all_data.append(df)
-        
-        # 直接合併所有DataFrame，保留所有欄位
-        merged_df = pd.concat(all_data, ignore_index=True, sort=False)
-        
-        # 確保檔案名稱欄位在最前面
-        cols = merged_df.columns.tolist()
-        cols.remove('檔案名稱')
-        merged_df = merged_df[['檔案名稱'] + cols]
-        
+
+        if not all_data:
+            st.warning("沒有成功讀取的檔案可供合併。")
+            return None
+
+        # 第二遍：確保所有 DataFrame 都有所有欄位，特別是 EPA 相關欄位
+        processed_data = []
+        for df in all_data:
+            # 找出當前 df 缺少的欄位
+            missing_cols = all_columns - set(df.columns)
+            for col in missing_cols:
+                df[col] = pd.NA # 使用 pandas 的 NA 標記缺失值，更通用
+
+             # 特別檢查 EPA 相關欄位，如果缺少則填 NaN (因為它們預期是數值)
+            # 注意：上一步的 pd.NA 已經處理了，這裡再確認一次以防萬一
+            # for epa_col in epa_related_columns:
+            #     if epa_col not in df.columns:
+            #         # 如果是轉換後的數值欄位，填 NaN
+            #         if not epa_col.endswith(" [原始]"):
+            #             df[epa_col] = pd.NA # pd.to_numeric 會處理 pd.NA
+            #         else: # 如果是原始欄位，也填 NA
+            #             df[epa_col] = pd.NA
+            processed_data.append(df)
+
+
+        # 合併所有DataFrame，sort=False 保持欄位順序，不存在的欄位會自動填充 NaN
+        try:
+            merged_df = pd.concat(processed_data, ignore_index=True, sort=False)
+        except Exception as concat_error:
+            st.error(f"合併 DataFrame 時發生錯誤: {concat_error}")
+            # 嘗試找出哪個 DataFrame 導致問題
+            for i, df_check in enumerate(processed_data):
+                 st.write(f"DataFrame {i} (來源: {df_check['檔案名稱'].iloc[0] if not df_check.empty else '未知'}) 欄位: {df_check.columns.tolist()}")
+            return None
+
+
+        # 重新排序欄位，確保 '檔案名稱' 在最前面
+        if '檔案名稱' in merged_df.columns:
+            cols = merged_df.columns.tolist()
+            cols.remove('檔案名稱')
+            merged_df = merged_df[['檔案名稱'] + cols]
+        else:
+             st.warning("合併結果中缺少 '檔案名稱' 欄位。")
+
+
+        # --- 下載按鈕和儲存到 session state ---
         # 將合併後的資料轉換為 CSV
-        csv = merged_df.to_csv(index=False)
-        
+        try:
+            csv = merged_df.to_csv(index=False).encode('utf-8') # 指定 utf-8 編碼
+        except Exception as csv_error:
+            st.error(f"轉換為 CSV 時發生錯誤: {csv_error}")
+            csv = None
+
         # 將合併後的資料轉換為 Excel
         excel_buffer = BytesIO()
-        merged_df.to_excel(excel_buffer, index=False)
-        excel_data = excel_buffer.getvalue()
-        
-        # 建立兩個並排的下載按鈕
+        try:
+            merged_df.to_excel(excel_buffer, index=False, engine='openpyxl') # 明確指定引擎
+            excel_data = excel_buffer.getvalue()
+        except Exception as excel_error:
+            st.error(f"轉換為 Excel 時發生錯誤: {excel_error}")
+            excel_data = None
+
+        # 建立兩個並排的下載按鈕 (只有在成功轉換時才顯示)
         col1, col2 = st.columns(2)
         with col1:
-            st.download_button(
-                label="下載 CSV 檔案",
-                data=csv,
-                file_name="merged_data.csv",
-                mime="text/csv"
-            )
-        
+            if csv:
+                st.download_button(
+                    label="下載 CSV 檔案",
+                    data=csv,
+                    file_name="merged_data.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.warning("無法產生 CSV 檔案。")
+
         with col2:
-            st.download_button(
-                label="下載 Excel 檔案",
-                data=excel_data,
-                file_name="merged_data.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        
+            if excel_data:
+                st.download_button(
+                    label="下載 Excel 檔案",
+                    data=excel_data,
+                    file_name="merged_data.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.warning("無法產生 Excel 檔案。")
+
         # 合併完成後存入 session state
         st.session_state.merged_data = merged_df
-        
         return merged_df
-        
+
     except Exception as e:
-        st.error(f"合併檔案時發生錯誤：{str(e)}")
+        st.error(f"合併檔案過程中發生未預期的錯誤：{str(e)}")
+        import traceback
+        st.error(traceback.format_exc()) # 顯示詳細的錯誤追蹤
         return None
 
 def main():
@@ -278,7 +356,11 @@ def main():
         if check_permission(st.session_state.role, 'can_view_all'):
             st.header("R 分析")
             if current_data is not None:
-                r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
+                # 修改篩選邏輯，同時檢查檔案名稱中的 'R' 和 'EPA'
+                r_data = current_data[
+                    (current_data['檔案名稱'].str.contains('R', case=False, na=False)) |
+                    (current_data['檔案名稱'].str.contains('EPA', case=False, na=False))
+                ]
                 if not r_data.empty:
                     if selected_dept == "麻醉科":
                         show_ANE_R_EPA_peer_analysis_section(r_data)
