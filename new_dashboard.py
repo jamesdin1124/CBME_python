@@ -356,11 +356,7 @@ def main():
         if check_permission(st.session_state.role, 'can_view_all'):
             st.header("R 分析")
             if current_data is not None:
-                # 修改篩選邏輯，同時檢查檔案名稱中的 'R' 和 'EPA'
-                r_data = current_data[
-                    (current_data['檔案名稱'].str.contains('R', case=False, na=False)) |
-                    (current_data['檔案名稱'].str.contains('EPA', case=False, na=False))
-                ]
+                r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
                 if not r_data.empty:
                     if selected_dept == "麻醉科":
                         show_ANE_R_EPA_peer_analysis_section(r_data)

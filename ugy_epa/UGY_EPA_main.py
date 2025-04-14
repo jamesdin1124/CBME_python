@@ -14,23 +14,17 @@ from modules.visualization import plot_radar_chart, plot_epa_trend_px
 
 # ==================== 資料載入與處理函數 ====================
 
-def load_sheet_data(sheet_title=None):
+def load_sheet_data(sheet_title=None, show_info=True):
     """載入Google表單資料
     
     Args:
         sheet_title (str, optional): 工作表名稱
+        show_info (bool): 是否顯示載入資訊
         
     Returns:
         tuple: (DataFrame, sheet_titles list)
     """
     df, sheet_titles = fetch_google_form_data(sheet_title=sheet_title)
-    
-    # 加入除錯資訊
-    if sheet_title:
-        st.write(f"正在載入工作表：{sheet_title}")
-    if df is not None:
-        st.write(f"載入資料大小：{df.shape}")
-    
     return df, sheet_titles
 
 def process_data(df):
@@ -44,7 +38,7 @@ def process_data(df):
             st.write("已移除重複欄位")
             
             # 檢查必要欄位
-            required_columns = ['學員自評EPA等級', '教師評核EPA等級']  # 移除時間戳記檢查
+            required_columns = ['學員自評EPA等級', '教師評核EPA等級', '教師']  # 新增教師欄位檢查
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 st.error(f"缺少必要欄位：{missing_columns}")
@@ -52,6 +46,10 @@ def process_data(df):
                 return None
         
             try:
+                # 只保留教師欄位有資料的列
+                df = df[df['教師'].notna() & (df['教師'] != '')]
+                st.write(f"已篩選出 {len(df)} 筆有教師評核的資料")
+                
                 # 創建新欄位儲存轉換後的數值，而不是直接覆蓋原始欄位
                 df['學員自評EPA等級_數值'] = df['學員自評EPA等級'].apply(process_epa_level)
                 df['教師評核EPA等級_數值'] = df['教師評核EPA等級'].apply(process_epa_level)
@@ -102,14 +100,7 @@ def display_data_preview(df):
 # ==================== 視覺化函數 ====================
 
 def display_student_data(student_df, student_id, full_df=None, standard_categories=None):
-    """顯示學生資料，包含雷達圖、趨勢圖和回饋表格
-    
-    Args:
-        student_df: 包含該學生資料的DataFrame
-        student_id: 學生學號
-        full_df: 包含所有資料的完整DataFrame（用於計算階層整體平均）
-        standard_categories: 標準的EPA評核項目順序列表
-    """
+    """顯示學生資料，包含雷達圖、趨勢圖和回饋表格"""
     # 檢查是否有學生資料
     if student_df.empty:
         st.warning(f"找不到學生 {student_id} 的資料")
@@ -414,35 +405,6 @@ def display_visualizations(df):
             st.caption(f"階層 {layer} 的EPA評核趨勢")
             
             try:
-                # === 更新：更詳細的偵錯輸出 ===
-                st.write(f"--- Debug: 檢查階層 {layer} 的資料 ---")
-                st.write(f"Shape of layer_df: {layer_df.shape}") # 顯示形狀
-                
-                st.write("layer_df Columns and Dtypes:")
-                st.dataframe(layer_df.dtypes.astype(str)) # 顯示欄位和類型
-                
-                st.write("layer_df Head:")
-                st.dataframe(layer_df.head())
-
-                # 檢查必要欄位是否存在
-                required_cols_check = ['梯次', '教師評核EPA等級_數值', 'EPA評核項目']
-                missing_in_layer = [col for col in required_cols_check if col not in layer_df.columns]
-                if missing_in_layer:
-                    st.warning(f"階層 {layer} 的 layer_df 缺少欄位: {missing_in_layer}")
-                else: 
-                    # 檢查必要欄位的缺失值
-                    st.write("檢查必要欄位的缺失值 (NaN count):")
-                    st.dataframe(layer_df[required_cols_check].isnull().sum().reset_index(name='NaN Count'))
-                    
-                    # 檢查梯次數量
-                    unique_batches = layer_df['梯次'].nunique()
-                    st.write(f"不同梯次的數量: {unique_batches}")
-                    if unique_batches < 2:
-                        st.warning("趨勢圖需要至少兩個不同的梯次才能繪製。")
-
-                st.write("--- End Debug ---")
-                # === 結束更新 ===
-
                 # 獲取該階層的梯次順序
                 batch_order = layer_batch_orders.get(layer, global_sorted_batches)
                 
@@ -530,24 +492,22 @@ def show_UGY_EPA_section():
     st.title("UGY EPA分析")
     
     try:
-        # 載入資料
-        df, sheet_titles = load_sheet_data()
+        # 載入資料 - 不顯示資訊
+        df, sheet_titles = load_sheet_data(show_info=False)
         
         if sheet_titles:
             # 直接抓第一個工作表
             selected_sheet = sheet_titles[0]
             
             # 重新載入選擇的工作表資料
-            df, _ = load_sheet_data(sheet_title=selected_sheet)
+            df, _ = load_sheet_data(sheet_title=selected_sheet, show_info=False)
             
             if df is not None:
                 # 使用下拉式選單顯示原始資料
                 with st.expander("載入的原始資料", expanded=False):
-                    st.write("原始資料大小：", df.shape)
                     st.dataframe(df)
                 
                 # 處理資料
-                st.write("開始進行資料處理...")
                 processed_df = process_data(df)
                 
                 if processed_df is not None and not processed_df.empty:
@@ -555,7 +515,6 @@ def show_UGY_EPA_section():
                     
                     # 使用下拉式選單顯示處理後的資料
                     with st.expander("處理後資料", expanded=False):
-                        st.write("處理後資料大小：", processed_df.shape)
                         st.dataframe(processed_df)
                     
                     # 顯示視覺化圖表
@@ -747,17 +706,6 @@ def show_UGY_EPA_section():
                                                  st.warning(f"共有 {insufficient_count}/{total_count} 個項目評核數量不足 (少於2份)")
                                              else:
                                                  st.success(f"所有 {total_count} 個項目都有充足的評核資料 (2份或以上)")
-
-                                         # ========== Debugging ========== 
-                                         st.markdown("--- DEBUG INFO ---")
-                                         st.write(f"呼叫 display_student_data 前檢查:")
-                                         st.write(f"df_to_display 的 Shape: {df_to_display.shape}")
-                                         st.write(f"df_to_display 是否為空: {df_to_display.empty}")
-                                         st.write(f"傳遞的 student_id: {selected_student}")
-                                         st.write(f"df_to_display 的前幾行:")
-                                         st.dataframe(df_to_display.head())
-                                         st.markdown("--- END DEBUG INFO ---")
-                                         # ========== End Debugging ========== 
 
                                          # 呼叫圖表顯示函數
                                          display_student_data(df_to_display, selected_student, full_df=processed_df, standard_categories=standard_epa_categories)
