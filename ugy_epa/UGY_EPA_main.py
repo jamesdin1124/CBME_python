@@ -6,7 +6,10 @@ from modules.google_connection import fetch_google_form_data
 from modules.data_processing import (
     process_epa_level, 
     convert_date_to_batch, 
-    convert_tw_time
+    convert_tw_time,
+    process_training_departments,
+    get_student_departments,
+    merge_epa_with_departments
 )
 from modules.visualization import plot_radar_chart, plot_epa_trend_px
 # 暫時註解掉不需要的導入
@@ -31,29 +34,29 @@ def process_data(df):
     """處理EPA資料"""
     if df is not None:
         try:
-            st.write("開始處理資料...")
+            #st.write("開始處理資料...")
             
             # 移除重複欄位
             df = df.loc[:, ~df.columns.duplicated()]
-            st.write("已移除重複欄位")
+            #st.write("已移除重複欄位")
             
             # 檢查必要欄位
             required_columns = ['學員自評EPA等級', '教師評核EPA等級', '教師']  # 新增教師欄位檢查
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 st.error(f"缺少必要欄位：{missing_columns}")
-                st.write("目前可用欄位：", df.columns.tolist())
+                #st.write("目前可用欄位：", df.columns.tolist())
                 return None
         
             try:
                 # 只保留教師欄位有資料的列
                 df = df[df['教師'].notna() & (df['教師'] != '')]
-                st.write(f"已篩選出 {len(df)} 筆有教師評核的資料")
+                #st.write(f"已篩選出 {len(df)} 筆有教師評核的資料")
                 
                 # 創建新欄位儲存轉換後的數值，而不是直接覆蓋原始欄位
                 df['學員自評EPA等級_數值'] = df['學員自評EPA等級'].apply(process_epa_level)
                 df['教師評核EPA等級_數值'] = df['教師評核EPA等級'].apply(process_epa_level)
-                st.write("已創建轉換後的EPA等級數值欄位")
+                #st.write("已創建轉換後的EPA等級數值欄位")
             except Exception as e:
                 st.error(f"EPA等級轉換失敗：{str(e)}")
                 return None
@@ -97,6 +100,35 @@ def display_data_preview(df):
     st.subheader("資料預覽")
     st.dataframe(df.head(10))
 
+def display_dept_data(dept_df):
+    """顯示訓練科部資料
+    
+    Args:
+        dept_df (pd.DataFrame): 訓練科部資料DataFrame
+    """
+    if dept_df is not None and not dept_df.empty:
+        st.subheader("訓練科部資料")
+        
+        # 找出日期欄位
+        date_columns = [col for col in dept_df.columns 
+                       if isinstance(col, str) and len(col.split('/')) == 3]
+        
+        # 選擇要顯示的欄位
+        display_columns = ['學號', '姓名'] + date_columns
+        
+        # 顯示資料
+        st.dataframe(dept_df[display_columns], use_container_width=True)
+        
+        # 顯示統計資訊
+        st.caption("資料統計")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info(f"總學生人數：{len(dept_df)}")
+        with col2:
+            st.info(f"訓練時段數：{len(date_columns)}")
+    else:
+        st.warning("沒有可用的訓練科部資料")
+
 # ==================== 視覺化函數 ====================
 
 def display_student_data(student_df, student_id, full_df=None, standard_categories=None):
@@ -111,7 +143,7 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
     multiple_batches = len(batches) > 1
     
     # 雷達圖和回饋表格的左右布局
-    col1, col2 = st.columns([3, 2])  # 從1:1改為3:2比例，讓雷達圖有更寬的顯示空間
+    col1, col2 = st.columns([1, 1])  # 從1:1改為3:2比例，讓雷達圖有更寬的顯示空間
     
     # 左欄：顯示雷達圖
     with col1:
@@ -128,12 +160,12 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
     # 右欄：顯示回饋表格和統計
     with col2:
         # 使用摺疊框顯示評核回饋詳情，預設為收起狀態，並調整高度
-        with st.expander("評核回饋詳情", expanded=False):
+        with st.expander("評核回饋詳情", expanded=True):
             # 準備回饋表格資料
             feedback_data = student_df.copy()
             
             # 選擇需要顯示的欄位
-            display_columns = ['梯次', 'EPA評核項目', '教師', '教師評核EPA等級', '回饋']
+            display_columns = ['臨床情境', '回饋', '教師評核EPA等級', '梯次', 'EPA評核項目', '教師']
             
             # 確保所有需要的欄位都存在，如果不存在就創建空欄位
             for col in display_columns:
@@ -150,7 +182,7 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
             st.dataframe(feedback_display, use_container_width=True, height=150)
         
         # 使用摺疊框顯示評核統計，預設為展開狀態
-        with st.expander("評核統計", expanded=True):
+        with st.expander("評核統計", expanded=False):
             # 獲取所有可能的EPA評核項目
             all_epa_items = sorted(student_df['EPA評核項目'].unique().tolist())
             
@@ -481,6 +513,70 @@ def analyze_student_data_completeness(student_df, all_epa_items=None):
     
     return analysis
 
+def process_batch_data(df):
+    """處理梯次資料，計算並排序梯次
+    
+    Args:
+        df (pd.DataFrame): 包含梯次資料的DataFrame
+        
+    Returns:
+        list: 排序後的梯次列表
+        dict: 包含梯次相關統計資訊的字典
+    """
+    try:
+        # 確保有梯次欄位
+        if '梯次' not in df.columns:
+            return [], {'error': '找不到梯次欄位'}
+            
+        # 獲取所有不重複的梯次
+        all_batches = df['梯次'].unique().tolist()
+        
+        # 嘗試將梯次轉換為日期並排序
+        try:
+            # 創建臨時數據框
+            temp_df = pd.DataFrame({'梯次': all_batches})
+            
+            # 嘗試將梯次轉換為日期
+            temp_df['梯次日期'] = pd.to_datetime(temp_df['梯次'], errors='coerce')
+            
+            # 處理無法直接轉換的日期
+            if temp_df['梯次日期'].isna().any():
+                import re
+                date_pattern = re.compile(r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})')
+                
+                for idx, value in temp_df[temp_df['梯次日期'].isna()]['梯次'].items():
+                    if isinstance(value, str):
+                        match = date_pattern.search(value)
+                        if match:
+                            year, month, day = match.groups()
+                            date_str = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                            temp_df.loc[idx, '梯次日期'] = pd.to_datetime(date_str, errors='coerce')
+            
+            # 按日期排序
+            sorted_batches = temp_df.sort_values('梯次日期')['梯次'].tolist()
+        except:
+            # 如果排序失敗，使用原始順序
+            sorted_batches = all_batches
+        
+        # 計算每個梯次的統計資訊
+        batch_stats = {}
+        for batch in sorted_batches:
+            batch_data = df[df['梯次'] == batch]
+            batch_stats[batch] = {
+                '評核數量': len(batch_data),
+                '學生人數': len(batch_data['學號'].unique()),
+                'EPA項目數': len(batch_data['EPA評核項目'].unique()) if 'EPA評核項目' in batch_data.columns else 0
+            }
+        
+        return sorted_batches, {
+            'sorted_batches': sorted_batches,
+            'total_batches': len(sorted_batches),
+            'batch_stats': batch_stats
+        }
+        
+    except Exception as e:
+        return [], {'error': f'處理梯次資料時發生錯誤：{str(e)}'}
+
 # ==================== 主應用程式流程 ====================
 
 def show_UGY_EPA_section():
@@ -492,11 +588,24 @@ def show_UGY_EPA_section():
     st.title("UGY EPA分析")
     
     try:
-        # 載入資料 - 不顯示資訊
+        # 載入EPA資料
         df, sheet_titles = load_sheet_data(show_info=False)
         
+        # 載入訓練科部資料
+        dept_sheet_title = "訓練科部"  # 指定工作表名稱
+        dept_df, _ = load_sheet_data(sheet_title=dept_sheet_title, show_info=False)
+        
+        if dept_df is not None:
+            # 處理訓練科部資料
+            processed_dept_df = process_training_departments(dept_df)
+            st.success("成功載入訓練科部資料")
+            
+            # 顯示訓練科部資料
+            with st.expander("訓練科部資料", expanded=False):
+                display_dept_data(processed_dept_df)
+        
         if sheet_titles:
-            # 直接抓第一個工作表
+            # 直接抓第一個工作表（EPA資料）
             selected_sheet = sheet_titles[0]
             
             # 重新載入選擇的工作表資料
@@ -507,11 +616,41 @@ def show_UGY_EPA_section():
                 with st.expander("載入的原始資料", expanded=False):
                     st.dataframe(df)
                 
-                # 處理資料
+                # 處理EPA資料
                 processed_df = process_data(df)
                 
                 if processed_df is not None and not processed_df.empty:
-                    st.success(f"成功處理 {len(processed_df)} 筆資料！")
+                    # 合併訓練科部資料
+                    if dept_df is not None:
+                        try:
+                            processed_df = merge_epa_with_departments(processed_df, processed_dept_df)
+                            st.success("成功合併訓練科部資料")
+                        except Exception as e:
+                            st.warning(f"合併訓練科部資料時發生錯誤：{str(e)}")
+                    
+                    # 處理梯次資料
+                    sorted_batches, batch_info = process_batch_data(processed_df)
+                    if 'error' not in batch_info:
+                        print(f"總梯次數：{batch_info['total_batches']}")
+                        for batch in sorted_batches:
+                            stats = batch_info['batch_stats'][batch]
+                            print(f"梯次 {batch} 的統計資訊：", stats)
+                        
+                        st.success(f"成功處理梯次資料，共有 {batch_info['total_batches']} 個梯次")
+                        
+                        # 顯示梯次統計資訊
+                        with st.expander("梯次統計資訊", expanded=False):
+                            for batch in sorted_batches:
+                                stats = batch_info['batch_stats'][batch]
+                                st.write(f"梯次 {batch}:")
+                                st.write(f"- 評核數量: {stats['評核數量']}")
+                                st.write(f"- 學生人數: {stats['學生人數']}")
+                                st.write(f"- EPA項目數: {stats['EPA項目數']}")
+                                st.write("---")
+                    else:
+                        st.warning(batch_info['error'])
+                    
+                    st.success(f"成功處理 {len(processed_df)} 筆EPA資料！")
                     
                     # 使用下拉式選單顯示處理後的資料
                     with st.expander("處理後資料", expanded=False):
@@ -709,6 +848,22 @@ def show_UGY_EPA_section():
 
                                          # 呼叫圖表顯示函數
                                          display_student_data(df_to_display, selected_student, full_df=processed_df, standard_categories=standard_epa_categories)
+
+                                    # 新增：顯示學生訓練科部資訊
+                                    if 'dept_data' in st.session_state and display_mode == "選擇單一學生" and selected_student:
+                                        st.subheader("訓練科部資訊")
+                                        dept_info = get_student_departments(st.session_state['dept_data'], selected_student)
+                                        
+                                        if "error" not in dept_info:
+                                            # 創建訓練科部資訊的DataFrame
+                                            dept_data = pd.DataFrame(list(dept_info["訓練科部"].items()), 
+                                                                   columns=['日期', '訓練科部'])
+                                            dept_data = dept_data.sort_values('日期')
+                                            
+                                            # 顯示訓練科部資訊
+                                            st.dataframe(dept_data, use_container_width=True)
+                                        else:
+                                            st.warning(f"無法獲取學生 {selected_student} 的訓練科部資訊：{dept_info['error']}")
                                 
                             elif display_mode == "顯示所有學生":
                                 # 獲取不重複的學生列表 (從已篩選梯次的 batch_df 中)
