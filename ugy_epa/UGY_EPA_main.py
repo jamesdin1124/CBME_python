@@ -2,7 +2,7 @@ import re
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
-from modules.google_connection import fetch_google_form_data
+from modules.google_connection import fetch_google_form_data, SHOW_DIAGNOSTICS
 from modules.data_processing import (
     process_epa_level, 
     convert_date_to_batch, 
@@ -30,33 +30,44 @@ def load_sheet_data(sheet_title=None, show_info=True):
     df, sheet_titles = fetch_google_form_data(sheet_title=sheet_title)
     return df, sheet_titles
 
+def show_diagnostic(message: str, type: str = "info"):
+    """顯示診斷訊息的輔助函數
+    
+    Args:
+        message: 要顯示的訊息
+        type: 訊息類型 ("info", "success", "warning", "error")
+    """
+    if SHOW_DIAGNOSTICS:
+        if type == "info":
+            st.info(message)
+        elif type == "success":
+            st.success(message)
+        elif type == "warning":
+            st.warning(message)
+        elif type == "error":
+            st.error(message)
+
 def process_data(df):
     """處理EPA資料"""
     if df is not None:
         try:
-            #st.write("開始處理資料...")
-            
             # 移除重複欄位
             df = df.loc[:, ~df.columns.duplicated()]
-            #st.write("已移除重複欄位")
             
             # 檢查必要欄位
-            required_columns = ['學員自評EPA等級', '教師評核EPA等級', '教師']  # 新增教師欄位檢查
+            required_columns = ['學員自評EPA等級', '教師評核EPA等級', '教師']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 st.error(f"缺少必要欄位：{missing_columns}")
-                #st.write("目前可用欄位：", df.columns.tolist())
                 return None
         
             try:
                 # 只保留教師欄位有資料的列
                 df = df[df['教師'].notna() & (df['教師'] != '')]
-                #st.write(f"已篩選出 {len(df)} 筆有教師評核的資料")
                 
-                # 創建新欄位儲存轉換後的數值，而不是直接覆蓋原始欄位
+                # 創建新欄位儲存轉換後的數值
                 df['學員自評EPA等級_數值'] = df['學員自評EPA等級'].apply(process_epa_level)
                 df['教師評核EPA等級_數值'] = df['教師評核EPA等級'].apply(process_epa_level)
-                #st.write("已創建轉換後的EPA等級數值欄位")
             except Exception as e:
                 st.error(f"EPA等級轉換失敗：{str(e)}")
                 return None
@@ -66,19 +77,18 @@ def process_data(df):
                 if '時間戳記' in df.columns:
                     df['評核日期'] = df['時間戳記'].apply(convert_tw_time)
                     df['評核日期'] = df['評核日期'].dt.date
-                elif '評核時間' in df.columns:  # 檢查其他可能的日期欄位名稱
+                elif '評核時間' in df.columns:
                     df['評核日期'] = pd.to_datetime(df['評核時間']).dt.date
                 
                 if '評核日期' in df.columns:
                     df['梯次'] = df['評核日期'].astype(str).apply(convert_date_to_batch)
-                    st.write("日期轉換成功")
+                    show_diagnostic("日期轉換成功", "info")
                 else:
                     st.warning("找不到日期欄位，跳過梯次處理")
             except Exception as e:
                 st.error(f"日期處理失敗：{str(e)}")
-                # 即使日期處理失敗，仍然繼續處理
             
-            st.write("資料處理完成")
+            show_diagnostic("資料處理完成", "info")
             return df
             
         except Exception as e:
@@ -580,11 +590,7 @@ def process_batch_data(df):
 # ==================== 主應用程式流程 ====================
 
 def show_UGY_EPA_section():
-    """主要應用程式流程
-    
-    Returns:
-        DataFrame: 處理後的資料框，如果發生錯誤則返回 None
-    """
+    """主要應用程式流程"""
     st.title("UGY EPA分析")
     
     try:
@@ -592,13 +598,13 @@ def show_UGY_EPA_section():
         df, sheet_titles = load_sheet_data(show_info=False)
         
         # 載入訓練科部資料
-        dept_sheet_title = "訓練科部"  # 指定工作表名稱
+        dept_sheet_title = "訓練科部"
         dept_df, _ = load_sheet_data(sheet_title=dept_sheet_title, show_info=False)
         
         if dept_df is not None:
             # 處理訓練科部資料
             processed_dept_df = process_training_departments(dept_df)
-            st.success("成功載入訓練科部資料")
+            show_diagnostic("成功載入訓練科部資料", "success")
             
             # 顯示訓練科部資料
             with st.expander("訓練科部資料", expanded=False):
@@ -624,19 +630,14 @@ def show_UGY_EPA_section():
                     if dept_df is not None:
                         try:
                             processed_df = merge_epa_with_departments(processed_df, processed_dept_df)
-                            st.success("成功合併訓練科部資料")
+                            show_diagnostic("成功合併訓練科部資料", "success")
                         except Exception as e:
                             st.warning(f"合併訓練科部資料時發生錯誤：{str(e)}")
                     
                     # 處理梯次資料
                     sorted_batches, batch_info = process_batch_data(processed_df)
                     if 'error' not in batch_info:
-                        print(f"總梯次數：{batch_info['total_batches']}")
-                        for batch in sorted_batches:
-                            stats = batch_info['batch_stats'][batch]
-                            print(f"梯次 {batch} 的統計資訊：", stats)
-                        
-                        st.success(f"成功處理梯次資料，共有 {batch_info['total_batches']} 個梯次")
+                        show_diagnostic(f"成功處理梯次資料，共有 {batch_info['total_batches']} 個梯次", "success")
                         
                         # 顯示梯次統計資訊
                         with st.expander("梯次統計資訊", expanded=False):
@@ -650,7 +651,7 @@ def show_UGY_EPA_section():
                     else:
                         st.warning(batch_info['error'])
                     
-                    st.success(f"成功處理 {len(processed_df)} 筆EPA資料！")
+                    show_diagnostic(f"成功處理 {len(processed_df)} 筆EPA資料！", "success")
                     
                     # 使用下拉式選單顯示處理後的資料
                     with st.expander("處理後資料", expanded=False):
@@ -826,7 +827,6 @@ def show_UGY_EPA_section():
                                          if not completeness_analysis.empty:
                                              st.subheader("資料充足性分析")
                                              st.caption("評核數量>=2為充足，<2為不足")
-                                             # (省略樣式和顯示代碼 - 需要恢復)
                                              # 根據資料充足性設定樣式
                                              def highlight_completeness(val):
                                                  if val == "✅ 充足":
@@ -838,7 +838,7 @@ def show_UGY_EPA_section():
                                                  highlight_completeness, subset=['資料充足性']
                                              )
                                              st.dataframe(styled_analysis, use_container_width=True)
-                                             # (省略統計代碼 - 需要恢復)
+                                             # 統計代碼
                                              insufficient_count = (completeness_analysis['評核數量'] < 2).sum()
                                              total_count = len(completeness_analysis)
                                              if insufficient_count > 0:
@@ -864,7 +864,7 @@ def show_UGY_EPA_section():
                                             st.dataframe(dept_data, use_container_width=True)
                                         else:
                                             st.warning(f"無法獲取學生 {selected_student} 的訓練科部資訊：{dept_info['error']}")
-                                
+                            
                             elif display_mode == "顯示所有學生":
                                 # 獲取不重複的學生列表 (從已篩選梯次的 batch_df 中)
                                 student_numbers_in_batches = batch_df['學號'].dropna().unique()
@@ -905,10 +905,10 @@ def show_UGY_EPA_section():
                                     display_student_data(df_to_display_all, student_id_str, full_df=processed_df, 
                                                         standard_categories=standard_epa_categories)
                     
-                    return processed_df  # 返回處理後的資料
+                    return processed_df
                 else:
                     st.error("資料處理失敗")
-                    return df  # 資料處理失敗時返回原始資料
+                    return df
             else:
                 st.warning(f"無法載入工作表 '{selected_sheet}' 的資料")
                 return None
