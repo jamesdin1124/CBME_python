@@ -12,40 +12,23 @@ from modules.data_processing import (
     merge_epa_with_departments
 )
 from modules.visualization import plot_radar_chart, plot_epa_trend_px
-from modules.supabase_connection import SupabaseConnection
 # 暫時註解掉不需要的導入
 # from modules.data_analysis import analyze_epa_data
 
 # ==================== 資料載入與處理函數 ====================
 
 def load_sheet_data(sheet_title=None, show_info=True):
-    """載入資料（從 Supabase）
+    """載入Google表單資料
     
     Args:
-        sheet_title (str, optional): 已不再使用
+        sheet_title (str, optional): 工作表名稱
         show_info (bool): 是否顯示載入資訊
         
     Returns:
-        tuple: (DataFrame, None)
+        tuple: (DataFrame, sheet_titles list)
     """
-    try:
-        # 建立 Supabase 連線
-        supabase_conn = SupabaseConnection()
-        
-        # 根據 sheet_title 決定要載入哪種資料
-        if sheet_title == "訓練科部":
-            df = supabase_conn.fetch_department_data()
-        else:
-            df = supabase_conn.fetch_epa_data()
-        
-        if show_info:
-            st.success(f"成功從 Supabase 載入 {len(df)} 筆資料")
-        
-        return df, None  # 第二個返回值保持為 None 以維持相容性
-        
-    except Exception as e:
-        st.error(f"從 Supabase 載入資料失敗：{str(e)}")
-        return None, None
+    df, sheet_titles = fetch_google_form_data(sheet_title=sheet_title)
+    return df, sheet_titles
 
 def show_diagnostic(message: str, type: str = "info"):
     """顯示診斷訊息的輔助函數
@@ -79,8 +62,15 @@ def process_data(df):
                 return None
         
             try:
-                # 只保留教師欄位有資料的列
-                df = df[df['教師'].notna() & (df['教師'] != '')]
+                # 加入勾選框讓使用者選擇是否要限制只顯示有教師評核的資料
+                filter_teacher_data = st.checkbox("只顯示有認證教師評核的資料", value=True)
+                
+                if filter_teacher_data:
+                    # 只保留教師欄位有資料的列
+                    df = df[df['教師'].notna() & (df['教師'] != '')]
+                    show_diagnostic("已過濾只顯示有教師評核的資料", "info")
+                else:
+                    show_diagnostic("顯示所有資料（包含無教師評核的資料）", "info")
                 
                 # 創建新欄位儲存轉換後的數值
                 df['學員自評EPA等級_數值'] = df['學員自評EPA等級'].apply(process_epa_level)

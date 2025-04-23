@@ -10,6 +10,7 @@ import traceback
 from google.oauth2 import service_account
 from typing import Optional, Tuple, Dict, Any, List
 import base64
+import time
 
 # 全局變數控制診斷訊息的顯示
 SHOW_DIAGNOSTICS = False
@@ -351,29 +352,46 @@ def fetch_google_form_data(spreadsheet_url: Optional[str] = None, sheet_title: O
             st.error("無法從 URL 提取 spreadsheet ID")
             return None, None
             
-        try:
-            spreadsheet = client.open_by_key(spreadsheet_id)
-            all_worksheets = spreadsheet.worksheets()
-            sheet_titles = [sheet.title for sheet in all_worksheets]
-            
-            if not sheet_title and sheet_titles:
-                worksheet = all_worksheets[0]
-                sheet_title = sheet_titles[0]
-            else:
-                worksheet = spreadsheet.worksheet(sheet_title)
+        # 設定重試參數
+        max_retries = 3
+        retry_delay = 2  # 秒
+        current_retry = 0
+        
+        while current_retry < max_retries:
+            try:
+                spreadsheet = client.open_by_key(spreadsheet_id)
+                all_worksheets = spreadsheet.worksheets()
+                sheet_titles = [sheet.title for sheet in all_worksheets]
                 
-            data = worksheet.get_all_records()
-            
-            if not data:
-                st.warning(f"工作表 '{sheet_title}' 中沒有資料")
-                return None, sheet_titles
+                if not sheet_title and sheet_titles:
+                    worksheet = all_worksheets[0]
+                    sheet_title = sheet_titles[0]
+                else:
+                    worksheet = spreadsheet.worksheet(sheet_title)
+                    
+                data = worksheet.get_all_records()
                 
-            return pd.DataFrame(data), sheet_titles
-            
-        except Exception as e:
-            st.error(f"處理試算表時發生錯誤：{str(e)}")
-            return None, None
-            
+                if not data:
+                    st.warning(f"工作表 '{sheet_title}' 中沒有資料")
+                    return None, sheet_titles
+                    
+                return pd.DataFrame(data), sheet_titles
+                
+            except Exception as e:
+                error_message = str(e)
+                if "Quota exceeded" in error_message or "RESOURCE_EXHAUSTED" in error_message:
+                    current_retry += 1
+                    if current_retry < max_retries:
+                        st.warning(f"遇到 API 速率限制，等待 {retry_delay} 秒後重試... (嘗試 {current_retry}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # 指數退避
+                    else:
+                        st.error("已達到最大重試次數，請稍後再試")
+                        return None, None
+                else:
+                    st.error(f"處理試算表時發生錯誤：{error_message}")
+                    return None, None
+                    
     except Exception as e:
         st.error(f"獲取 Google 表單資料時發生錯誤：{str(e)}")
         return None, None

@@ -9,9 +9,12 @@ from resident_analysis import show_resident_analysis_section
 from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
 from teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
 from UGY_peer_analysis import show_UGY_peer_analysis_section
-from ugy_epa.UGY_EPA_main import show_UGY_EPA_section
+from ugy_epa.UGY_EPA_main_gs import show_UGY_EPA_section
 from modules.epa_constants import EPA_LEVEL_MAPPING
 from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
@@ -207,7 +210,7 @@ def main():
     # 檢查是否已登入
     if not st.session_state.logged_in:
         # 建立選項卡讓用戶選擇登入或註冊
-        login_tab, register_tab = st.tabs(["登入", "申請帳號"])
+        login_tab, register_tab, test_form_tab, test_result_tab = st.tabs(["登入", "申請帳號", "測試表單", "測試結果"])
         
         with login_tab:
             if show_login_page():
@@ -217,7 +220,227 @@ def main():
             if show_registration_page():
                 st.success("帳號申請成功！請等待管理員審核後即可登入。")
                 # 不需要立即重新運行，讓用戶看到成功訊息
+                
+        with test_form_tab:
+            st.header("測試表單填寫")
+            
+            # 使用表單容器
+            with st.form("test_form"):
+                # 基本資訊
+                st.subheader("基本資訊")
+                col1, col2 = st.columns(2)
+                with col1:
+                    name = st.selectbox(
+                        "姓名",
+                        ["丁OO"]
+                    )
+                with col2:
+                    batch = st.selectbox(
+                        "梯次",
+                        ["2025/02", "2025/03", "2025/04"]
+                    )
+                
+                # EPA 評分項目
+                st.subheader("EPA 評分")
+                epa_scores = {}
+                for i in range(1, 6):  # 假設有 5 個 EPA 項目
+                    epa_scores[f"EPA_{i}"] = st.slider(
+                        f"EPA {i} 評分",
+                        min_value=1,
+                        max_value=5,
+                        value=3,
+                        help="1: 需要監督, 2: 需要指導, 3: 需要提示, 4: 獨立完成, 5: 可指導他人"
+                    )
+                
+                # 其他評語
+                st.subheader("其他評語")
+                comments = st.text_area("請輸入評語", height=100)
+                
+                # 提交按鈕
+                submitted = st.form_submit_button("提交表單")
+                
+                if submitted:
+                    # 建立資料字典
+                    form_data = {
+                        "姓名": name,
+                        "梯次": batch,
+                        "EPA_1": epa_scores["EPA_1"],
+                        "EPA_2": epa_scores["EPA_2"],
+                        "EPA_3": epa_scores["EPA_3"],
+                        "EPA_4": epa_scores["EPA_4"],
+                        "EPA_5": epa_scores["EPA_5"],
+                        "評語": comments,
+                        "提交時間": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    
+                    # 將資料轉換為 DataFrame
+                    df = pd.DataFrame([form_data])
+                    
+                    # 檢查檔案是否存在
+                    try:
+                        # 如果檔案存在，讀取並附加新資料
+                        existing_df = pd.read_csv("test_form_data.csv")
+                        df = pd.concat([existing_df, df], ignore_index=True)
+                    except FileNotFoundError:
+                        # 如果檔案不存在，直接使用新資料
+                        pass
+                    
+                    # 儲存到 CSV 檔案
+                    df.to_csv("test_form_data.csv", index=False, encoding='utf-8-sig')
+                    
+                    # 顯示成功訊息
+                    st.success("表單提交成功！")
+                    # 顯示提交的資料
+                    st.write("提交的資料：")
+                    st.write(f"姓名：{name}")
+                    st.write(f"梯次：{batch}")
+                    st.write("EPA 評分：", epa_scores)
+                    st.write("評語：", comments)
         
+        with test_result_tab:
+            st.header("測試結果分析")
+            
+            try:
+                # 讀取 CSV 檔案
+                df = pd.read_csv("test_form_data.csv")
+                
+                # 顯示原始資料
+                st.subheader("原始資料")
+                st.dataframe(df)
+                
+                # EPA 評分統計
+                st.subheader("EPA 評分統計")
+                epa_columns = [f"EPA_{i}" for i in range(1, 6)]
+                epa_stats = df[epa_columns].describe()
+                st.dataframe(epa_stats)
+                
+                # EPA 平均分數雷達圖
+                st.subheader("EPA 平均分數雷達圖")
+                epa_means = df[epa_columns].mean()
+                
+                fig = go.Figure()
+                fig.add_trace(go.Scatterpolar(
+                    r=epa_means.values,
+                    theta=[f"EPA {i}" for i in range(1, 6)],
+                    fill='toself',
+                    name='平均分數',
+                    hovertemplate='EPA: %{theta}<br>平均分數: %{r:.2f}<extra></extra>'
+                ))
+                
+                fig.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[0, 5],
+                            ticktext=['1', '2', '3', '4', '5'],
+                            tickvals=[1, 2, 3, 4, 5]
+                        )
+                    ),
+                    showlegend=False,
+                    title="EPA 平均分數雷達圖",
+                    height=500
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # EPA 評分趨勢圖
+                st.subheader("EPA 評分趨勢（按梯次）")
+                
+                # 按照梯次分組計算平均分數
+                epa_trend = df.groupby('梯次')[epa_columns].mean().reset_index()
+                
+                fig = go.Figure()
+                
+                colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # 自定義顏色
+                
+                for i, epa in enumerate(epa_columns):
+                    fig.add_trace(go.Scatter(
+                        x=epa_trend['梯次'],
+                        y=epa_trend[epa],
+                        mode='lines+markers',
+                        name=f'EPA {i+1}',
+                        line=dict(width=3, color=colors[i]),
+                        marker=dict(size=10, symbol='circle', color=colors[i]),
+                        hovertemplate='梯次: %{x}<br>平均分數: %{y:.2f}<extra></extra>'
+                    ))
+                
+                fig.update_layout(
+                    title=dict(
+                        text="EPA 評分趨勢（按梯次）",
+                        font=dict(size=24)
+                    ),
+                    xaxis=dict(
+                        title="梯次",
+                        categoryorder='array',
+                        categoryarray=['2025/02', '2025/03', '2025/04'],
+                        tickfont=dict(size=14),
+                        gridcolor='lightgrey'
+                    ),
+                    yaxis=dict(
+                        title="平均分數",
+                        range=[1, 5],
+                        tickmode='linear',
+                        tick0=1,
+                        dtick=1,
+                        tickfont=dict(size=14),
+                        gridcolor='lightgrey'
+                    ),
+                    hovermode="x unified",
+                    showlegend=True,
+                    legend=dict(
+                        font=dict(size=12),
+                        yanchor="top",
+                        y=0.99,
+                        xanchor="right",
+                        x=0.99
+                    ),
+                    height=600,
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    margin=dict(t=100)
+                )
+                
+                # 添加網格線
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # EPA 評分分布圖
+                st.subheader("EPA 評分分布")
+                fig = make_subplots(rows=2, cols=3, subplot_titles=[f"{epa} 分布" for epa in epa_columns])
+                
+                for i, epa in enumerate(epa_columns):
+                    row = (i // 3) + 1
+                    col = (i % 3) + 1
+                    
+                    fig.add_trace(
+                        go.Histogram(
+                            x=df[epa],
+                            nbinsx=5,
+                            name=epa,
+                            hovertemplate='評分: %{x}<br>次數: %{y}<extra></extra>'
+                        ),
+                        row=row, col=col
+                    )
+                
+                fig.update_layout(
+                    height=800,
+                    showlegend=False,
+                    title_text="EPA 評分分布"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 評語分析
+                st.subheader("評語分析")
+                if not df['評語'].empty:
+                    st.write("最近 5 筆評語：")
+                    for comment in df['評語'].tail(5):
+                        st.write(f"- {comment}")
+                
+            except FileNotFoundError:
+                st.warning("尚未有測試資料，請先填寫表單。")
+            except Exception as e:
+                st.error(f"讀取或分析資料時發生錯誤：{str(e)}")
         return
     
     # 顯示登出按鈕
@@ -301,6 +524,17 @@ def main():
         if check_permission(st.session_state.role, 'can_manage_users'):
             st.markdown("---")
             show_user_management()
+        
+        # 添加測試系統連結
+        st.markdown("---")
+        st.subheader("測試系統")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("填寫表單測試", key="sidebar_form_button"):
+                st.markdown('<meta http-equiv="refresh" content="0;URL=test_form">', unsafe_allow_html=True)
+        with col2:
+            if st.button("查看測試結果", key="sidebar_result_button"):
+                st.markdown('<meta http-equiv="refresh" content="0;URL=test_results">', unsafe_allow_html=True)
 
     # 分頁設置 - 根據權限顯示不同的分頁
     tabs = []

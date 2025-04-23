@@ -12,7 +12,7 @@ venv/
 # 系統檔案
 .DS_Store
 Thumbs.db
-
+.env
 # Streamlit
 .streamlit/ 
 .streamlit/secret.toml
