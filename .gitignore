@@ -25,3 +25,6 @@ Thumbs.db
 excel/
 Excel/
 data/excel/
+
+.env.*
+!.env.example

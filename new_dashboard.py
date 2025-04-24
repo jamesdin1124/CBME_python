@@ -1,10 +1,19 @@
 import streamlit as st
+import httpx
+
+# 設定頁面配置為寬屏模式
+st.set_page_config(
+    layout="wide",  # 使用寬屏模式
+    page_title="臨床教師評核系統",
+    initial_sidebar_state="expanded"  # 預設展開側邊欄
+)
+
 import pandas as pd
 import os
 import re
+import sys  # 匯入 sys
 from io import BytesIO
 from student_analysis import show_analysis_section
-import sys
 from resident_analysis import show_resident_analysis_section
 from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
 from teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
@@ -15,13 +24,68 @@ from modules.auth import show_login_page, show_user_management, check_permission
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from openai import OpenAI
+from dotenv import load_dotenv
+import traceback # 匯入 traceback
 
-# 設定頁面配置為寬屏模式
-st.set_page_config(
-    layout="wide",  # 使用寬屏模式
-    page_title="臨床教師評核系統",
-    initial_sidebar_state="expanded"  # 預設展開側邊欄
-)
+# 載入環境變數
+load_dotenv()
+
+# 顯示系統編碼資訊
+st.info(f"系統預設編碼 (sys.getdefaultencoding): {sys.getdefaultencoding()}")
+st.info(f"檔案系統編碼 (sys.getfilesystemencoding): {sys.getfilesystemencoding()}")
+
+def get_openai_client():
+    """獲取 OpenAI 客戶端實例並提供更詳細的錯誤訊息，使用自訂 httpx 客戶端"""
+    try:
+        # 重新載入 .env 檔案以確保取得最新設定
+        load_dotenv(override=True)
+        
+        # 讀取 API 金鑰
+        api_key = os.getenv("OPENAI_API_KEY")
+        
+        if not api_key:
+            st.error("❌ 錯誤：未在 .env 檔案中找到 OPENAI_API_KEY。")
+            st.error("""
+            請在 .env 檔案中設定正確的 OpenAI API 金鑰：
+            OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+            
+            OpenAI API 金鑰應該是以 sk-proj- 或 sk- 開頭的一串英文字母和數字。
+            請確保：
+            1. 金鑰完整複製（通常約 40-50 個字元）
+            2. 沒有換行符號
+            3. 沒有多餘的引號或空格
+            4. 整個金鑰都在同一行
+            """)
+            return None
+            
+        # 清理和驗證 API 金鑰
+        api_key = api_key.strip().strip('"').strip("'")
+        
+        # 檢查金鑰格式
+        if not (api_key.startswith("sk-proj-") or api_key.startswith("sk-")):
+            st.error("❌ API 金鑰格式不正確：金鑰必須以 'sk-proj-' 或 'sk-' 開頭")
+            return None
+            
+        # 建立 HTTP 客戶端
+        http_client = httpx.Client(
+            trust_env=False,  # 不使用系統代理設定
+            timeout=30.0      # 設定超時時間
+        )
+        
+        # 初始化 OpenAI 客戶端
+        client = OpenAI(
+            api_key=api_key,
+            http_client=http_client
+        )
+        st.success("✅ OpenAI 客戶端初始化成功")
+        
+        return client
+        
+    except Exception as e:
+        st.error(f"❌ 初始化過程中發生錯誤：{str(e)}")
+        st.error(f"詳細追蹤：\n{traceback.format_exc()}")
+        return None
 
 # 初始化 session state
 if 'logged_in' not in st.session_state:
@@ -206,6 +270,54 @@ def merge_excel_files(uploaded_files):
         st.error(traceback.format_exc()) # 顯示詳細的錯誤追蹤
         return None
 
+def correct_text_with_gpt(text):
+    """
+    使用 GPT API 修正文字
+    
+    Args:
+        text (str): 需要修正的文字
+        
+    Returns:
+        str: 修正後的文字
+    """
+    client = get_openai_client()
+    if not client:
+        st.warning("無法獲取 OpenAI 客戶端，文字修正功能無法使用。")
+        return text
+
+    try:
+        st.info("正在呼叫 OpenAI API 進行文字修正...")
+        
+        # 確保提示文本是有效的 UTF-8 字符串
+        system_content = "你是一個專業的醫學教育文字編輯助手。你的任務是整理臨床教師對實習醫學生的口頭回饋，使其更有條理且易於閱讀。請保持原意，但可以：\n1. 修正錯別字和語法\n2. 改善句子結構\n3. 適當分段\n4. 使用更專業的醫學用語\n5. 保持評語的建設性和教育意義\n\n請直接返回修改後的文字，不需要其他說明。"
+        
+        # 顯示用於診斷的信息
+        st.info(f"使用者文字字節長度：{len(text.encode('utf-8'))} bytes")
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.3,
+            max_tokens=1000
+        )
+        st.success("✅ OpenAI API 呼叫成功！")
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        # 安全地獲取錯誤訊息字串
+        error_details = f"錯誤類型: {type(e).__name__}"
+        try:
+            error_message = str(e)
+        except Exception:
+            error_message = "無法顯示的錯誤訊息 (編碼問題)"
+
+        st.error(f"❌ 呼叫 OpenAI API 時發生錯誤：{error_message} ({error_details})", icon="🚨")
+        tb_str = f"詳細追蹤資訊:\n{traceback.format_exc()}"
+        st.error(tb_str)
+        return text
+
 def main():
     # 檢查是否已登入
     if not st.session_state.logged_in:
@@ -224,9 +336,22 @@ def main():
         with test_form_tab:
             st.header("測試表單填寫")
             
+            # 其他評語（表單外）
+            st.subheader("其他評語")
+            comments = st.text_area("請輸入評語", height=100, key="input_comments")
+            
+            # 文字修正按鈕（表單外）
+            if comments:
+                if st.button("修正文字", key="correct_button"):
+                    corrected_comments = correct_text_with_gpt(comments)
+                    st.session_state.corrected_comments = corrected_comments
+                    st.text_area("修正後的評語", corrected_comments, height=100, key="corrected_text")
+                    comments = corrected_comments
+            
+            st.markdown("---")  # 分隔線
+            
             # 使用表單容器
-            with st.form("test_form"):
-                # 基本資訊
+            with st.form("test_form", clear_on_submit=False):
                 st.subheader("基本資訊")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -252,9 +377,9 @@ def main():
                         help="1: 需要監督, 2: 需要指導, 3: 需要提示, 4: 獨立完成, 5: 可指導他人"
                     )
                 
-                # 其他評語
-                st.subheader("其他評語")
-                comments = st.text_area("請輸入評語", height=100)
+                # 顯示最終評語
+                st.subheader("最終評語")
+                final_comments = st.text_area("確認評語", comments, height=100, key="final_comments", disabled=True)
                 
                 # 提交按鈕
                 submitted = st.form_submit_button("提交表單")
