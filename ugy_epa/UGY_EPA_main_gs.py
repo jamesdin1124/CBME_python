@@ -476,7 +476,21 @@ def create_dept_grade_percentage_chart(df, dept_column):
             title="實習科部教師評核等級百分比分析",
             height=400
         )
-        return fig
+        
+        # 創建第二個錯誤圖表
+        fig_quantity = go.Figure()
+        fig_quantity.add_annotation(
+            text=f"創建圖表時發生錯誤：{str(e)}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="red")
+        )
+        fig_quantity.update_layout(
+            title="實習科部教師評核等級數量分析",
+            height=400
+        )
+        
+        return fig, fig_quantity
 
 def create_dept_grade_distribution_chart(df, dept_name):
     """創建單一科部的評核等級分布圖
@@ -1319,9 +1333,8 @@ def display_visualizations():
                 # 確定科部欄位名稱
                 dept_column = '實習科部' if '實習科部' in filtered_by_layer_df.columns else '訓練科部'
                 
-                # 創建百分比和數量長條圖（如果還沒創建的話）
-                if 'dept_grade_percentage_fig' not in locals():
-                    dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
+                # 創建百分比和數量長條圖（重新創建以確保一致性）
+                dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
                 
                 # 顯示百分比圖表（第二個）
                 st.plotly_chart(dept_grade_percentage_fig, use_container_width=True, key="dept_grade_percentage_chart")
