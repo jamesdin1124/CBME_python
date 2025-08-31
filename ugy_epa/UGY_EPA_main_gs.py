@@ -1159,12 +1159,15 @@ def display_visualizations():
                 "選擇實習科部 (可複選)",
                 options=all_depts,
                 default=all_depts,
-                format_func=lambda x: f"科部: {x}"
+                format_func=lambda x: f"科部: {x}",
+                key="overview_dept_selector"
             )
             if not selected_depts:
                 st.warning("請選擇至少一個實習科部")
                 return
-            current_df_view = current_df_view[current_df_view['實習科部'].isin(selected_depts)]
+            
+            # 按科部篩選
+            current_df_view = current_df_view[current_df_view['實習科部'].isin(selected_depts)].copy()
     
     # ========== 1. 計算梯次排序（背景處理） ==========
     try:
@@ -1177,14 +1180,38 @@ def display_visualizations():
                 "選擇階層 (可複選)",
                 options=all_layers,
                 default=all_layers,
-                format_func=lambda x: f"階層: {x}"
+                format_func=lambda x: f"階層: {x}",
+                key="overview_layer_selector"
             )
             
             if not selected_layers:
                 st.warning("請選擇至少一個階層")
                 return
             
-            filtered_by_layer_df = current_df_view[current_df_view['階層'].isin(selected_layers)].copy() # 用於後續圖表的全階層篩選後資料
+            # ========== EPA評核項目篩選 ==========
+            if 'EPA評核項目' in current_df_view.columns:
+                all_epa_items = sorted(current_df_view['EPA評核項目'].unique().tolist())
+                
+                selected_epa_items = st.multiselect(
+                    "選擇EPA評核項目 (可複選)",
+                    options=all_epa_items,
+                    default=all_epa_items,
+                    format_func=lambda x: f"項目: {x}",
+                    key="overview_epa_selector_with_layers"
+                )
+                
+                if not selected_epa_items:
+                    st.warning("請選擇至少一個EPA評核項目")
+                    return
+                
+                # 先按階層篩選，再按EPA評核項目篩選
+                filtered_by_layer_df = current_df_view[
+                    (current_df_view['階層'].isin(selected_layers)) & 
+                    (current_df_view['EPA評核項目'].isin(selected_epa_items))
+                ].copy()
+            else:
+                # 如果沒有EPA評核項目欄位，只按階層篩選
+                filtered_by_layer_df = current_df_view[current_df_view['階層'].isin(selected_layers)].copy()
             
             for layer in selected_layers:
                 layer_df_for_batch_order = current_df_view[current_df_view['階層'] == layer].copy() # 僅用於計算該階層梯次順序
@@ -1231,7 +1258,28 @@ def display_visualizations():
             layer_batch_orders = {}
             global_sorted_batches = current_df_view['梯次'].unique().tolist() if '梯次' in current_df_view.columns else []
             selected_layers = [] # 如果沒有階層，則 selected_layers 為空
-            filtered_by_layer_df = current_df_view # 如果沒有階層，則使用科部篩選後的資料
+            
+            # ========== EPA評核項目篩選（無階層情況） ==========
+            if 'EPA評核項目' in current_df_view.columns:
+                all_epa_items = sorted(current_df_view['EPA評核項目'].unique().tolist())
+                
+                selected_epa_items = st.multiselect(
+                    "選擇EPA評核項目 (可複選)",
+                    options=all_epa_items,
+                    default=all_epa_items,
+                    format_func=lambda x: f"項目: {x}",
+                    key="overview_epa_selector_no_layers"
+                )
+                
+                if not selected_epa_items:
+                    st.warning("請選擇至少一個EPA評核項目")
+                    return
+                
+                # 按EPA評核項目篩選
+                filtered_by_layer_df = current_df_view[current_df_view['EPA評核項目'].isin(selected_epa_items)].copy()
+            else:
+                # 如果沒有EPA評核項目欄位，使用原始資料
+                filtered_by_layer_df = current_df_view
             
     except Exception as e:
         st.error(f"計算梯次排序時發生錯誤: {e}")
@@ -1590,8 +1638,81 @@ def show_UGY_EPA_section():
         # ========== 個別學生雷達圖分析 ==========
         st.markdown("<h1 style='color:#1E90FF; font-size:32px;'>個別學生雷達圖分析</h1>", unsafe_allow_html=True)
 
+        # ========== 個別學生分析篩選器 ==========
+        st.markdown("---")
+        st.markdown("<h2 style='color:#1E90FF; font-size:24px;'>個別學生分析篩選設定</h2>", unsafe_allow_html=True)
+        
+        # 建立個別學生分析的篩選資料副本
+        student_filter_df = proceeded_EPA_df.copy()
+        
+        # 1. 實習科部篩選 (可複選)
+        if '實習科部' in student_filter_df.columns or '訓練科部' in student_filter_df.columns:
+            dept_column = '實習科部' if '實習科部' in student_filter_df.columns else '訓練科部'
+            all_depts = sorted(student_filter_df[dept_column].unique().tolist())
+            
+            selected_depts_student = st.multiselect(
+                "選擇實習科部 (可複選)",
+                options=all_depts,
+                default=all_depts,
+                format_func=lambda x: f"科部: {x}",
+                key="student_dept_selector"
+            )
+            
+            if not selected_depts_student:
+                st.warning("請選擇至少一個實習科部")
+                return
+            
+            # 按科部篩選
+            student_filter_df = student_filter_df[student_filter_df[dept_column].isin(selected_depts_student)].copy()
+        
+        # 2. 階層篩選 (可複選)
+        if '階層' in student_filter_df.columns:
+            all_layers_student = sorted(student_filter_df['階層'].unique().tolist())
+            
+            selected_layers_student = st.multiselect(
+                "選擇階層 (可複選)",
+                options=all_layers_student,
+                default=all_layers_student,
+                format_func=lambda x: f"階層: {x}",
+                key="student_layer_selector"
+            )
+            
+            if not selected_layers_student:
+                st.warning("請選擇至少一個階層")
+                return
+            
+            # 按階層篩選
+            student_filter_df = student_filter_df[student_filter_df['階層'].isin(selected_layers_student)].copy()
+        
+        # 3. EPA評核項目篩選 (可複選)
+        if 'EPA評核項目' in student_filter_df.columns:
+            all_epa_items_student = sorted(student_filter_df['EPA評核項目'].unique().tolist())
+            
+            selected_epa_items_student = st.multiselect(
+                "選擇EPA評核項目 (可複選)",
+                options=all_epa_items_student,
+                default=all_epa_items_student,
+                format_func=lambda x: f"項目: {x}",
+                key="student_epa_selector"
+            )
+            
+            if not selected_epa_items_student:
+                st.warning("請選擇至少一個EPA評核項目")
+                return
+            
+            # 按EPA評核項目篩選
+            student_filter_df = student_filter_df[student_filter_df['EPA評核項目'].isin(selected_epa_items_student)].copy()
+        
+        # 顯示篩選後的統計資訊
+        if not student_filter_df.empty:
+            st.success(f"篩選後資料：{len(student_filter_df)} 筆記錄")
+        else:
+            st.warning("篩選後沒有符合條件的資料")
+            return
+        
+        # ========== 個別學生分析開始 ==========
         # 先顯示每個階層、每個EPA項目的平均及95%CI
-        if proceeded_EPA_df is not None and not proceeded_EPA_df.empty and '階層' in proceeded_EPA_df.columns:
+        if '階層' in student_filter_df.columns:
             import numpy as np
             import scipy.stats as stats
             def mean_ci(series):
@@ -1606,32 +1727,32 @@ def show_UGY_EPA_section():
 
 
         # 檢查必要欄位，優先使用學號，如果沒有則使用學員姓名
-        if '學號' in proceeded_EPA_df.columns:
+        if '學號' in student_filter_df.columns:
             student_id_column = '學號'
             required_columns_student = ['梯次', '學員姓名', 'EPA評核項目', '教師評核EPA等級', '學號']
-        elif '學員姓名' in proceeded_EPA_df.columns:
+        elif '學員姓名' in student_filter_df.columns:
             student_id_column = '學員姓名'
             required_columns_student = ['梯次', '學員姓名', 'EPA評核項目', '教師評核EPA等級']
             # 如果沒有學號欄位，創建一個虛擬的學號欄位（使用姓名）
-            proceeded_EPA_df['學號'] = proceeded_EPA_df['學員姓名']
+            student_filter_df['學號'] = student_filter_df['學員姓名']
         else:
             st.error("資料中缺少學號或學員姓名欄位，無法顯示學生雷達圖")
             return
             
-        missing_columns_student = [col for col in required_columns_student if col not in proceeded_EPA_df.columns]
+        missing_columns_student = [col for col in required_columns_student if col not in student_filter_df.columns]
         
         if missing_columns_student:
             st.error(f"資料中缺少以下欄位，無法顯示學生雷達圖：{', '.join(missing_columns_student)}")
         else:
-            standard_epa_categories = sorted(proceeded_EPA_df['EPA評核項目'].unique().tolist())
-            total_students = len(proceeded_EPA_df[student_id_column].dropna().unique())
+            standard_epa_categories = sorted(student_filter_df['EPA評核項目'].unique().tolist())
+            total_students = len(student_filter_df[student_id_column].dropna().unique())
             # 確保梯次欄位存在才計算梯次數量
-            num_batches_display = len(proceeded_EPA_df['梯次'].unique()) if '梯次' in proceeded_EPA_df.columns else "N/A"
+            num_batches_display = len(student_filter_df['梯次'].unique()) if '梯次' in student_filter_df.columns else "N/A"
 
             st.success(f"已選擇 {num_batches_display} 個梯次，共有 {total_students} 名不重複學生")
             
             # 獲取所有學生列表
-            student_ids_in_batches = proceeded_EPA_df[student_id_column].dropna().unique()
+            student_ids_in_batches = student_filter_df[student_id_column].dropna().unique()
             students_to_show = sorted([str(student_id) for student_id in student_ids_in_batches])
             
             # 添加學生選擇器
@@ -1642,7 +1763,7 @@ def show_UGY_EPA_section():
             student_display_names = {}
             
             for student_id in students_to_show:
-                student_data = proceeded_EPA_df[proceeded_EPA_df[student_id_column].astype(str) == student_id]
+                student_data = student_filter_df[student_filter_df[student_id_column].astype(str) == student_id]
                 if not student_data.empty and '學員姓名' in student_data.columns:
                     student_name = student_data['學員姓名'].iloc[0]
                     display_name = f"{student_name} ({student_id})"
@@ -1665,7 +1786,7 @@ def show_UGY_EPA_section():
                 st.subheader(f"學生EPA評核雷達圖分析")
                 
                 # 獲取選中學生的資料
-                student_df_all_batches = proceeded_EPA_df[proceeded_EPA_df[student_id_column].astype(str) == selected_student].copy()
+                student_df_all_batches = student_filter_df[student_filter_df[student_id_column].astype(str) == selected_student].copy()
                 if '教師' in student_df_all_batches.columns: # 篩選有教師評核的資料
                     student_df_all_batches = student_df_all_batches[student_df_all_batches['教師'].notna() & (student_df_all_batches['教師'] != '')]
                 
