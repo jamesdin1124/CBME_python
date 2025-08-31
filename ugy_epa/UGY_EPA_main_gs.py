@@ -18,21 +18,792 @@ from modules.visualization import plot_radar_chart, plot_epa_trend_px
 # 在檔案開頭宣告全域變數
 proceeded_EPA_df = None
 
+# 添加一個改進的實習科部資料處理函數
+def safe_process_departments(df):
+    """安全地處理訓練科部資料，包含錯誤處理和資料驗證
+    
+    Args:
+        df (pd.DataFrame): 訓練科部資料DataFrame
+        
+    Returns:
+        pd.DataFrame or None: 處理後的資料，如果失敗則返回None
+    """
+    try:
+        if df is None or df.empty:
+            st.warning("訓練科部資料為空或無效")
+            return None
+            
+        # 檢查必要欄位（只需要姓名）
+        required_columns = ['姓名']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            st.error(f"訓練科部資料缺少必要欄位：{', '.join(missing_columns)}")
+            return None
+            
+        # 複製DataFrame避免修改原始資料
+        processed_df = df.copy()
+        
+        # 清理資料：移除姓名欄位完全空白的行
+        processed_df = processed_df.dropna(subset=['姓名'], how='all')
+        
+        # 處理姓名欄位
+        processed_df['姓名'] = processed_df['姓名'].fillna('')
+        
+        # 移除姓名為空的資料
+        processed_df = processed_df[processed_df['姓名'].str.strip() != '']
+        
+        if processed_df.empty:
+            st.warning("清理後沒有有效的學生資料")
+            return None
+            
+        # 找出可能的科部欄位（日期格式或其他）
+        potential_dept_columns = []
+        for col in processed_df.columns:
+            if col not in required_columns:
+                # 檢查是否為日期格式
+                if isinstance(col, str):
+                    if (len(col.split('/')) == 3 or 
+                        len(col.split('-')) == 3 or 
+                        len(col.split('.')) == 3):
+                        potential_dept_columns.append(col)
+                    else:
+                        # 如果不是日期格式，也可能是科部欄位
+                        potential_dept_columns.append(col)
+        
+        if not potential_dept_columns:
+            st.warning("未找到科部相關欄位")
+            return None
+            
+        # 添加處理資訊
+        processed_df.attrs['dept_columns'] = potential_dept_columns
+        processed_df.attrs['date_columns'] = [col for col in potential_dept_columns 
+                                            if any(sep in col for sep in ['/', '-', '.'])]
+        
+        st.success(f"成功處理 {len(processed_df)} 筆學生資料，找到 {len(potential_dept_columns)} 個科部欄位")
+        return processed_df
+        
+    except Exception as e:
+        st.error(f"處理訓練科部資料時發生錯誤：{str(e)}")
+        return None
+
+def create_dept_grade_percentage_chart(df, dept_column):
+    """創建實習科部教師評核等級百分比長條圖
+    
+    Args:
+        df (pd.DataFrame): 包含EPA評核資料的DataFrame
+        dept_column (str): 科部欄位名稱
+        
+    Returns:
+        plotly.graph_objects.Figure: 百分比長條圖
+    """
+    try:
+        import plotly.graph_objects as go
+        import plotly.express as px
+        
+        # 過濾有效的科部和評核等級資料
+        valid_data = df[[dept_column, '教師評核EPA等級_數值']].dropna()
+        
+        if valid_data.empty:
+            # 如果沒有有效資料，創建一個空的圖表
+            fig = go.Figure()
+            fig.add_annotation(
+                text="沒有可用的科部或評核等級資料",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(
+                title="實習科部教師評核等級百分比分析",
+                xaxis_title="實習科部",
+                yaxis_title="百分比 (%)",
+                height=400
+            )
+            return fig
+        
+        # 計算每個科部各評核等級的百分比
+        dept_grade_counts = valid_data.groupby([dept_column, '教師評核EPA等級_數值']).size().reset_index(name='count')
+        
+        # 計算每個科部的總評核數
+        dept_totals = valid_data.groupby(dept_column).size().reset_index(name='total')
+        
+        # 合併資料計算百分比
+        dept_grade_percentage = dept_grade_counts.merge(dept_totals, on=dept_column)
+        dept_grade_percentage['percentage'] = (dept_grade_percentage['count'] / dept_grade_percentage['total'] * 100).round(1)
+        
+        # 獲取所有科部和評核等級
+        all_depts = sorted(valid_data[dept_column].unique())
+        all_grades = sorted(valid_data['教師評核EPA等級_數值'].unique())
+        
+        # 創建完整的資料矩陣（包含0值）
+        complete_data = []
+        for dept in all_depts:
+            for grade in all_grades:
+                # 查找該科部該等級的資料
+                existing_data = dept_grade_percentage[
+                    (dept_grade_percentage[dept_column] == dept) & 
+                    (dept_grade_percentage['教師評核EPA等級_數值'] == grade)
+                ]
+                
+                if not existing_data.empty:
+                    complete_data.append({
+                        '科部': dept,
+                        '評核等級': grade,
+                        '百分比': existing_data['percentage'].iloc[0],
+                        '數量': existing_data['count'].iloc[0]
+                    })
+                else:
+                    complete_data.append({
+                        '科部': dept,
+                        '評核等級': grade,
+                        '百分比': 0.0,
+                        '數量': 0
+                    })
+        
+        complete_df = pd.DataFrame(complete_data)
+        
+        # 強制將評核等級轉換為字串類型，確保plotly將其視為分類變數
+        complete_df['評核等級'] = complete_df['評核等級'].astype(str)
+        
+        # 自定義顏色映射，處理小數點評核等級
+        def get_grade_color(grade):
+            """根據評核等級返回對應的顏色，小數點使用漸層效果"""
+            try:
+                grade_float = float(grade)
+                base_grade = int(grade_float)
+                decimal_part = grade_float - base_grade
+                
+                # 基礎顏色映射 - 同階層相近色系
+                base_colors = {
+                    1: '#FF6B9D',  # 粉紅色 - Level 1
+                    2: '#FFD93D',  # 黃色 - Level 2
+                    3: '#4CAF50',  # 綠色 - Level 3
+                    4: '#2196F3',  # 藍色 - Level 4
+                    5: '#9C27B0'   # 紫色 - Level 5
+                }
+                
+                if base_grade in base_colors:
+                    base_color = base_colors[base_grade]
+                    
+                    # 如果有小數點，創建同階層相近顏色
+                    if decimal_part > 0:
+                        # 使用同階層的相近顏色，而不是跨階層漸變
+                        if base_grade == 1:
+                            # Level 1 階層：粉紅色系
+                            if decimal_part <= 0.5:
+                                return '#FF8FA3'  # 稍深的粉紅色
+                            else:
+                                return '#FF6B9D'  # 基礎粉紅色
+                        elif base_grade == 2:
+                            # Level 2 階層：黃色系
+                            if decimal_part <= 0.5:
+                                return '#FFE135'  # 稍深的黃色
+                            else:
+                                return '#FFD93D'  # 基礎黃色
+                        elif base_grade == 3:
+                            # Level 3 階層：綠色系
+                            if decimal_part <= 0.5:
+                                return '#66BB6A'  # 稍深的綠色
+                            else:
+                                return '#4CAF50'  # 基礎綠色
+                        elif base_grade == 4:
+                            # Level 4 階層：藍色系
+                            if decimal_part <= 0.5:
+                                return '#42A5F5'  # 稍深的藍色
+                            else:
+                                return '#2196F3'  # 基礎藍色
+                        elif base_grade == 5:
+                            # Level 5 階層：紫色系
+                            return '#9C27B0'  # 基礎紫色
+                        
+                        # 如果沒有特定規則，返回基礎顏色
+                        return base_color
+                    else:
+                        return base_color
+                else:
+                    return '#CCCCCC'  # 預設顏色
+            except:
+                return '#CCCCCC'  # 預設顏色
+        
+        # 創建長條圖，使用自定義顏色
+        # 先為每個評核等級準備顏色
+        unique_grades = sorted(complete_df['評核等級'].unique())
+        
+        color_map = {}
+        for grade in unique_grades:
+            # 將字串轉換回float來計算顏色
+            try:
+                grade_float = float(grade)
+                color = get_grade_color(grade_float)
+            except:
+                color = '#CCCCCC'  # 預設顏色
+            color_map[grade] = color
+        
+        # 創建圖表
+        fig = px.bar(
+            complete_df,
+            x='科部',
+            y='百分比',
+            color='評核等級',
+            barmode='stack',
+            title="各實習科部教師評核等級百分比分布",
+            labels={
+                '科部': '實習科部',
+                '百分比': '百分比 (%)',
+                '評核等級': '評核等級'
+            },
+            color_discrete_map=color_map
+        )
+        
+        # 強制更新顏色配置
+        # 直接使用我們已經創建好的顏色映射
+        for i, trace in enumerate(fig.data):
+            # 根據trace的順序和我們已知的評核等級順序來確定顏色
+            # 假設trace的順序與unique_grades的順序一致
+            if i < len(unique_grades):
+                grade_name = unique_grades[i]
+                grade_color = color_map[grade_name]
+                
+                # 設定顏色
+                if hasattr(trace, 'marker') and hasattr(trace.marker, 'color'):
+                    trace.marker.color = grade_color
+                else:
+                    trace.marker = dict(color=grade_color)
+                
+                # 強制更新trace的顏色
+                trace.update(marker_color=grade_color)
+        
+
+        
+        # 更新圖表樣式
+        fig.update_layout(
+            height=500,
+            margin=dict(t=80, b=80, l=80, r=80),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5
+            ),
+            xaxis=dict(
+                title="實習科部",
+                tickangle=45
+            ),
+            yaxis=dict(
+                title="百分比 (%)",
+                range=[0, 100]
+            )
+        )
+        
+        # 添加百分比標籤 - 修正定位邏輯
+        # 為每個科部計算累積高度，確保標籤在正確的顏色區塊中央
+        
+        # 定義評核等級到level標籤的映射
+        def get_level_label(grade):
+            """根據評核等級返回對應的level標籤"""
+            try:
+                grade_float = float(grade)
+                if grade_float == 1.0:
+                    return "Level 1a"
+                elif grade_float == 1.5:
+                    return "Level 1b"
+                elif grade_float == 2.0:
+                    return "Level 2a"
+                elif grade_float == 2.5:
+                    return "Level 2b"
+                elif grade_float == 3.0:
+                    return "Level 3a"
+                elif grade_float == 3.3:
+                    return "Level 3b"
+                elif grade_float == 3.6:
+                    return "Level 3c"
+                elif grade_float == 4.0:
+                    return "Level 4a"
+                elif grade_float == 4.5:
+                    return "Level 4b"
+                elif grade_float == 5.0:
+                    return "Level 5"
+                else:
+                    return f"Level {grade}"
+            except:
+                return f"Level {grade}"
+        
+        for dept in complete_df['科部'].unique():
+            dept_data = complete_df[complete_df['科部'] == dept]
+            cumulative_height = 0
+            total_quantity = dept_data['數量'].sum()  # 計算該科部總量
+            
+            for _, row in dept_data.iterrows():
+                percentage = row['百分比']
+                grade = row['評核等級']
+                if percentage > 0:
+                    # 計算標籤的y位置：當前區塊的中央
+                    label_y = cumulative_height + (percentage / 2)
+                    
+                    # 獲取level標籤
+                    level_label = get_level_label(grade)
+                    
+                    # 添加百分比標籤（包含level標籤）
+                    fig.add_annotation(
+                        x=dept,
+                        y=label_y,
+                        text=f"{level_label} ({percentage:.1f}%)",
+                        font=dict(size=10, color="black", weight="bold"),
+                        showarrow=False,
+                        bgcolor="white",
+                        bordercolor="gray",
+                        borderwidth=1,
+                        opacity=0.8
+                    )
+                    
+                    # 更新累積高度
+                    cumulative_height += percentage
+            
+            # 在每個科部長條圖上方添加總量註解
+            fig.add_annotation(
+                x=dept,
+                y=100 + 8,  # 在百分比圖上方顯示，位置更高
+                text=f"總量: {int(total_quantity)}",
+                font=dict(size=12, color="black", weight="bold"),
+                showarrow=False,
+                bgcolor="lightgreen",
+                bordercolor="green",
+                borderwidth=1,
+                opacity=0.9
+            )
+        
+        # 創建數量堆疊長條圖
+        # 準備數量資料
+        quantity_df = complete_df.copy()
+        quantity_df['數量'] = quantity_df['數量'].astype(float)
+        
+        # 創建數量圖表
+        fig_quantity = px.bar(
+            quantity_df,
+            x='科部',
+            y='數量',
+            color='評核等級',
+            barmode='stack',
+            title="各實習科部教師評核等級數量分布",
+            labels={
+                '科部': '實習科部',
+                '數量': '數量',
+                '評核等級': '評核等級'
+            },
+            color_discrete_map=color_map
+        )
+        
+        # 更新數量圖表樣式
+        fig_quantity.update_layout(
+            height=500,
+            margin=dict(t=80, b=80, l=80, r=80),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5
+            ),
+            xaxis=dict(
+                title="實習科部",
+                tickangle=45
+            ),
+            yaxis=dict(
+                title="數量"
+            )
+        )
+        
+        # 為數量圖表添加標籤和總量
+        for dept in quantity_df['科部'].unique():
+            dept_data = quantity_df[quantity_df['科部'] == dept]
+            cumulative_height = 0
+            total_quantity = dept_data['數量'].sum()  # 計算該科部總量
+            
+            for _, row in dept_data.iterrows():
+                quantity = row['數量']
+                grade = row['評核等級']
+                if quantity > 0:
+                    # 計算標籤的y位置：當前區塊的中央
+                    label_y = cumulative_height + (quantity / 2)
+                    
+                    # 獲取level標籤
+                    level_label = get_level_label(grade)
+                    
+                    # 添加數量標籤（包含level標籤）
+                    fig_quantity.add_annotation(
+                        x=dept,
+                        y=label_y,
+                        text=f"{level_label} ({int(quantity)})",
+                        font=dict(size=10, color="black", weight="bold"),
+                        showarrow=False,
+                        bgcolor="white",
+                        bordercolor="gray",
+                        borderwidth=1,
+                        opacity=0.8
+                    )
+                    
+                    # 更新累積高度
+                    cumulative_height += quantity
+            
+            # 在每個科部長條圖上方添加總量註解
+            fig_quantity.add_annotation(
+                x=dept,
+                y=total_quantity + 8,  # 在長條圖上方顯示，位置更高
+                text=f"總量: {int(total_quantity)}",
+                font=dict(size=12, color="black", weight="bold"),
+                showarrow=False,
+                bgcolor="lightblue",
+                bordercolor="blue",
+                borderwidth=1,
+                opacity=0.9
+            )
+        
+        # 返回兩個圖表，讓調用者決定如何顯示
+        return fig, fig_quantity
+        
+    except Exception as e:
+        # 如果出錯，創建錯誤圖表
+        fig = go.Figure()
+        fig.add_annotation(
+            text=f"創建圖表時發生錯誤：{str(e)}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="red")
+        )
+        fig.update_layout(
+            title="實習科部教師評核等級百分比分析",
+            height=400
+        )
+        return fig
+
+def create_dept_grade_distribution_chart(df, dept_name):
+    """創建單一科部的評核等級分布圖
+    
+    Args:
+        df (pd.DataFrame): 包含該科部EPA評核資料的DataFrame
+        dept_name (str): 科部名稱
+        
+    Returns:
+        plotly.graph_objects.Figure: 評核等級分布圖
+    """
+    try:
+        import plotly.graph_objects as go
+        import plotly.express as px
+        
+        # 過濾有效的評核等級資料
+        valid_data = df[['教師評核EPA等級_數值']].dropna()
+        
+        if valid_data.empty:
+            # 如果沒有有效資料，創建一個空的圖表
+            fig = go.Figure()
+            fig.add_annotation(
+                text="沒有可用的評核等級資料",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(
+                title=f"{dept_name} 評核等級分布",
+                height=400
+            )
+            return fig
+        
+        # 計算各評核等級的數量
+        grade_counts = valid_data['教師評核EPA等級_數值'].value_counts().sort_index()
+        total_count = len(valid_data)
+        
+        # 計算百分比
+        grade_percentages = (grade_counts / total_count * 100).round(1)
+        
+        # 創建長條圖
+        fig = go.Figure()
+        
+        # 定義評核等級的鮮明顏色（支援小數點漸層）
+        def get_grade_color(grade):
+            """根據評核等級返回對應的顏色，小數點使用漸層效果"""
+            try:
+                grade_float = float(grade)
+                base_grade = int(grade_float)
+                decimal_part = grade_float - base_grade
+                
+                # 基礎顏色映射 - 同階層相近色系
+                base_colors = {
+                    1: '#FF6B9D',  # 粉紅色 - Level 1
+                    2: '#FFD93D',  # 黃色 - Level 2
+                    3: '#4CAF50',  # 綠色 - Level 3
+                    4: '#2196F3',  # 藍色 - Level 4
+                    5: '#9C27B0'   # 紫色 - Level 5
+                }
+                
+                if base_grade in base_colors:
+                    base_color = base_colors[base_grade]
+                    
+                    # 如果有小數點，創建同階層相近顏色
+                    if decimal_part > 0:
+                        # 使用同階層的相近顏色，而不是跨階層漸變
+                        if base_grade == 1:
+                            # Level 1 階層：粉紅色系
+                            if decimal_part <= 0.5:
+                                return '#FF8FA3'  # 稍深的粉紅色
+                            else:
+                                return '#FF6B9D'  # 基礎粉紅色
+                        elif base_grade == 2:
+                            # Level 2 階層：黃色系
+                            if decimal_part <= 0.5:
+                                return '#FFE135'  # 稍深的黃色
+                            else:
+                                return '#FFD93D'  # 基礎黃色
+                        elif base_grade == 3:
+                            # Level 3 階層：綠色系
+                            if decimal_part <= 0.5:
+                                return '#66BB6A'  # 稍深的綠色
+                            else:
+                                return '#4CAF50'  # 基礎綠色
+                        elif base_grade == 4:
+                            # Level 4 階層：藍色系
+                            if decimal_part <= 0.5:
+                                return '#42A5F5'  # 稍深的藍色
+                            else:
+                                return '#2196F3'  # 基礎藍色
+                        elif base_grade == 5:
+                            # Level 5 階層：紫色系
+                            return '#9C27B0'  # 基礎紫色
+                        
+                        # 如果沒有特定規則，返回基礎顏色
+                        return base_color
+                    else:
+                        return base_color
+                else:
+                    return '#CCCCCC'  # 預設顏色
+            except:
+                return '#CCCCCC'  # 預設顏色
+        
+        # 為每個評核等級生成顏色
+        colors = [get_grade_color(grade) for grade in grade_counts.index]
+        
+        # 添加數量長條（使用對應等級的顏色）
+        fig.add_trace(go.Bar(
+            x=grade_counts.index,
+            y=grade_counts.values,
+            name='數量',
+            yaxis='y',
+            marker_color=colors,
+            text=grade_counts.values,
+            textposition='outside'
+        ))
+        
+        # 添加百分比長條（使用對應等級的顏色，但透明度較低）
+        rgba_colors = []
+        for color in colors:
+            if color.startswith('rgb('):
+                # 解析rgb顏色
+                rgb_values = color[4:-1].split(', ')
+                r, g, b = int(rgb_values[0]), int(rgb_values[1]), int(rgb_values[2])
+                rgba_colors.append(f"rgba({r}, {g}, {b}, 0.7)")
+            else:
+                # 如果是hex顏色，轉換為rgba
+                if color.startswith('#'):
+                    r = int(color[1:3], 16)
+                    g = int(color[3:5], 16)
+                    b = int(color[5:7], 16)
+                    rgba_colors.append(f"rgba({r}, {g}, {b}, 0.7)")
+                else:
+                    rgba_colors.append("rgba(204, 204, 204, 0.7)")  # 預設顏色
+        
+        fig.add_trace(go.Bar(
+            x=grade_percentages.index,
+            y=grade_percentages.values,
+            name='百分比',
+            yaxis='y2',
+            marker_color=rgba_colors,
+            text=[f"{p:.1f}%" for p in grade_percentages.values],
+            textposition='outside'
+        ))
+        
+        # 更新圖表樣式
+        fig.update_layout(
+            title=f"{dept_name} 評核等級分布分析 (總評核數: {total_count})",
+            height=500,
+            margin=dict(t=80, b=80, l=80, r=80),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5
+            ),
+            xaxis=dict(
+                title="評核等級",
+                tickmode='linear',
+                tick0=1,
+                dtick=1
+            ),
+            yaxis=dict(
+                title="數量",
+                side="left"
+            ),
+            yaxis2=dict(
+                title="百分比 (%)",
+                side="right",
+                overlaying="y",
+                range=[0, 100]
+            )
+        )
+        
+        return fig
+        
+    except Exception as e:
+        # 如果出錯，創建錯誤圖表
+        fig = go.Figure()
+        fig.add_annotation(
+            text=f"創建圖表時發生錯誤：{str(e)}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="red")
+        )
+        fig.update_layout(
+            title=f"{dept_name} 評核等級分布",
+            height=400
+        )
+        return fig
+
+def safe_merge_epa_with_departments(epa_df, dept_df):
+    """安全地合併EPA和訓練科部資料，不依賴學號欄位
+    
+    Args:
+        epa_df (pd.DataFrame): EPA資料
+        dept_df (pd.DataFrame): 訓練科部資料
+        
+    Returns:
+        pd.DataFrame: 合併後的資料
+    """
+    try:
+        if epa_df is None or dept_df is None:
+            st.warning("EPA資料或訓練科部資料為空，跳過合併")
+            return epa_df
+            
+        # 複製DataFrame避免修改原始資料
+        epa_data = epa_df.copy()
+        dept_data = dept_df.copy()
+        
+        # 檢查是否有評核日期欄位
+        if '評核日期' not in epa_data.columns:
+            st.warning("EPA資料中沒有評核日期欄位，無法進行時間相關的合併")
+            # 如果沒有評核日期，仍然可以進行基本的科部資訊合併
+            # 將訓練科部資料的欄位資訊添加到EPA資料中
+            for col in dept_data.columns:
+                if col not in ['姓名']:  # 排除姓名欄位
+                    epa_data[f'科部_{col}'] = None
+                    st.info(f"已添加科部欄位：科部_{col}")
+            return epa_data
+        
+        # 如果有評核日期，嘗試進行時間相關的合併
+        try:
+            # 檢查是否有學生識別欄位
+            student_id_col = None
+            if '學號' in epa_data.columns:
+                student_id_col = '學號'
+            elif '學員姓名' in epa_data.columns:
+                student_id_col = '學員姓名'
+                # 創建虛擬學號欄位
+                epa_data['學號'] = epa_data['學員姓名']
+                student_id_col = '學號'
+            
+            if student_id_col is None:
+                st.warning("EPA資料中沒有學號或學員姓名欄位，無法進行學生相關的合併")
+                return epa_data
+            
+            # 確保學號為字串型態
+            epa_data[student_id_col] = epa_data[student_id_col].astype(str)
+            dept_data['姓名'] = dept_data['姓名'].astype(str)
+            
+            # 初始化訓練科部欄位
+            epa_data['訓練科部'] = None
+            
+            # 獲取科部相關欄位
+            dept_columns = dept_data.attrs.get('dept_columns', [])
+            if not dept_columns:
+                # 如果沒有dept_columns屬性，使用所有非姓名欄位
+                dept_columns = [col for col in dept_data.columns if col != '姓名']
+            
+            # 對每一筆EPA資料尋找對應的訓練科部
+            for idx, row in epa_data.iterrows():
+                student_name = row.get('學員姓名', '')
+                if pd.isna(student_name) or student_name == '':
+                    continue
+                    
+                # 在訓練科部資料中尋找對應的學生
+                student_dept_data = dept_data[dept_data['姓名'] == student_name]
+                
+                if not student_dept_data.empty:
+                    # 找到學生，添加科部資訊
+                    for dept_col in dept_columns:
+                        if dept_col in student_dept_data.columns:
+                            dept_value = student_dept_data[dept_col].iloc[0]
+                            if pd.notna(dept_value) and dept_value != '':
+                                epa_data.loc[idx, f'科部_{dept_col}'] = dept_value
+                    
+                    # 設置主要訓練科部欄位（使用第一個非空的科部值）
+                    for dept_col in dept_columns:
+                        if dept_col in student_dept_data.columns:
+                            dept_value = student_dept_data[dept_col].iloc[0]
+                            if pd.notna(dept_value) and dept_value != '':
+                                epa_data.loc[idx, '訓練科部'] = dept_value
+                                break
+            
+            st.success(f"成功合併訓練科部資料，共處理 {len(epa_data)} 筆EPA資料")
+            return epa_data
+            
+        except Exception as e:
+            st.warning(f"合併過程中發生錯誤：{str(e)}，將返回原始EPA資料")
+            return epa_data
+            
+    except Exception as e:
+        st.error(f"合併EPA和訓練科部資料時發生錯誤：{str(e)}")
+        return epa_df
+
 # 定義階層顏色（供雷達圖與表格用）
 layer_colors = {
-    'C1': 'rgba(255, 100, 100, 0.7)',  # 淡紅色
-    'C2': 'rgba(100, 100, 255, 0.7)',  # 淡藍色
-    'PGY': 'rgba(100, 200, 100, 0.7)'  # 淡綠色
+    'C1': 'rgba(255, 107, 107, 0.8)',    # 鮮紅色 - C1階層
+    'C2': 'rgba(78, 205, 196, 0.8)',     # 青綠色 - C2階層
+    'PGY': 'rgba(255, 165, 0, 0.8)',     # 橙色 - PGY階層
+    'R': 'rgba(107, 207, 127, 0.8)',     # 綠色 - R階層
+    'Fellow': 'rgba(255, 217, 61, 0.8)'  # 黃色 - Fellow階層
     # 可依需求擴充
 }
 
 # 產生隨機顏色（若階層未定義顏色時使用）
 import hashlib
-def get_random_color(seed_str, alpha=0.7):
+def get_random_color(seed_str, alpha=0.8):
+    # 預定義的鮮明顏色列表
+    bright_colors = [
+        '#FF6B6B',  # 鮮紅色
+        '#4ECDC4',  # 青綠色
+        '#45B7D1',  # 藍色
+        '#96CEB4',  # 薄荷綠
+        '#FFEAA7',  # 淺黃色
+        '#DDA0DD',  # 梅紅色
+        '#98D8C8',  # 海綠色
+        '#F7DC6F',  # 金黃色
+        '#BB8FCE',  # 紫色
+        '#85C1E9',  # 天藍色
+        '#F8C471',  # 橙色
+        '#82E0AA'   # 淺綠色
+    ]
+    
+    # 使用seed_str的hash值來選擇顏色
     hash_value = int(hashlib.md5(str(seed_str).encode()).hexdigest(), 16)
-    r = (hash_value & 0xFF) % 200 
-    g = ((hash_value >> 8) & 0xFF) % 200
-    b = ((hash_value >> 16) & 0xFF) % 200
+    color_index = hash_value % len(bright_colors)
+    selected_color = bright_colors[color_index]
+    
+    # 轉換hex顏色為rgba格式
+    r = int(selected_color[1:3], 16)
+    g = int(selected_color[3:5], 16)
+    b = int(selected_color[5:7], 16)
+    
     return f'rgba({r}, {g}, {b}, {alpha})'
 
 # ==================== 資料載入與處理函數 ====================
@@ -151,7 +922,7 @@ def display_dept_data(dept_df):
                        if isinstance(col, str) and len(col.split('/')) == 3]
         
         # 選擇要顯示的欄位
-        display_columns = ['學號', '姓名'] + date_columns
+        display_columns = ['姓名'] + date_columns
         
         # 顯示資料
         st.dataframe(dept_df[display_columns], use_container_width=True)
@@ -377,23 +1148,23 @@ def display_visualizations():
 
     st.markdown("<h1 style='color:#1E90FF; font-size:32px;'>學生總覽</h1>", unsafe_allow_html=True)
     
-    # ========== 訓練科部多選篩選 ========== 
+    # ========== 實習科部多選篩選 ========== 
     # 使用 proceeded_EPA_df 進行篩選
     current_df_view = proceeded_EPA_df.copy() # 建立副本以進行篩選，不直接修改全域變數
 
-    if '訓練科部' in current_df_view.columns:
-        all_depts = sorted([d for d in current_df_view['訓練科部'].dropna().unique().tolist() if d not in [None, '', 'None']])
+    if '實習科部' in current_df_view.columns:
+        all_depts = sorted([d for d in current_df_view['實習科部'].dropna().unique().tolist() if d not in [None, '', 'None']])
         if all_depts:
             selected_depts = st.multiselect(
-                "選擇訓練科部 (可複選)",
+                "選擇實習科部 (可複選)",
                 options=all_depts,
                 default=all_depts,
                 format_func=lambda x: f"科部: {x}"
             )
             if not selected_depts:
-                st.warning("請選擇至少一個訓練科部")
+                st.warning("請選擇至少一個實習科部")
                 return
-            current_df_view = current_df_view[current_df_view['訓練科部'].isin(selected_depts)]
+            current_df_view = current_df_view[current_df_view['實習科部'].isin(selected_depts)]
     
     # ========== 1. 計算梯次排序（背景處理） ==========
     try:
@@ -476,7 +1247,40 @@ def display_visualizations():
         st.info("資料中沒有 '階層' 欄位，或未選擇任何階層，跳過階層雷達圖和趨勢圖。")
 
     elif not filtered_by_layer_df.empty: # 確保有資料可以畫圖
-        # ===== 雷達圖區域 (所有階層合併) =====
+        # ===== 1. 各實習科部教師評核等級數量分布 =====
+        if '實習科部' in filtered_by_layer_df.columns or '訓練科部' in filtered_by_layer_df.columns:
+            if '教師評核EPA等級_數值' in filtered_by_layer_df.columns:
+                st.subheader("各實習科部教師評核等級數量分布")
+                
+                # 確定科部欄位名稱
+                dept_column = '實習科部' if '實習科部' in filtered_by_layer_df.columns else '訓練科部'
+                
+                # 創建百分比和數量長條圖
+                dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
+                
+                # 顯示數量圖表（第一個）
+                st.plotly_chart(dept_grade_quantity_fig, use_container_width=True, key="dept_grade_quantity_chart")
+            else:
+                st.warning(f"沒有教師評核EPA等級數值資料，無法進行數量分析")
+        
+        # ===== 2. 實習科部教師評核等級百分比分析 =====
+        if '實習科部' in filtered_by_layer_df.columns or '訓練科部' in filtered_by_layer_df.columns:
+            if '教師評核EPA等級_數值' in filtered_by_layer_df.columns:
+                st.subheader("實習科部教師評核等級百分比分析")
+                
+                # 確定科部欄位名稱
+                dept_column = '實習科部' if '實習科部' in filtered_by_layer_df.columns else '訓練科部'
+                
+                # 創建百分比和數量長條圖（如果還沒創建的話）
+                if 'dept_grade_percentage_fig' not in locals():
+                    dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
+                
+                # 顯示百分比圖表（第二個）
+                st.plotly_chart(dept_grade_percentage_fig, use_container_width=True, key="dept_grade_percentage_chart")
+            else:
+                st.warning(f"沒有教師評核EPA等級數值資料，無法進行百分比分析")
+        
+        # ===== 3. EPA評核雷達圖 =====
         st.subheader("EPA評核雷達圖")
         
         if not filtered_by_layer_df.empty:
@@ -500,7 +1304,7 @@ def display_visualizations():
         else:
             st.error("沒有足夠的資料繪製雷達圖 (經過篩選後)")
         
-        # ===== 趨勢圖區域（上下排列） =====
+        # ===== 4. EPA評核趨勢分析 =====
         if selected_layers: # 只有在選擇了階層時才顯示
             st.subheader("EPA評核趨勢分析")
             for layer in selected_layers:
@@ -626,9 +1430,14 @@ def process_batch_data(df):
         batch_stats = {}
         for batch in sorted_batches:
             batch_data = df[df['梯次'] == batch]
+            # 確定學生識別欄位
+            student_id_col = '學號' if '學號' in batch_data.columns else '學員姓名'
+            if student_id_col not in batch_data.columns:
+                student_id_col = None
+                
             batch_stats[batch] = {
                 '評核數量': len(batch_data),
-                '學生人數': len(batch_data['學號'].unique()),
+                '學生人數': len(batch_data[student_id_col].unique()) if student_id_col else 0,
                 'EPA項目數': len(batch_data['EPA評核項目'].unique()) if 'EPA評核項目' in batch_data.columns else 0
             }
         
@@ -658,16 +1467,44 @@ def show_UGY_EPA_section():
         st.write(f"1. 工作表列表：{sheet_titles}")
         st.write(f"2. 原始資料是否為空：{raw_df is None or raw_df.empty}")
         
-        dept_df, _ = load_sheet_data(sheet_title="訓練科部", show_info=False)
+        # 嘗試載入實習科部資料，如果失敗則嘗試載入訓練科部資料
+        dept_df = None
         processed_dept_df = None
-        if dept_df is not None:
-            processed_dept_df = process_training_departments(dept_df)
-            if processed_dept_df is not None:
-                show_diagnostic("成功載入並處理訓練科部資料", "success")
-                with st.expander("訓練科部資料", expanded=False):
-                    display_dept_data(processed_dept_df)
+        
+        # 優先嘗試載入「訓練科部」工作表
+        try:
+            dept_df, _ = load_sheet_data(sheet_title="訓練科部", show_info=False)
+            if dept_df is not None and not dept_df.empty:
+                # 使用新的安全處理函數
+                processed_dept_df = safe_process_departments(dept_df)
+                if processed_dept_df is not None:
+                    show_diagnostic("成功載入並處理訓練科部資料", "success")
+                    with st.expander("訓練科部資料", expanded=False):
+                        display_dept_data(processed_dept_df)
+                else:
+                    show_diagnostic("訓練科部資料處理失敗", "warning")
             else:
-                show_diagnostic("訓練科部資料處理失敗", "warning")
+                st.warning("訓練科部工作表為空")
+        except Exception as e:
+            st.warning(f"載入實習科部資料失敗：{str(e)}")
+            # 如果實習科部載入失敗，嘗試載入訓練科部資料
+            try:
+                st.info("嘗試載入訓練科部資料作為備用...")
+                dept_df, _ = load_sheet_data(sheet_title="訓練科部", show_info=False)
+                if dept_df is not None and not dept_df.empty:
+                    # 使用新的安全處理函數
+                    processed_dept_df = safe_process_departments(dept_df)
+                    if processed_dept_df is not None:
+                        show_diagnostic("成功載入並處理訓練科部資料（備用）", "success")
+                        with st.expander("訓練科部資料（備用）", expanded=False):
+                            display_dept_data(processed_dept_df)
+                    else:
+                        show_diagnostic("訓練科部資料處理失敗", "warning")
+                else:
+                    st.warning("訓練科部資料也無法載入")
+            except Exception as e2:
+                st.error(f"載入訓練科部資料也失敗：{str(e2)}")
+                st.info("將繼續處理EPA資料，但無法合併科部資訊")
 
         current_processed_df = None
         if sheet_titles:
@@ -693,7 +1530,8 @@ def show_UGY_EPA_section():
                 if current_processed_df is not None and not current_processed_df.empty:
                     if processed_dept_df is not None:
                         try:
-                            current_processed_df = merge_epa_with_departments(current_processed_df, processed_dept_df)
+                            # 使用改進的合併函數，不依賴學號欄位
+                            current_processed_df = safe_merge_epa_with_departments(current_processed_df, processed_dept_df)
                             show_diagnostic("成功合併訓練科部資料到EPA資料", "success")
                         except Exception as e:
                             st.warning(f"合併訓練科部資料時發生錯誤：{str(e)}")
@@ -765,55 +1603,110 @@ def show_UGY_EPA_section():
                     return pd.Series({'平均': mean, 'CI下界': ci[0], 'CI上界': ci[1], '樣本數': n})
                 else:
                     return pd.Series({'平均': mean, 'CI下界': mean, 'CI上界': mean, '樣本數': n})
-            # 只取有教師評核的資料
-            score_col = '教師評核EPA等級_數值' if '教師評核EPA等級_數值' in proceeded_EPA_df.columns else '教師評核EPA等級'
-            group_stats = proceeded_EPA_df.groupby(['階層', 'EPA評核項目'])[score_col].apply(mean_ci).unstack()
-            # 展平成一層
-            group_stats = group_stats.reset_index()
-            # 四捨五入顯示
-            group_stats['平均'] = group_stats['平均'].round(2)
-            group_stats['CI下界'] = group_stats['CI下界'].round(2)
-            group_stats['CI上界'] = group_stats['CI上界'].round(2)
-            st.subheader("各階層EPA項目平均及95%信賴區間")
-            st.dataframe(group_stats, use_container_width=True)
 
-        required_columns_student = ['梯次', '學員姓名', 'EPA評核項目', '教師評核EPA等級', '學號']
+
+        # 檢查必要欄位，優先使用學號，如果沒有則使用學員姓名
+        if '學號' in proceeded_EPA_df.columns:
+            student_id_column = '學號'
+            required_columns_student = ['梯次', '學員姓名', 'EPA評核項目', '教師評核EPA等級', '學號']
+        elif '學員姓名' in proceeded_EPA_df.columns:
+            student_id_column = '學員姓名'
+            required_columns_student = ['梯次', '學員姓名', 'EPA評核項目', '教師評核EPA等級']
+            # 如果沒有學號欄位，創建一個虛擬的學號欄位（使用姓名）
+            proceeded_EPA_df['學號'] = proceeded_EPA_df['學員姓名']
+        else:
+            st.error("資料中缺少學號或學員姓名欄位，無法顯示學生雷達圖")
+            return
+            
         missing_columns_student = [col for col in required_columns_student if col not in proceeded_EPA_df.columns]
         
         if missing_columns_student:
             st.error(f"資料中缺少以下欄位，無法顯示學生雷達圖：{', '.join(missing_columns_student)}")
         else:
             standard_epa_categories = sorted(proceeded_EPA_df['EPA評核項目'].unique().tolist())
-            total_students = len(proceeded_EPA_df['學號'].dropna().unique())
+            total_students = len(proceeded_EPA_df[student_id_column].dropna().unique())
             # 確保梯次欄位存在才計算梯次數量
             num_batches_display = len(proceeded_EPA_df['梯次'].unique()) if '梯次' in proceeded_EPA_df.columns else "N/A"
 
             st.success(f"已選擇 {num_batches_display} 個梯次，共有 {total_students} 名不重複學生")
             
-            student_numbers_in_batches = proceeded_EPA_df['學號'].dropna().unique()
-            students_to_show = sorted([str(num) for num in student_numbers_in_batches])
-            st.subheader(f"所有學生的EPA評核雷達圖 (所有梯次合併)")
-            for student_id_str in students_to_show:
-                student_df_all_batches = proceeded_EPA_df[proceeded_EPA_df['學號'].astype(str) == student_id_str].copy()
+            # 獲取所有學生列表
+            student_ids_in_batches = proceeded_EPA_df[student_id_column].dropna().unique()
+            students_to_show = sorted([str(student_id) for student_id in student_ids_in_batches])
+            
+            # 添加學生選擇器
+            st.subheader("選擇要查看的學生")
+            
+            # 創建學生選項列表，包含姓名和ID
+            student_options = []
+            student_display_names = {}
+            
+            for student_id in students_to_show:
+                student_data = proceeded_EPA_df[proceeded_EPA_df[student_id_column].astype(str) == student_id]
+                if not student_data.empty and '學員姓名' in student_data.columns:
+                    student_name = student_data['學員姓名'].iloc[0]
+                    display_name = f"{student_name} ({student_id})"
+                else:
+                    display_name = f"學生 {student_id}"
+                
+                student_options.append(student_id)
+                student_display_names[student_id] = display_name
+            
+            selected_student = st.selectbox(
+                "請選擇學生：",
+                options=student_options,
+                format_func=lambda x: student_display_names.get(x, x),
+                help="選擇要查看EPA評核資料的學生"
+            )
+            
+            # 只有選擇學生後才顯示資料
+            if selected_student:
+                st.markdown("---")
+                st.subheader(f"學生EPA評核雷達圖分析")
+                
+                # 獲取選中學生的資料
+                student_df_all_batches = proceeded_EPA_df[proceeded_EPA_df[student_id_column].astype(str) == selected_student].copy()
                 if '教師' in student_df_all_batches.columns: # 篩選有教師評核的資料
                     student_df_all_batches = student_df_all_batches[student_df_all_batches['教師'].notna() & (student_df_all_batches['教師'] != '')]
                 
                 if student_df_all_batches.empty:
-                    continue # 如果學生沒有資料或沒有教師評核資料，則不顯示
-                
-                st.markdown("---")
-                student_name = student_df_all_batches['學員姓名'].iloc[0] if not student_df_all_batches.empty and '學員姓名' in student_df_all_batches.columns else student_id_str
-                st.subheader(f"學生: {student_name} ({student_id_str}) (所有梯次合併)")
-                
-                # 先顯示該學生的資料
-                with st.expander("學生評核資料", expanded=True):
-                    st.dataframe(student_df_all_batches)
-                
-                display_student_data(
-                    student_df_all_batches, 
-                    student_id_str, 
-                    standard_categories=standard_epa_categories
-                )
+                    st.warning(f"學生 {selected_student} 沒有可用的教師評核資料")
+                else:
+                    # 顯示學生姓名
+                    student_name = student_df_all_batches['學員姓名'].iloc[0] if not student_df_all_batches.empty and '學員姓名' in student_df_all_batches.columns else selected_student
+                    st.subheader(f"學生: {student_name} ({selected_student})")
+                    
+                    # 顯示學生基本統計資訊
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("總評核數", len(student_df_all_batches))
+                    with col2:
+                        unique_epa_items = len(student_df_all_batches['EPA評核項目'].unique()) if 'EPA評核項目' in student_df_all_batches.columns else 0
+                        st.metric("EPA項目數", unique_epa_items)
+                    with col3:
+                        unique_batches = len(student_df_all_batches['梯次'].unique()) if '梯次' in student_df_all_batches.columns else 0
+                        st.metric("梯次數", unique_batches)
+                    with col4:
+                        if '教師評核EPA等級_數值' in student_df_all_batches.columns:
+                            avg_score = student_df_all_batches['教師評核EPA等級_數值'].mean()
+                            st.metric("平均分數", f"{avg_score:.2f}")
+                        else:
+                            st.metric("平均分數", "N/A")
+                    
+                    # 顯示該學生的資料
+                    with st.expander("學生評核資料", expanded=True):
+                        st.dataframe(student_df_all_batches)
+                    
+
+                    
+                    # 顯示學生分析資料
+                    display_student_data(
+                        student_df_all_batches, 
+                        selected_student, 
+                        standard_categories=standard_epa_categories
+                    )
+            else:
+                st.info("請從上方選擇要查看的學生")
     elif 'processed_df' in st.session_state : # proceeded_EPA_df 是 None 但 session_state 有key (可能值是None或empty)
         # 此情況已由 st.session_state.get('processed_df') 的 else 分支處理
         # 此處不需要額外訊息，避免重複

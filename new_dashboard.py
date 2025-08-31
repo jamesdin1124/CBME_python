@@ -34,10 +34,6 @@ from supabase import create_client
 # 載入環境變數
 load_dotenv()
 
-# 顯示系統編碼資訊
-st.info(f"系統預設編碼 (sys.getdefaultencoding): {sys.getdefaultencoding()}")
-st.info(f"檔案系統編碼 (sys.getfilesystemencoding): {sys.getfilesystemencoding()}")
-
 def get_openai_client():
     """獲取 OpenAI 客戶端實例並提供更詳細的錯誤訊息，使用自訂 httpx 客戶端"""
     try:
@@ -823,6 +819,16 @@ def main():
             else:
                 st.warning("尚未上傳任何評核資料")
     else:
+        # 為非學生角色準備 current_data
+        current_data = None
+        all_data = []
+        for dept in departments:
+            if f"{dept}_data" in st.session_state:
+                all_data.append(st.session_state[f"{dept}_data"])
+        
+        if all_data:
+            current_data = pd.concat(all_data, ignore_index=True)
+        
         tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_names)
         
         with tab1:
