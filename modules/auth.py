@@ -6,15 +6,15 @@ import gspread
 from google.oauth2.service_account import Credentials
 import re
 
-# 使用???權�?��?�義
+# 使用者權限定義
 USER_ROLES = {
-    'admin': '系統管�???��',
-    'teacher': '??�師',
-    'resident': '住院??�師',
-    'student': '??�學???'
+    'admin': '系統管理員',
+    'teacher': '教師',
+    'resident': '住院醫師',
+    'student': '醫學生'
 }
 
-# 權�?�設�?
+# 權限設定
 PERMISSIONS = {
     'admin': {
         'can_view_all': True,
@@ -48,86 +48,86 @@ PERMISSIONS = {
 }
 
 def hash_password(password):
-    """�?�?碼�?��?��?��?��?��??"""
+    """將密碼進行雜湊處理"""
     return hashlib.sha256(password.encode()).hexdigest()
 
 def load_users():
-    """從�?��??載�?�使?��???�????"""
+    """從檔案載入使用者資料"""
     try:
         if os.path.exists('users.json'):
             with open('users.json', 'r', encoding='utf-8') as f:
                 return json.load(f)
     except Exception as e:
-        st.error(f"載�?�使?��???�???��???��??�錯誤�?�{str(e)}")
+        st.error(f"載入使用者資料時發生錯誤：{str(e)}")
     return {}
 
 def save_users(users):
-    """??��?�使?��???�???��?��?��??"""
+    """儲存使用者資料到檔案"""
     try:
         with open('users.json', 'w', encoding='utf-8') as f:
             json.dump(users, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        st.error(f"??��?�使?��???�???��???��??�錯誤�?�{str(e)}")
+        st.error(f"儲存使用者資料時發生錯誤：{str(e)}")
 
 def authenticate_user(username, password):
-    """驗�?�使?��???身份"""
+    """驗證使用者身份"""
     users = load_users()
     if username in users and users[username]['password'] == hash_password(password):
         return users[username]['role']
     return None
 
 def create_user(username, password, role, name, student_id=None):
-    """建�?�新使用???"""
+    """建立新使用者"""
     users = load_users()
     if username in users:
-        return False, "使用?????�稱已�?�在"
+        return False, "使用者名稱已存在"
     
     user_data = {
-        'password': password,  # ?��?��使用??��?��??�?碼�?��?��??
+        'password': password,  # 直接使用傳入的密碼雜湊值
         'role': role,
         'name': name
     }
     
-    # �???�是學�??，添??�學???
+    # 如果是學生，添加學號
     if role == 'student' and student_id:
         user_data['student_id'] = student_id
     
     users[username] = user_data
     save_users(users)
-    return True, "使用???建�?��?��??"
+    return True, "使用者建立成功"
 
 def delete_user(username):
-    """?��?��使用???"""
+    """刪除使用者"""
     users = load_users()
     if username not in users:
-        return False, "使用???不�?�在"
+        return False, "使用者不存在"
     
     del users[username]
     save_users(users)
-    return True, "使用????��?��??��??"
+    return True, "使用者刪除成功"
 
 def update_user_role(username, new_role):
-    """?��?��使用???權�??"""
+    """更新使用者權限"""
     users = load_users()
     if username not in users:
-        return False, "使用???不�?�在"
+        return False, "使用者不存在"
     
     users[username]['role'] = new_role
     save_users(users)
-    return True, "使用???權�?�更?��??��??"
+    return True, "使用者權限更新成功"
 
 def check_permission(role, permission):
-    """檢查使用????��?��??�特定�?��??"""
+    """檢查使用者是否有特定權限"""
     return PERMISSIONS.get(role, {}).get(permission, False)
 
 def show_login_page():
-    """顯示?��??��???��"""
-    st.title("?��床�?�師評核系統 - ?��???")
+    """顯示登入頁面"""
+    st.title("臨床教師評核系統 - 登入")
     
     with st.form("login_form"):
-        username = st.text_input("使用?????�稱")
-        password = st.text_input("�?�?", type="password")
-        submitted = st.form_submit_button("?��???")
+        username = st.text_input("使用者名稱")
+        password = st.text_input("密碼", type="password")
+        submitted = st.form_submit_button("登入")
         
         if submitted:
             role = authenticate_user(username, password)
@@ -138,40 +138,40 @@ def show_login_page():
                 user = load_users()[username]
                 st.session_state['user_name'] = user['name']
                 
-                # �???�是學�??�???��?�學???
+                # 如果是學生，儲存學號
                 if role == 'student':
                     if 'student_id' in user:
                         st.session_state['student_id'] = user['student_id']
                     else:
-                        st.error("?��不�?�學??��??訊�?��?��?�繫管�???��")
+                        st.error("找不到學號資訊，請聯繫管理員")
                         return False
                 
-                st.success(f"歡�?��?��??，{st.session_state['user_name']}�?")
+                st.success(f"歡迎回來，{st.session_state['user_name']}！")
                 return True
             else:
-                st.error("使用?????�稱??��??碼錯�?")
+                st.error("使用者名稱或密碼錯誤")
     return False
 
 def show_user_management():
-    """顯示使用???管�??介面"""
+    """顯示使用者管理介面"""
     if not check_permission(st.session_state['role'], 'can_manage_users'):
-        st.error("??��?��?��?��?�管???使用???")
+        st.error("您沒有權限管理使用者")
         return
     
-    st.title("使用???管�??")
+    st.title("使用者管理")
     
-    # 添�?��?��???��????��顯示帳�?�管??????帳�?�審?��
-    tab1, tab2 = st.tabs(["帳�?�管???", "帳�?�審?��"])
+    # 添加選項卡分別顯示帳號管理和帳號審核
+    tab1, tab2 = st.tabs(["帳號管理", "帳號審核"])
     
     with tab1:
-        # ?��增使?��???表單
-        with st.expander("?��增使?��???"):
+        # 新增使用者表單
+        with st.expander("新增使用者"):
             with st.form("add_user_form"):
-                new_username = st.text_input("使用?????�稱")
-                new_password = st.text_input("�?�?", type="password")
-                new_name = st.text_input("姓�??")
-                new_role = st.selectbox("權�??", options=list(USER_ROLES.keys()), format_func=lambda x: USER_ROLES[x])
-                submitted = st.form_submit_button("?���?")
+                new_username = st.text_input("使用者名稱")
+                new_password = st.text_input("密碼", type="password")
+                new_name = st.text_input("姓名")
+                new_role = st.selectbox("權限", options=list(USER_ROLES.keys()), format_func=lambda x: USER_ROLES[x])
+                submitted = st.form_submit_button("新增")
                 
                 if submitted:
                     success, message = create_user(new_username, new_password, new_role, new_name)
@@ -180,14 +180,14 @@ def show_user_management():
                     else:
                         st.error(message)
         
-        # 使用?????�表
-        st.subheader("使用?????�表")
+        # 使用者列表
+        st.subheader("使用者列表")
         users = load_users()
         for username, user_data in users.items():
             with st.expander(f"{username} ({USER_ROLES[user_data['role']]})"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("?��?��", key=f"delete_{username}"):
+                    if st.button("刪除", key=f"delete_{username}"):
                         success, message = delete_user(username)
                         if success:
                             st.success(message)
@@ -195,7 +195,7 @@ def show_user_management():
                             st.error(message)
                 with col2:
                     new_role = st.selectbox(
-                        "?��?��權�??",
+                        "更新權限",
                         options=list(USER_ROLES.keys()),
                         index=list(USER_ROLES.keys()).index(user_data['role']),
                         key=f"role_{username}"
@@ -208,38 +208,38 @@ def show_user_management():
                             st.error(message)
     
     with tab2:
-        # 顯示帳�?�審?��??�面
+        # 顯示帳號審核界面
         show_user_approval()
 
 def extract_spreadsheet_id(url):
-    """�? Google 試�?�表 URL 中�?��?? spreadsheet ID"""
+    """從 Google 試算表 URL 中提取 spreadsheet ID"""
     match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
     if match:
         return match.group(1)
     return None
 
 def setup_google_connection():
-    """設�?��?? Google API ???????��"""
+    """設定與 Google API 的連接"""
     try:
-        # 驗�?? secrets 設�??
+        # 驗證 secrets 設定
         if not hasattr(st, 'secrets') or not st.secrets:
-            st.error("?��?��??�任�? Secrets 設�??")
-            st.info("請確�? .streamlit/secrets.toml 檔�??存在且�???���?確�??設�?��?��?�在 Streamlit Cloud 中設�? Secrets")
+            st.error("未找到任何 Secrets 設定")
+            st.info("請確保 .streamlit/secrets.toml 檔案存在且包含正確的設定，或在 Streamlit Cloud 中設定 Secrets")
             
-            # �???��?��?? secrets，�????��?�本?��???件方式�??保�?��?�方法�?��?��?��?��??
-            st.warning("??�試使用?��?��??��?��??�?...")
+            # 如果沒有 secrets，退回到本地文件方式（保留舊方法作為備選）
+            st.warning("嘗試使用本地憑證文件...")
             return setup_google_connection_local()
             
-        # 檢查 secrets ??�容
+        # 檢查 secrets 內容
         if "gcp_service_account" not in st.secrets:
-            st.error("?�� Secrets 中未?��??? gcp_service_account 設�??")
-            st.info("請確�? Secrets 中�???��完整??? Google API ??��?�設�?")
+            st.error("在 Secrets 中未找到 gcp_service_account 設定")
+            st.info("請確保 Secrets 中包含完整的 Google API 憑證設定")
             
-            # �???��?��?�正確�?? secrets ??�容，�????��?�本?��???件方�?
-            st.warning("??�試使用?��?��??��?��??�?...")
+            # 如果沒有正確的 secrets 內容，退回到本地文件方式
+            st.warning("嘗試使用本地憑證文件...")
             return setup_google_connection_local()
             
-        # 檢查�?�??????��?��??�?
+        # 檢查必要的憑證欄位
         required_fields = [
             "type", "project_id", "private_key_id", "private_key",
             "client_email", "client_id", "auth_uri", "token_uri",
@@ -250,15 +250,15 @@ def setup_google_connection():
                          if field not in st.secrets.gcp_service_account]
         
         if missing_fields:
-            st.error(f"缺�?��??�??????��?��??位�?�{', '.join(missing_fields)}")
-            st.info("請確保�????��??�??????��?��??位�?�已�?確設�?")
+            st.error(f"缺少必要的憑證欄位：{', '.join(missing_fields)}")
+            st.info("請確保所有必要的憑證欄位都已正確設定")
             
-            # �???�缺少�??�?�?位�?��????��?�本?��???件方�?
-            st.warning("??�試使用?��?��??��?��??�?...")
+            # 如果缺少必要欄位，退回到本地文件方式
+            st.warning("嘗試使用本地憑證文件...")
             return setup_google_connection_local()
             
         try:
-            # 構建??��?��?��??
+            # 構建憑證字典
             credentials = {
                 "type": st.secrets["gcp_service_account"]["type"],
                 "project_id": st.secrets["gcp_service_account"]["project_id"],
@@ -272,11 +272,11 @@ def setup_google_connection():
                 "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
             }
             
-            # 顯示??��?�帳??��??�?
-            st.info(f"使用??��?�帳???: {credentials['client_email']}")
-            st.info(f"????�� ID: {credentials['project_id']}")
+            # 顯示服務帳號資訊
+            st.info(f"使用服務帳號: {credentials['client_email']}")
+            st.info(f"項目 ID: {credentials['project_id']}")
             
-            # 設�?? Google API �????
+            # 設定 Google API 範圍
             scope = [
                 'https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/spreadsheets',
@@ -286,11 +286,11 @@ def setup_google_connection():
             ]
             
             try:
-                # 建�?��?��??
+                # 建立認證
                 creds = Credentials.from_service_account_info(credentials, scopes=scope)
                 client = gspread.authorize(creds)
                 
-                # 測試????��
+                # 測試連接
                 try:
                     test_url = "https://docs.google.com/spreadsheets/d/1I2GzYptiPvhN5dT3_qzVXlIAoPeI8S9MaTVzxfDVjrw/edit?gid=0#gid=0"
                     spreadsheet_id = extract_spreadsheet_id(test_url)
@@ -298,108 +298,108 @@ def setup_google_connection():
                     if spreadsheet_id:
                         try:
                             test_sheet = client.open_by_key(spreadsheet_id)
-                            st.success(f"??��????��?�試算表: {test_sheet.title}")
+                            st.success(f"成功打開試算表: {test_sheet.title}")
                         except Exception as sheet_e:
-                            st.warning(f"測試?��定試算表????��?��，�?? API ????��?��??�正�?: {str(sheet_e)}")
-                            st.info(f"請確保� {credentials['client_email']} ��試算表�享�表並給�編輯權�")
+                            st.warning(f"測試特定試算表時出錯，但 API 連接可能正常: {str(sheet_e)}")
+                            st.info(f"請確保將 {credentials['client_email']} 加入試算表的共享列表並給予編輯權限")
                     
-                    # �出�試算表以確保鎥��
+                    # 列出所有試算表以確保連接正常
                     spreadsheets = client.list_spreadsheet_files()
-                    st.success(f"Google API ����）� {len(spreadsheets)} �試算表")
+                    st.success(f"Google API 連接成功！找到 {len(spreadsheets)} 個試算表。")
                     return client
                 except Exception as test_e:
-                    st.error(f"��測試失��{str(test_e)}")
-                    st.warning("�試使用��������...")
+                    st.error(f"連接測試失敗：{str(test_e)}")
+                    st.warning("嘗試使用本地憑證文件...")
                     return setup_google_connection_local()
             except Exception as e:
-                st.error(f"建� Google API 認�晼�錯誤�{str(e)}")
-                st.warning("�試使用��������...")
+                st.error(f"建立 Google API 認證時發生錯誤：{str(e)}")
+                st.warning("嘗試使用本地憑證文件...")
                 return setup_google_connection_local()
         except Exception as e:
-            st.error(f"�� Streamlit Secrets ���錯誤�{str(e)}")
-            st.warning("�試使用��������...")
+            st.error(f"處理 Streamlit Secrets 時發生錯誤：{str(e)}")
+            st.warning("嘗試使用本地憑證文件...")
             return setup_google_connection_local()
     except Exception as e:
-        st.error(f"�� Google API ���錯誤�{str(e)}")
+        st.error(f"連接 Google API 時發生錯誤：{str(e)}")
         import traceback
-        st.error(f"��誤�: {traceback.format_exc()}")
-        st.warning("�試使用��������...")
+        st.error(f"錯誤堆疊: {traceback.format_exc()}")
+        st.warning("嘗試使用本地憑證文件...")
         return setup_google_connection_local()
 
 def setup_google_connection_local():
-    """使用����檔�設�� Google API ��＊方法�"""
+    """使用本地檔案設定與 Google API 的連接（舊方法）"""
     try:
-        # ��目��曮路�
+        # 取得目前檔案的目錄路徑
         current_dir = os.path.dirname(os.path.abspath(__file__))
         credentials_path = os.path.join(current_dir, 'credentials.json')
         
-        # 檢查 credentials.json 檔是��存在
+        # 檢查 credentials.json 檔案是否存在
         if not os.path.exists(credentials_path):
-            error_msg = f"���� credentials.json 檔�，��路徑�{credentials_path}"
+            error_msg = f"未找到 credentials.json 檔案，預期路徑：{credentials_path}"
             st.error(error_msg)
-            st.info(f"���工作目: {os.getcwd()}")
-            st.info(f"模目: {current_dir}")
-            # �試�出模目檔�
+            st.info(f"當前工作目錄: {os.getcwd()}")
+            st.info(f"模組目錄: {current_dir}")
+            # 嘗試列出模組目錄的檔案
             try:
                 files = os.listdir(current_dir)
-                st.info(f"模目檔�: {', '.join(files)}")
+                st.info(f"模組目錄檔案: {', '.join(files)}")
             except Exception as list_e:
-                st.error(f"�出��檔懺��: {str(list_e)}")
+                st.error(f"列出目錄檔案時出錯: {str(list_e)}")
             return None
         
-        st.info(f"�������: {credentials_path}")
-        # 檢查檔�大�確保�是空��
+        st.info(f"找到憑證檔案: {credentials_path}")
+        # 檢查檔案大小確保不是空檔案
         file_size = os.path.getsize(credentials_path)
         if file_size == 0:
-            st.error(f"����大��0／��是空��")
+            st.error(f"憑證檔案大小為0，可能是空檔案")
             return None
-        st.info(f"����大�: {file_size} bytes")
+        st.info(f"憑證檔案大小: {file_size} bytes")
         
-        # �試讖���容以確保嘯�� JSON
+        # 嘗試讀取憑證內容以確保它是有效的 JSON
         try:
             with open(credentials_path, 'r') as f:
                 cred_content = json.load(f)
-                # 檢查�鍵�位是��存在
+                # 檢查關鍵欄位是否存在
                 required_fields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email']
                 missing_fields = [field for field in required_fields if field not in cred_content]
                 if missing_fields:
-                    st.error(f"����缺�����: {', '.join(missing_fields)}")
+                    st.error(f"憑證檔案缺少必要欄位: {', '.join(missing_fields)}")
                     return None
                 
-                # 檢查科����
+                # 檢查私鑰格式
                 private_key = cred_content.get('private_key', '')
                 if not private_key.startswith('-----BEGIN PRIVATE KEY-----') or not private_key.endswith('-----END PRIVATE KEY-----\n'):
-                    st.error("科���式�正確��確保含�確�尾標����符")
-                    # 顯示科���20��符����診斷
-                    st.error(f"科���: {private_key[:20]}...")
-                    st.error(f"科�結尾: ...{private_key[-20:]}")
+                    st.error("私鑰格式不正確，請確保包含正確的頭尾標記和換行符")
+                    # 顯示私鑰前後20個字符用於診斷
+                    st.error(f"私鑰開頭: {private_key[:20]}...")
+                    st.error(f"私鑰結尾: ...{private_key[-20:]}")
                     return None
                 
-                # 檢查科�中是����足���符
+                # 檢查私鑰中是否包含足夠的換行符
                 if private_key.count('\n') < 2:
-                    st.error("科�缺��覛�符／��在�製��中丟失")
+                    st.error("私鑰缺少必要的換行符，可能在複製過程中丟失")
                     return None
                 
-                st.info(f"���格式正確�雮 ID: {cred_content.get('project_id')}")
-                st.info(f"��帳��箱: {cred_content.get('client_email')}")
+                st.info(f"憑證檔案格式正確，項目 ID: {cred_content.get('project_id')}")
+                st.info(f"服務帳號郵箱: {cred_content.get('client_email')}")
                 
-                # 檢查��步
+                # 檢查時間同步
                 import datetime
                 import time
                 local_time = datetime.datetime.now()
                 utc_time = datetime.datetime.utcnow()
                 time_diff = abs((local_time - utc_time).total_seconds() - time.timezone)
-                if time_diff > 300:  # 妜本����UTC�差���5(��)
-                    st.warning(f"系統�可���步，當�本��: {local_time}，UTC: {utc_time}")
-                    st.warning("���步����致JWT驗�失")
+                if time_diff > 300:  # 如果本地時間與UTC時間差異超過5分鐘(考慮時區)
+                    st.warning(f"系統時間可能不同步，當前本地時間: {local_time}，UTC時間: {utc_time}")
+                    st.warning("時間不同步可能導致JWT驗證失敗")
         except json.JSONDecodeError as json_e:
-            st.error(f"����不是�� JSON ���: {str(json_e)}")
+            st.error(f"憑證檔案不是有效的 JSON 格式: {str(json_e)}")
             return None
         except Exception as read_e:
-            st.error(f"讖���懺��: {str(read_e)}")
+            st.error(f"讀取憑證檔案時出錯: {str(read_e)}")
             return None
             
-        # 設� Google API �
+        # 設定 Google API 範圍
         scope = [
             'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/spreadsheets',
@@ -408,145 +408,145 @@ def setup_google_connection_local():
             'https://www.googleapis.com/auth/cloud-platform'
         ]
         
-        # 建���
+        # 建立認證
         try:
-            # 顯示使用�建令修復瑰建議
-            st.info("妜�纇���JWT簽�錯誤����新下���帳��鑰�修復瑰���")
-            st.info("��以使��以�命令䟥�瑰�����正確��符: cat modules/credentials.json | grep private_key")
+            # 顯示使用內建指令修復私鑰的建議
+            st.info("如果持續出現JWT簽名錯誤，請考慮重新下載服務帳號金鑰或修復私鑰格式")
+            st.info("可以使用以下命令來查看私鑰是否有正確的換行符: cat modules/credentials.json | grep private_key")
             
-            # �試���建��帳�信���是主薹�
+            # 嘗試手動構建服務帳號信息，這是主要方法
             from google.oauth2 import service_account
             
             try:
-                # ����從JSON�容構建認�
-                st.info("�試使用��方式建立��帳...")
+                # 直接從JSON內容構建認證
+                st.info("嘗試使用手動方式建立服務帳號...")
                 
-                # 修復����科���式��
+                # 修復可能的私鑰格式問題
                 if 'private_key' in cred_content:
-                    # 1. 確�瑰����尾�正確�標�
+                    # 1. 確保私鑰開頭和結尾有正確的標記
                     pk = cred_content['private_key']
                     if not pk.startswith('-----BEGIN PRIVATE KEY-----\n'):
                         pk = '-----BEGIN PRIVATE KEY-----\n' + pk.lstrip('-----BEGIN PRIVATE KEY-----')
                     if not pk.endswith('\n-----END PRIVATE KEY-----\n'):
                         pk = pk.rstrip('-----END PRIVATE KEY-----\n') + '\n-----END PRIVATE KEY-----\n'
                         
-                    # 2. �試確��足夠��符 - RSA科��常�64字符�下��符
+                    # 2. 嘗試確保有足夠的換行符 - RSA私鑰通常每64字符需要一個換行符
                     import re
                     lines = pk.split('\n')
-                    new_lines = [lines[0]]  # BEGIN�
+                    new_lines = [lines[0]]  # BEGIN行
                     
-                    # ��中��BASE64編碼��
-                    body = ''.join([l for l in lines[1:-2] if l])  # 併��BEGIN/END行�移��空�
-                    # �64��符�����符
+                    # 處理中間的BASE64編碼部分
+                    body = ''.join([l for l in lines[1:-2] if l])  # 合併所有非BEGIN/END行，移除空行
+                    # 每64個字符插入一個換行符
                     chunks = [body[i:i+64] for i in range(0, len(body), 64)]
                     new_lines.extend(chunks)
-                    new_lines.append(lines[-2])  # END�
-                    new_lines.append('')  # 確��後��空�
+                    new_lines.append(lines[-2])  # END行
+                    new_lines.append('')  # 確保最後有一個空行
                     
-                    # ����科�
+                    # 更新私鑰
                     fixed_pk = '\n'.join(new_lines)
                     cred_content['private_key'] = fixed_pk
-                    st.info("已�試修復科����")
+                    st.info("已嘗試修復私鑰格式")
                 
-                # 使用修復後��帳�信
+                # 使用修復後的服務帳號信息
                 creds = service_account.Credentials.from_service_account_info(
                     cred_content, 
                     scopes=scope
                 )
-                st.info("使用��建立��帳��")
+                st.info("使用手動建立的服務帳號成功")
                 
             except Exception as manual_error:
-                st.error(f"��建立��懺��: {str(manual_error)}")
+                st.error(f"手動建立憑證時出錯: {str(manual_error)}")
                 
-                # 妜��方式失����使��檔�
+                # 如果手動方式失敗，退回到使用檔案
                 try:
-                    st.warning("��方式失��試使用檔方�...")
+                    st.warning("手動方式失敗，嘗試使用檔案方式...")
                     creds = Credentials.from_service_account_file(credentials_path, scopes=scope)
-                    st.info("使用檔�建���帳��")
+                    st.info("使用檔案建立服務帳號成功")
                 except Exception as file_error:
-                    st.error(f"從��建���懺��: {str(file_error)}")
+                    st.error(f"從檔案建立憑證時出錯: {str(file_error)}")
                     return None
             
             client = gspread.authorize(creds)
             
-            # 測試��
+            # 測試連接
             try:
-                # ��測試�試算表��是�出�試算表
+                # 具體測試一個試算表而不是列出所有試算表
                 test_url = "https://docs.google.com/spreadsheets/d/1I2GzYptiPvhN5dT3_qzVXlIAoPeI8S9MaTVzxfDVjrw/edit?gid=0#gid=0"
                 spreadsheet_id = extract_spreadsheet_id(test_url)
                 if spreadsheet_id:
                     try:
                         test_sheet = client.open_by_key(spreadsheet_id)
-                        st.info(f"���試算表: {test_sheet.title}")
+                        st.info(f"成功打開試算表: {test_sheet.title}")
                         return client
                     except Exception as sheet_e:
-                        st.error(f"測試��特定試算表����: {str(sheet_e)}")
-                        st.info("檢查����已��帳���試算表�享�表")
-                        st.info(f"請� {cred_content.get('client_email')} ��試算表�享�表並給�編輯權�")
+                        st.error(f"測試開啟特定試算表時出錯: {str(sheet_e)}")
+                        st.info("檢查是否已將服務帳號加入試算表的共享列表")
+                        st.info(f"請將 {cred_content.get('client_email')} 加入試算表的共享列表並給予編輯權限")
                         
-                # 妜�面失��試�出�試算表
+                # 如果上面失敗，嘗試列出所有試算表
                 spreadsheets = client.list_spreadsheet_files()
-                st.info(f"��鎥 Google API，找 {len(spreadsheets)} �試算表")
+                st.info(f"成功連接到 Google API，找到 {len(spreadsheets)} 個試算表")
                 return client
             except Exception as test_e:
-                st.error(f"測試������: {str(test_e)}")
+                st.error(f"測試連接時出錯: {str(test_e)}")
                 import traceback
-                st.error(f"��誤詳: {traceback.format_exc()}")
+                st.error(f"錯誤詳情: {traceback.format_exc()}")
                 
-                # ��解決建�
-                st.error("JWT簽��揯���決方�:")
-                st.info("1. �新�新��帳��鑰並��")
-                st.info("2. 確����件未被修��，直��使用下�����")
-                st.info("3. 檢查系統�是����")
-                st.info("4. 確�Google Cloud��中已�用��API (Google Sheets API, Google Drive API)")
-                st.info("5. 確���帳��被�用�撤��")
+                # 提供解決建議
+                st.error("JWT簽名無效可能的解決方法:")
+                st.info("1. 重新生成新的服務帳號金鑰並下載")
+                st.info("2. 確保憑證文件未被修改，直接使用下載的原始文件")
+                st.info("3. 檢查系統時間是否正確")
+                st.info("4. 確認Google Cloud專案中已啟用必要的API (Google Sheets API, Google Drive API)")
+                st.info("5. 確認服務帳號未被停用或撤銷")
                 return None
         except Exception as auth_e:
-            st.error(f"� Google API ����: {str(auth_e)}")
+            st.error(f"授權 Google API 時出錯: {str(auth_e)}")
             import traceback
-            st.error(f"��誤詳: {traceback.format_exc()}")
+            st.error(f"錯誤詳情: {traceback.format_exc()}")
             return None
             
     except Exception as e:
-        st.error(f"�� Google API ������錯誤�{str(e)}")
+        st.error(f"連接 Google API 時發生未預期錯誤：{str(e)}")
         import traceback
-        st.error(f"��誤�: {traceback.format_exc()}")
-        st.warning("�試使用��������...")
+        st.error(f"錯誤堆疊: {traceback.format_exc()}")
+        st.warning("嘗試使用本地憑證文件...")
         return setup_google_connection_local()
 
 def show_registration_page():
-    """顯示註�面"""
-    st.title("��請帳")
+    """顯示註冊頁面"""
+    st.title("申請帳號")
     
     with st.form("registration_form"):
-        username = st.text_input("使用�稱")
-        password = st.text_input("��", type="password")
-        confirm_password = st.text_input("確���", type="password")
-        name = st.text_input("姓�")
+        username = st.text_input("使用者名稱")
+        password = st.text_input("密碼", type="password")
+        confirm_password = st.text_input("確認密碼", type="password")
+        name = st.text_input("姓名")
         role = st.selectbox("身份", options=['student'], format_func=lambda x: USER_ROLES[x])
         
-        # 妜是學�，添�學��
+        # 如果是學生，添加學號欄位
         student_id = None
         if role == 'student':
-            student_id = st.text_input("學�")
+            student_id = st.text_input("學號")
         
-        submitted = st.form_submit_button("��請帳")
+        submitted = st.form_submit_button("申請帳號")
         
         if submitted:
             if not username or not password or not name:
-                st.error("請填寫��填��")
+                st.error("請填寫所有必填欄位")
                 return False
             
             if password != confirm_password:
-                st.error("�次輸���碼�䇴")
+                st.error("兩次輸入的密碼不一致")
                 return False
             
-            # 妜是學�，檢��學蘯��填寫
+            # 如果是學生，檢查學號是否填寫
             if role == 'student' and not student_id:
-                st.error("請填寫學")
+                st.error("請填寫學號")
                 return False
             
-            # 建�使��
+            # 建立使用者
             success, message = create_user(
                 username=username,
                 password=hash_password(password),
@@ -565,51 +565,51 @@ def show_registration_page():
     return False
 
 def show_user_approval():
-    """顯示帳�審��管�介面"""
+    """顯示帳號審核管理介面"""
     if not check_permission(st.session_state['role'], 'can_manage_users'):
-        st.error("�����管使用")
+        st.error("您沒有權限管理使用者")
         return
     
-    st.subheader("帳�審��管�")
+    st.subheader("帳號審核管理")
     
     client = setup_google_connection()
     if client is None:
-        st.error("��鎥 Google Sheets")
+        st.error("無法連接到 Google Sheets")
         return
     
-    # ����審核帳�
+    # 獲取待審核帳號
     try:
         spreadsheet_url = "https://docs.google.com/spreadsheets/d/1VZRYRrsSMNUKoWM32gc5D9FykCHm7IRgcmR1_qXx8_w/edit?resourcekey=&gid=1526949290#gid=1526949290"
         spreadsheet_id = extract_spreadsheet_id(spreadsheet_url)
         
         if not spreadsheet_id:
-            st.error("���� Google Sheet ID")
+            st.error("無法提取 Google Sheet ID")
             return
             
         spreadsheet = client.open_by_key(spreadsheet_id)
         
         try:
             worksheet = spreadsheet.worksheet("Apply_auth")
-            st.info(f"��鎥�帳�申請工作表")
+            st.info(f"成功連接到帳號申請工作表")
         except Exception as ws_e:
-            st.error(f"��不�Apply_auth工�表: {str(ws_e)}")
+            st.error(f"找不到Apply_auth工作表: {str(ws_e)}")
             return
             
-        # ���� get_all_values ����數��並����
-        # �樣��以��������振�
+        # 改用 get_all_values 獲取所有數據，並手動處理
+        # 這樣可以避免標題行有重複值時的錯誤
         all_values = worksheet.get_all_values()
         
         if not all_values:
-            st.info("��請工作表�空")
+            st.info("申請工作表為空")
             return
             
-        # ������
+        # 獲取標題行
         headers = all_values[0]
         
-        # 顯示標���用��診斷
-        st.write(f"工�表標�: {headers}")
+        # 顯示標題行，用於診斷
+        st.write(f"工作表標題: {headers}")
         
-        # 檢查����存在��
+        # 檢查是否存在必要的列
         status_col_idx = None
         username_col_idx = None
         name_col_idx = None
@@ -621,98 +621,98 @@ def show_user_approval():
         email_col_idx = None
         
         for i, header in enumerate(headers):
-            if header == "審核":
+            if header == "審核狀態":
                 status_col_idx = i
-            elif header == "使用�稱":
+            elif header == "使用者名稱":
                 username_col_idx = i
-            elif header == "姓�":
+            elif header == "姓名":
                 name_col_idx = i
             elif header == "角色":
                 role_col_idx = i
-            elif header == "��請�":
+            elif header == "申請時間":
                 apply_time_col_idx = i
-            elif header == "�碼���":
+            elif header == "密碼雜湊值":
                 password_col_idx = i
-            elif header == "學�":
+            elif header == "學號":
                 student_id_col_idx = i
-            elif header == "�":
+            elif header == "分機":
                 extension_col_idx = i
-            elif header == "��子�件":
+            elif header == "電子郵件":
                 email_col_idx = i
         
-        # 檢查���������
+        # 檢查是否找到必要的列
         if status_col_idx is None or username_col_idx is None or name_col_idx is None or role_col_idx is None:
-            st.error("工�表缺��覗�審核��使用�稱姓��角色�")
+            st.error("工作表缺少必要的列（審核狀態、使用者名稱、姓名、角色）")
             return
         
-        # 尕��������表
+        # 將數據轉換為字典列表
         records = []
-        for row in all_values[1:]:  # 跳����
+        for row in all_values[1:]:  # 跳過標題行
             if len(row) <= max(status_col_idx, username_col_idx, name_col_idx, role_col_idx):
-                continue  # 跳����整�
+                continue  # 跳過資料不完整的行
                 
             record = {
-                "審核": row[status_col_idx] if status_col_idx < len(row) else "",
-                "使用�稱": row[username_col_idx] if username_col_idx < len(row) else "",
-                "姓�": row[name_col_idx] if name_col_idx < len(row) else "",
+                "審核狀態": row[status_col_idx] if status_col_idx < len(row) else "",
+                "使用者名稱": row[username_col_idx] if username_col_idx < len(row) else "",
+                "姓名": row[name_col_idx] if name_col_idx < len(row) else "",
                 "角色": row[role_col_idx] if role_col_idx < len(row) else "",
             }
             
-            # 添�可��段
+            # 添加可選字段
             if apply_time_col_idx is not None and apply_time_col_idx < len(row):
-                record["��請�"] = row[apply_time_col_idx]
+                record["申請時間"] = row[apply_time_col_idx]
             if password_col_idx is not None and password_col_idx < len(row):
-                record["�碼���"] = row[password_col_idx]
+                record["密碼雜湊值"] = row[password_col_idx]
             if student_id_col_idx is not None and student_id_col_idx < len(row):
-                record["學�"] = row[student_id_col_idx]
+                record["學號"] = row[student_id_col_idx]
             if extension_col_idx is not None and extension_col_idx < len(row):
-                record["�"] = row[extension_col_idx]
+                record["分機"] = row[extension_col_idx]
             if email_col_idx is not None and email_col_idx < len(row):
-                record["��子�件"] = row[email_col_idx]
+                record["電子郵件"] = row[email_col_idx]
                 
             records.append(record)
         
-        # �濾�審核帳�
-        pending_records = [r for r in records if r.get("審核") == "�審核"]
-        approved_records = [r for r in records if r.get("審核") == "已審��"]
-        rejected_records = [r for r in records if r.get("審核") == "已��"]
+        # 過濾待審核的帳號
+        pending_records = [r for r in records if r.get("審核狀態") == "待審核"]
+        approved_records = [r for r in records if r.get("審核狀態") == "已審核"]
+        rejected_records = [r for r in records if r.get("審核狀態") == "已拒絕"]
         
-        # 顯示�審核帳蕸��已審核帳蕸
-        st.info(f" {len(pending_records)} �帳��審核，{len(approved_records)} �帳�已審核，{len(rejected_records)} �帳�已��")
+        # 顯示待審核帳號數量及已審核帳號數量
+        st.info(f"有 {len(pending_records)} 個帳號待審核，{len(approved_records)} 個帳號已審核，{len(rejected_records)} 個帳號已拒絕")
         
         if pending_records:
-            st.subheader("�審核帳�")
+            st.subheader("待審核帳號")
             
             for i, record in enumerate(pending_records):
-                with st.expander(f"{record.get('姓�')} ({record.get('使用�稱')}) - {record.get('角色')}"):
+                with st.expander(f"{record.get('姓名')} ({record.get('使用者名稱')}) - {record.get('角色')}"):
                     col1, col2, col3 = st.columns(3)
                     
-                    # 顯示帳�詳細��
-                    st.write(f"��請�: {record.get('��請�', '��記�')}")
+                    # 顯示帳號詳細資訊
+                    st.write(f"申請時間: {record.get('申請時間', '未記錄')}")
                     st.write(f"身份: {record.get('角色')}")
-                    if record.get('學�'):
-                        st.write(f"學�: {record.get('學�')}")
-                    st.write(f"�: {record.get('�', '��填寫')}")
-                    st.write(f"��子�件: {record.get('��子�件', '��填寫')}")
+                    if record.get('學號'):
+                        st.write(f"學號: {record.get('學號')}")
+                    st.write(f"分機: {record.get('分機', '未填寫')}")
+                    st.write(f"電子郵件: {record.get('電子郵件', '未填寫')}")
                     
-                    # 審核����
+                    # 審核操作按鈕
                     with col1:
-                        if st.button("��", key=f"approve_{i}"):
+                        if st.button("核准", key=f"approve_{i}"):
                             try:
-                                # 1. ����Google Sheet
+                                # 1. 更新Google Sheet的狀態
                                 found = False
                                 for row_idx, row in enumerate(all_values[1:], start=2):
                                     if (username_col_idx < len(row) and 
-                                        row[username_col_idx] == record.get('使用�稱')):
-                                        worksheet.update_cell(row_idx, status_col_idx + 1, "已審��")
+                                        row[username_col_idx] == record.get('使用者名稱')):
+                                        worksheet.update_cell(row_idx, status_col_idx + 1, "已審核")
                                         found = True
                                         break
                                 
                                 if not found:
-                                    st.error(f"��在工�表中找�使���稱 {record.get('使用�稱')} 記�")
+                                    st.error(f"無法在工作表中找到使用者名稱為 {record.get('使用者名稱')} 的記錄")
                                     return
                                 
-                                # 2. �帳�寫�本��users.json
+                                # 2. 將帳號寫入本地users.json
                                 role_code = None
                                 for code, name in USER_ROLES.items():
                                     if name == record.get('角色'):
@@ -720,195 +720,78 @@ def show_user_approval():
                                         break
                                 
                                 if not role_code:
-                                    role_code = 'student'  # �設�學
+                                    role_code = 'student'  # 預設為學生
                                 
-                                # ����使用��請��碼���
+                                # 直接使用申請時的密碼雜湊值
                                 success, message = create_user(
-                                    username=record.get('使用�稱'),
-                                    password=record.get('�碼���'),  # ����使用��請��碼���
+                                    username=record.get('使用者名稱'),
+                                    password=record.get('密碼雜湊值'),  # 直接使用申請時的密碼雜湊值
                                     role=role_code,
-                                    name=record.get('姓�'),
-                                    student_id=record.get('學�')  # 添�學
+                                    name=record.get('姓名'),
+                                    student_id=record.get('學號')  # 添加學號
                                 )
                                 
                                 if success:
-                                    st.success(f"已核 {record.get('姓�')} 帳�申�")
+                                    st.success(f"已核准 {record.get('姓名')} 的帳號申請")
                                     st.rerun()
                                 else:
-                                    st.error(f"帳�建立失: {message}")
+                                    st.error(f"帳號建立失敗: {message}")
                                     
                             except Exception as e:
-                                st.error(f"��帳虼�錯�: {str(e)}")
+                                st.error(f"核准帳號時發生錯誤: {str(e)}")
                                 import traceback
-                                st.error(f"��誤詳: {traceback.format_exc()}")
+                                st.error(f"錯誤詳情: {traceback.format_exc()}")
                     
                     with col2:
-                        if st.button("��", key=f"reject_{i}"):
+                        if st.button("拒絕", key=f"reject_{i}"):
                             try:
-                                # ����Google Sheet���寫�本����
-                                # ���該記��
+                                # 僅更新Google Sheet的狀態，不寫入本地用戶
+                                # 找到該記錄的行
                                 found = False
-                                for row_idx, row in enumerate(all_values[1:], start=2):  # 從第2行���索引�2��
+                                for row_idx, row in enumerate(all_values[1:], start=2):  # 從第2行開始，索引從2開始
                                     if (username_col_idx < len(row) and 
-                                        row[username_col_idx] == record.get('使用�稱')):
-                                        # ����
-                                        worksheet.update_cell(row_idx, status_col_idx + 1, "已��")  # API索��1��
+                                        row[username_col_idx] == record.get('使用者名稱')):
+                                        # 更新狀態
+                                        worksheet.update_cell(row_idx, status_col_idx + 1, "已拒絕")  # API索引從1開始
                                         found = True
                                         break
                                 
                                 if not found:
-                                    st.error(f"��在工�表中找�使���稱 {record.get('使用�稱')} 記�")
+                                    st.error(f"無法在工作表中找到使用者名稱為 {record.get('使用者名稱')} 的記錄")
                                     return
                                 
-                                st.success(f"已�� {record.get('姓�')} 帳�申�")
+                                st.success(f"已拒絕 {record.get('姓名')} 的帳號申請")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"��帳���錯�: {str(e)}")
+                                st.error(f"拒絕帳號時發生錯誤: {str(e)}")
                                 import traceback
-                                st.error(f"��誤詳: {traceback.format_exc()}")
+                                st.error(f"錯誤詳情: {traceback.format_exc()}")
                     
                     with col3:
-                        reason = st.text_input("����", key=f"reason_{i}")
+                        reason = st.text_input("拒絕原因", key=f"reason_{i}")
                         
         else:
-            st.info("������審核帳�")
+            st.info("目前沒有待審核的帳號")
             
-        # 顯示已審��帳�歷史
-        if st.checkbox("顯示已審��帳�歷史"):
-            with st.expander("已審��帳�"):
+        # 顯示已審核帳號歷史
+        if st.checkbox("顯示已審核帳號歷史"):
+            with st.expander("已審核帳號"):
                 if approved_records:
                     for record in approved_records:
-                        st.write(f"{record.get('姓�')} ({record.get('使用�稱')}) - {record.get('角色')} - {record.get('��請�', '��記�')}")
+                        st.write(f"{record.get('姓名')} ({record.get('使用者名稱')}) - {record.get('角色')} - {record.get('申請時間', '未記錄')}")
                 else:
-                    st.info("沒�已審核帳�")
+                    st.info("沒有已審核的帳號")
         
-        # 顯示已��帳歷史
-        if st.checkbox("顯示已��帳歷史"):
-            with st.expander("已��帳"):
+        # 顯示已拒絕帳號歷史
+        if st.checkbox("顯示已拒絕帳號歷史"):
+            with st.expander("已拒絕帳號"):
                 if rejected_records:
                     for record in rejected_records:
-                        st.write(f"{record.get('姓�')} ({record.get('使用�稱')}) - {record.get('角色')} - {record.get('��請�', '��記�')}")
+                        st.write(f"{record.get('姓名')} ({record.get('使用者名稱')}) - {record.get('角色')} - {record.get('申請時間', '未記錄')}")
                 else:
-                    st.info("沒�已���帳�")
+                    st.info("沒有已拒絕的帳號")
                 
     except Exception as e:
-        st.error(f"���審��賙晼�錯�: {str(e)}")
+        st.error(f"獲取審核資料時發生錯誤: {str(e)}")
         import traceback
-        st.error(f"��誤詳: {traceback.format_exc()}") 
-
-def change_user_password(username, new_password):
-    """�ק�ϥΪ̱K�X"""
-    users = load_users()
-    if username not in users:
-        return False, "�ϥΪ̤��s�b"
-    
-    # ����s�K�X
-    hashed_password = hash_password(new_password)
-    
-    # ��s�K�X
-    users[username]['password'] = hashed_password
-    save_users(users)
-    return True, "�K�X�ק令�\"
-
-def show_change_password_page():
-    """��ܱK�X�קﭶ��"""
-    st.title("�ק�K�X")
-    
-    # �ˬd�O�_�w�n�J
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
-        st.error("�Х��n�J�t��")
-        return False
-    
-    current_username = st.session_state.get('username')
-    current_role = st.session_state.get('role')
-    
-    st.info(f"�ثe�n�J�ϥΪ̡G{current_username} ({USER_ROLES.get(current_role, current_role)})")
-    
-    with st.form("change_password_form"):
-        current_password = st.text_input("�ثe�K�X", type="password", help="�п�J�z�ثe���K�X�H���Ҩ���")
-        new_password = st.text_input("�s�K�X", type="password", help="�п�J�s���K�X")
-        confirm_password = st.text_input("�T�{�s�K�X", type="password", help="�ЦA����J�s�K�X�H�T�{")
-        
-        submitted = st.form_submit_button("�ק�K�X")
-        
-        if submitted:
-            # ���ҿ�J
-            if not all([current_password, new_password, confirm_password]):
-                st.error("�ж�g�Ҧ����")
-                return False
-            
-            if new_password != confirm_password:
-                st.error("�s�K�X�P�T�{�K�X���@�P")
-                return False
-            
-            if len(new_password) < 6:
-                st.error("�s�K�X���צܤֻݭn 6 �Ӧr��")
-                return False
-            
-            # ���ҥثe�K�X
-            if not authenticate_user(current_username, current_password):
-                st.error("�ثe�K�X���~")
-                return False
-            
-            # �ק�K�X
-            success, message = change_user_password(current_username, new_password)
-            if success:
-                st.success(message)
-                st.info("�Шϥηs�K�X���s�n�J")
-                # �n�X�ϥΪ�
-                st.session_state['logged_in'] = False
-                st.session_state['username'] = None
-                st.session_state['role'] = None
-                st.session_state['user_name'] = None
-                return True
-            else:
-                st.error(message)
-                return False
-    
-    return False
-
-def show_admin_password_management():
-    """��ܺ޲z���K�X�޲z����"""
-    if not check_permission(st.session_state.get('role'), 'can_manage_users'):
-        st.error("�z�S���v���޲z�ϥΪ̱K�X")
-        return
-    
-    st.title("�K�X�޲z")
-    
-    users = load_users()
-    
-    # ��ܨϥΪ�
-    user_options = list(users.keys())
-    selected_user = st.selectbox(
-        "��ܭn�ק�K�X���ϥΪ�",
-        options=user_options,
-        format_func=lambda x: f"{x} ({USER_ROLES.get(users[x]['role'], users[x]['role'])}) - {users[x]['name']}"
-    )
-    
-    if selected_user:
-        st.info(f"��ܪ��ϥΪ̡G{selected_user}")
-        
-        with st.form("admin_change_password_form"):
-            new_password = st.text_input("�s�K�X", type="password", help="�п�J�s���K�X")
-            confirm_password = st.text_input("�T�{�s�K�X", type="password", help="�ЦA����J�s�K�X�H�T�{")
-            
-            submitted = st.form_submit_button("�ק�K�X")
-            
-            if submitted:
-                if not all([new_password, confirm_password]):
-                    st.error("�ж�g�Ҧ����")
-                    return
-                
-                if new_password != confirm_password:
-                    st.error("�s�K�X�P�T�{�K�X���@�P")
-                    return
-                
-                if len(new_password) < 6:
-                    st.error("�s�K�X���צܤֻݭn 6 �Ӧr��")
-                    return
-                
-                success, message = change_user_password(selected_user, new_password)
-                if success:
-                    st.success(message)
-                else:
-                    st.error(message) 
+        st.error(f"錯誤詳情: {traceback.format_exc()}") 
