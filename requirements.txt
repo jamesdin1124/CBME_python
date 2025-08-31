@@ -1,7 +1,14 @@
-streamlit
-pandas
+streamlit==1.32.0
+streamlit-webrtc==0.47.1
+openai==1.12.0
+python-dotenv==1.0.1
+httpx
+numpy==1.26.4
+av==10.0.0
+soundfile
+pandas==2.2.1
 openpyxl 
-plotly
+plotly==5.19.0
 xlrd
 matplotlib
 seaborn
@@ -10,6 +17,5 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 gspread
-numpy
 supabase
-python-dotenv
+sounddevice==0.4.6

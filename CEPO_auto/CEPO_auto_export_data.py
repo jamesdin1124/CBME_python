@@ -8,15 +8,35 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 import time
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common.exceptions import SessionNotCreatedException
 
-# 設定 Chrome 選項
-chrome_options = Options()
-chrome_options.add_argument('--no-sandbox')
-chrome_options.add_argument('--disable-dev-shm-usage')
+def setup_chrome_driver():
+    """
+    設置並返回 Chrome WebDriver 實例
+    包含錯誤處理和版本檢查
+    """
+    chrome_options = Options()
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    
+    # 指定 Chrome 瀏覽器的路徑
+    chrome_options.binary_location = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    
+    try:
+        # 使用 ChromeDriverManager 自動下載對應版本的 ChromeDriver
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        print("成功初始化 Chrome WebDriver")
+        return driver
+    except SessionNotCreatedException as e:
+        print(f"ChromeDriver 初始化失敗：{str(e)}")
+        raise
+    except Exception as e:
+        print(f"設置 Chrome WebDriver 時發生錯誤：{str(e)}")
+        raise
 
-# 使用 ChromeDriverManager 自動下載對應版本的 ChromeDriver
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service, options=chrome_options)
+# 初始化 WebDriver
+driver = setup_chrome_driver()
 
 try:
     # 前往登入頁面

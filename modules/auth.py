@@ -42,7 +42,8 @@ PERMISSIONS = {
         'can_edit_all': False,
         'can_manage_users': False,
         'can_upload_files': False,
-        'can_view_analytics': False
+        'can_view_analytics': False,
+        'can_view_own_data': True
     }
 }
 
@@ -75,17 +76,23 @@ def authenticate_user(username, password):
         return users[username]['role']
     return None
 
-def create_user(username, password, role, name):
+def create_user(username, password, role, name, student_id=None):
     """建立新使用者"""
     users = load_users()
     if username in users:
         return False, "使用者名稱已存在"
     
-    users[username] = {
-        'password': hash_password(password),
+    user_data = {
+        'password': password,  # 直接使用傳入的密碼雜湊值
         'role': role,
         'name': name
     }
+    
+    # 如果是學生，添加學號
+    if role == 'student' and student_id:
+        user_data['student_id'] = student_id
+    
+    users[username] = user_data
     save_users(users)
     return True, "使用者建立成功"
 
@@ -128,7 +135,17 @@ def show_login_page():
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
                 st.session_state['role'] = role
-                st.session_state['user_name'] = load_users()[username]['name']
+                user = load_users()[username]
+                st.session_state['user_name'] = user['name']
+                
+                # 如果是學生，儲存學號
+                if role == 'student':
+                    if 'student_id' in user:
+                        st.session_state['student_id'] = user['student_id']
+                    else:
+                        st.error("找不到學號資訊，請聯繫管理員")
+                        return False
+                
                 st.success(f"歡迎回來，{st.session_state['user_name']}！")
                 return True
             else:
@@ -498,109 +515,51 @@ def setup_google_connection_local():
         return setup_google_connection_local()
 
 def show_registration_page():
-    """顯示帳號註冊頁面"""
-    st.title("臨床教師評核系統 - 申請帳號")
+    """顯示註冊頁面"""
+    st.title("申請帳號")
     
     with st.form("registration_form"):
-        username = st.text_input("使用者名稱 (帳號)", help="請設定您的登入帳號")
+        username = st.text_input("使用者名稱")
         password = st.text_input("密碼", type="password")
         confirm_password = st.text_input("確認密碼", type="password")
-        name = st.text_input("姓名", help="請填寫您的真實姓名")
-        role = st.selectbox("身份", options=list(USER_ROLES.keys()), format_func=lambda x: USER_ROLES[x])
-        student_id = st.text_input("學號", help="學生必填，其他角色可選填")
-        extension = st.text_input("分機", help="請填寫您的聯絡分機")
-        email = st.text_input("電子郵件", help="請填寫您的聯絡信箱")
+        name = st.text_input("姓名")
+        role = st.selectbox("身份", options=['student'], format_func=lambda x: USER_ROLES[x])
+        
+        # 如果是學生，添加學號欄位
+        student_id = None
+        if role == 'student':
+            student_id = st.text_input("學號")
         
         submitted = st.form_submit_button("申請帳號")
         
         if submitted:
-            # 基本驗證
             if not username or not password or not name:
-                st.error("請填寫必要欄位：使用者名稱、密碼、姓名")
+                st.error("請填寫所有必填欄位")
                 return False
-                
+            
             if password != confirm_password:
                 st.error("兩次輸入的密碼不一致")
                 return False
-                
+            
+            # 如果是學生，檢查學號是否填寫
             if role == 'student' and not student_id:
-                st.error("學生必須填寫學號")
-                return False
-                
-            # 檢查使用者名稱是否已存在
-            users = load_users()
-            if username in users:
-                st.error("使用者名稱已存在")
+                st.error("請填寫學號")
                 return False
             
-            try:
-                # 重要修改：不再寫入本地users.json，只寫入Google Sheet等待審核
-                # 移除以下代碼：
-                # success, message = create_user(username, password, role, name)
-                # if not success:
-                #     st.error(message)
-                #     return False
-                
-                # 儲存到Google Sheet
-                client = setup_google_connection()
-                if client is None:
-                    st.error("無法連接到 Google Sheets")
-                    return False
-                
-                # 新的試算表網址
-                spreadsheet_url = "https://docs.google.com/spreadsheets/d/1VZRYRrsSMNUKoWM32gc5D9FykCHm7IRgcmR1_qXx8_w/edit?resourcekey=&gid=1526949290#gid=1526949290"
-                spreadsheet_id = extract_spreadsheet_id(spreadsheet_url)
-                
-                if spreadsheet_id:
-                    try:
-                        spreadsheet = client.open_by_key(spreadsheet_id)
-                        # 指定工作表名稱為Apply_auth
-                        try:
-                            worksheet = spreadsheet.worksheet("Apply_auth")
-                            st.info(f"成功連接到申請帳號工作表")
-                        except Exception as ws_e:
-                            st.error(f"找不到Apply_auth工作表: {str(ws_e)}")
-                            # 嘗試建立新工作表
-                            try:
-                                worksheet = spreadsheet.add_worksheet(title="Apply_auth", rows=1000, cols=20)
-                                # 新增標題列
-                                worksheet.append_row([
-                                    "申請時間", "使用者名稱", "密碼雜湊值", "姓名", 
-                                    "角色", "學號", "分機", "電子郵件", "審核狀態"
-                                ])
-                                st.info("已建立新的申請帳號工作表")
-                            except Exception as add_e:
-                                st.error(f"無法建立新工作表: {str(add_e)}")
-                                return False
-                        
-                        # 準備要寫入的資料
-                        from datetime import datetime
-                        values = [
-                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                            username,
-                            hash_password(password),  # 儲存雜湊後的密碼
-                            name,
-                            USER_ROLES.get(role, role),  # 存入角色中文名稱
-                            student_id,
-                            extension,
-                            email,
-                            "待審核"  # 預設審核狀態
-                        ]
-                        
-                        worksheet.append_row(values)
-                        st.success("帳號申請成功！請等待管理員審核後即可登入。")
-                        return True
-                    except Exception as sheet_e:
-                        st.error(f"存取試算表時發生錯誤: {str(sheet_e)}")
-                        return False
-                else:
-                    st.error("Google Sheet ID 提取失敗")
-                    return False
-                    
-            except Exception as e:
-                st.error(f"申請帳號時發生錯誤：{str(e)}")
-                import traceback
-                st.error(f"錯誤詳情: {traceback.format_exc()}")
+            # 建立使用者
+            success, message = create_user(
+                username=username,
+                password=hash_password(password),
+                role=role,
+                name=name,
+                student_id=student_id if role == 'student' else None
+            )
+            
+            if success:
+                st.success(message)
+                return True
+            else:
+                st.error(message)
                 return False
     
     return False
@@ -741,13 +700,11 @@ def show_user_approval():
                         if st.button("核准", key=f"approve_{i}"):
                             try:
                                 # 1. 更新Google Sheet的狀態
-                                # 找到該記錄的行
                                 found = False
-                                for row_idx, row in enumerate(all_values[1:], start=2):  # 從第2行開始，索引從2開始
+                                for row_idx, row in enumerate(all_values[1:], start=2):
                                     if (username_col_idx < len(row) and 
                                         row[username_col_idx] == record.get('使用者名稱')):
-                                        # 更新狀態
-                                        worksheet.update_cell(row_idx, status_col_idx + 1, "已審核")  # API索引從1開始
+                                        worksheet.update_cell(row_idx, status_col_idx + 1, "已審核")
                                         found = True
                                         break
                                 
@@ -756,7 +713,6 @@ def show_user_approval():
                                     return
                                 
                                 # 2. 將帳號寫入本地users.json
-                                # 根據角色對照表反查真實角色代碼
                                 role_code = None
                                 for code, name in USER_ROLES.items():
                                     if name == record.get('角色'):
@@ -765,19 +721,17 @@ def show_user_approval():
                                 
                                 if not role_code:
                                     role_code = 'student'  # 預設為學生
-                                    
+                                
+                                # 直接使用申請時的密碼雜湊值
                                 success, message = create_user(
-                                    record.get('使用者名稱'), 
-                                    "tempPassword123",  # 臨時密碼，將在下一步被取代
-                                    role_code,
-                                    record.get('姓名')
+                                    username=record.get('使用者名稱'),
+                                    password=record.get('密碼雜湊值'),  # 直接使用申請時的密碼雜湊值
+                                    role=role_code,
+                                    name=record.get('姓名'),
+                                    student_id=record.get('學號')  # 添加學號
                                 )
                                 
-                                # 3. 更新本地用戶的密碼雜湊值
                                 if success:
-                                    users = load_users()
-                                    users[record.get('使用者名稱')]['password'] = record.get('密碼雜湊值')
-                                    save_users(users)
                                     st.success(f"已核准 {record.get('姓名')} 的帳號申請")
                                     st.rerun()
                                 else:

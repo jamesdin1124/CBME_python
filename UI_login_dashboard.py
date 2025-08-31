@@ -1,7 +1,5 @@
 import streamlit as st
 import httpx
-import sqlite3
-from datetime import datetime
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
@@ -29,7 +27,6 @@ from plotly.subplots import make_subplots
 from openai import OpenAI
 from dotenv import load_dotenv
 import traceback # 匯入 traceback
-from supabase import create_client
 
 # 載入環境變數
 load_dotenv()
@@ -321,65 +318,6 @@ def correct_text_with_gpt(text):
         st.error(tb_str)
         return text
 
-def init_test_form_db():
-    """初始化測試表單資料庫"""
-    try:
-        conn = sqlite3.connect('test_form.db')
-        cursor = conn.cursor()
-        
-        # 建立測試表單資料表
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS test_form_submissions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            batch TEXT NOT NULL,
-            epa_1 INTEGER NOT NULL,
-            epa_2 INTEGER NOT NULL,
-            epa_3 INTEGER NOT NULL,
-            epa_4 INTEGER NOT NULL,
-            epa_5 INTEGER NOT NULL,
-            comments TEXT,
-            submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"初始化資料庫時發生錯誤：{str(e)}")
-        return False
-
-def save_to_sqlite(form_data):
-    """將表單資料儲存到 SQLite 資料庫"""
-    try:
-        conn = sqlite3.connect('test_form.db')
-        cursor = conn.cursor()
-        
-        # 插入資料
-        cursor.execute('''
-        INSERT INTO test_form_submissions 
-        (name, batch, epa_1, epa_2, epa_3, epa_4, epa_5, comments, submitted_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            form_data['姓名'],
-            form_data['梯次'],
-            form_data['EPA_1'],
-            form_data['EPA_2'],
-            form_data['EPA_3'],
-            form_data['EPA_4'],
-            form_data['EPA_5'],
-            form_data['評語'],
-            form_data['提交時間']
-        ))
-        
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"儲存資料到資料庫時發生錯誤：{str(e)}")
-        return False
-
 def main():
     # 檢查是否已登入
     if not st.session_state.logged_in:
@@ -474,15 +412,6 @@ def main():
                     
                     # 儲存到 CSV 檔案
                     df.to_csv("test_form_data.csv", index=False, encoding='utf-8-sig')
-                    
-                    # 儲存到 SQLite 資料庫
-                    if init_test_form_db():
-                        if save_to_sqlite(form_data):
-                            st.success("資料已成功儲存到本機資料庫！")
-                        else:
-                            st.warning("資料已儲存到 CSV，但資料庫儲存失敗")
-                    else:
-                        st.warning("資料已儲存到 CSV，但資料庫初始化失敗")
                     
                     # 顯示成功訊息
                     st.success("表單提交成功！")
@@ -747,127 +676,59 @@ def main():
         tab_names.append("R")
         tabs.append("老師評分分析")
         tab_names.append("老師評分分析")
-    elif st.session_state.role == 'student':
-        # 學生只能看到自己的資料
-        tabs.append("我的評核資料")
-        tab_names.append("我的評核資料")
     
     if not tabs:
         st.warning("您沒有權限查看任何資料")
         return
     
-    # 根據角色動態創建分頁
-    if st.session_state.role == 'student':
-        tab1 = st.tabs(tab_names)[0]
-        with tab1:
-            st.header("我的評核資料")
-            # 從 session state 中獲取所有科別的資料
-            all_data = []
-            for dept in departments:
-                if f"{dept}_data" in st.session_state:
-                    all_data.append(st.session_state[f"{dept}_data"])
-            
-            if all_data:
-                # 合併所有科別的資料
-                current_data = pd.concat(all_data, ignore_index=True)
-                # 過濾出該學生的資料
-                student_data = current_data[current_data['學號'] == st.session_state.get('student_id')]
-                if not student_data.empty:
-                    # 顯示基本資訊
-                    st.subheader("基本資訊")
-                    st.write(f"姓名：{student_data['姓名'].iloc[0]}")
-                    st.write(f"學號：{student_data['學號'].iloc[0]}")
-                    st.write(f"科別：{student_data['科別'].iloc[0]}")
-                    
-                    # 顯示 EPA 評分
-                    st.subheader("EPA 評分")
-                    epa_columns = [col for col in student_data.columns if 'EPA' in col]
-                    for epa_col in epa_columns:
-                        st.write(f"{epa_col}：{student_data[epa_col].iloc[0]}")
-                    
-                    # 顯示評語
-                    if '評語' in student_data.columns:
-                        st.subheader("評語")
-                        st.write(student_data['評語'].iloc[0])
-                    
-                    # 顯示趨勢圖
-                    st.subheader("評分趨勢")
-                    if len(student_data) > 1:  # 確保有多筆資料才顯示趨勢圖
-                        trend_data = student_data[epa_columns].T
-                        trend_data.columns = ['評分']
-                        st.line_chart(trend_data)
-                    
-                    # 顯示雷達圖
-                    st.subheader("能力雷達圖")
-                    if epa_columns:
-                        radar_data = student_data[epa_columns].iloc[0]
-                        fig = go.Figure()
-                        fig.add_trace(go.Scatterpolar(
-                            r=radar_data.values,
-                            theta=radar_data.index,
-                            fill='toself',
-                            name='能力評分'
-                        ))
-                        fig.update_layout(
-                            polar=dict(
-                                radialaxis=dict(
-                                    visible=True,
-                                    range=[0, 5]
-                                )
-                            ),
-                            showlegend=False
-                        )
-                        st.plotly_chart(fig)
-                else:
-                    st.warning("找不到您的評核資料")
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_names)
+    
+    # 獲取當前資料
+    current_data = st.session_state.get('merged_data', None)
+    
+    with tab1:
+        if check_permission(st.session_state.role, 'can_view_all'):
+            show_UGY_EPA_section()
+    
+    with tab2:
+        if check_permission(st.session_state.role, 'can_view_all'):
+            st.header("UGY整合分析")
+            if current_data is not None:
+                st.session_state.ugy_data = current_data
+                show_UGY_peer_analysis_section(current_data)
             else:
-                st.warning("尚未上傳任何評核資料")
-    else:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_names)
-        
-        with tab1:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                show_UGY_EPA_section()
-        
-        with tab2:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                st.header("UGY整合分析")
-                if current_data is not None:
-                    st.session_state.ugy_data = current_data
-                    show_UGY_peer_analysis_section(current_data)
+                st.warning("請先載入資料")
+    
+    with tab3:
+        if check_permission(st.session_state.role, 'can_view_all'):
+            st.header("PGY 分析")
+            if current_data is not None:
+                pgy_data = current_data[current_data['檔案名稱'].str.contains('PGY', case=False, na=False)]
+                if not pgy_data.empty:
+                    show_analysis_section(pgy_data)
                 else:
-                    st.warning("請先載入資料")
-        
-        with tab3:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                st.header("PGY 分析")
-                if current_data is not None:
-                    pgy_data = current_data[current_data['檔案名稱'].str.contains('PGY', case=False, na=False)]
-                    if not pgy_data.empty:
-                        show_analysis_section(pgy_data)
+                    st.warning("沒有 PGY 資料")
+            else:
+                st.warning("請先載入資料")
+    
+    with tab4:
+        if check_permission(st.session_state.role, 'can_view_all'):
+            st.header("R 分析")
+            if current_data is not None:
+                r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
+                if not r_data.empty:
+                    if selected_dept == "麻醉科":
+                        show_ANE_R_EPA_peer_analysis_section(r_data)
                     else:
-                        st.warning("沒有 PGY 資料")
+                        show_resident_analysis_section(r_data)
                 else:
-                    st.warning("請先載入資料")
-        
-        with tab4:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                st.header("R 分析")
-                if current_data is not None:
-                    r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
-                    if not r_data.empty:
-                        if selected_dept == "麻醉科":
-                            show_ANE_R_EPA_peer_analysis_section(r_data)
-                        else:
-                            show_resident_analysis_section(r_data)
-                    else:
-                        st.warning("沒有住院醫師資料")
-                else:
-                    st.warning("請先載入資料")
-        
-        with tab5:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                show_teacher_analysis_section()
+                    st.warning("沒有住院醫師資料")
+            else:
+                st.warning("請先載入資料")
+    
+    with tab5:
+        if check_permission(st.session_state.role, 'can_view_all'):
+            show_teacher_analysis_section()
 
 if __name__ == "__main__":
     main()

@@ -37,3 +37,6 @@ ENV/
 # 系統檔案
 .DS_Store
 Thumbs.db 
+
+# data
+EXCEL/

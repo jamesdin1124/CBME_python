@@ -13,7 +13,7 @@ from plotly.colors import convert_colors_to_same_type, make_colorscale
 
 
 def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None, values=None, 
-                    title="EPA 雷達圖", standard_categories=None, full_df=None,
+                    title="EPA 雷達圖", standard_categories=None, proceeded_EPA_df=None,
                     labels={
                         'layer': '階層 {}',  # {} 會被替換成實際的層級
                         'teacher_avg': '教師評核平均',
@@ -30,13 +30,11 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
         values (list, optional): 對應類別的數值列表 (簡單模式)
         title (str): 圖表標題
         standard_categories (list, optional): 標準的EPA評核項目順序列表
-        full_df (DataFrame, optional): 包含所有資料的完整DataFrame（用於計算階層整體平均）
         labels (dict): 圖例標籤的自定義文字
         
     Returns:
         plotly.graph_objects.Figure: 雷達圖物件
     """
-    import plotly.graph_objects as go
     import hashlib # 用於生成顏色
     
     # 定義階層顏色 (移到函數開頭以便學生模式使用)
@@ -76,13 +74,6 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
         
         # === 簡單模式 ===
         if categories is not None and values is not None:
-            # 檢查是否至少有三個項目，如不足則補充空白項目
-            if len(categories) < 3:
-                original_count = len(categories)
-                for i in range(3 - original_count):
-                    categories.append(f"空白項目{i+1}")
-                    values.append(1)  # 空白項目分數為1
-            
             categories_closed = categories + [categories[0]]
             values_closed = values + [values[0]]
             
@@ -150,78 +141,41 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
 
             # 決定使用的EPA評核項目標準順序
             if standard_categories is None:
-                if full_df is not None:
-                    standard_categories = sorted(full_df['EPA評核項目'].unique().tolist())
-                else:
-                    standard_categories = sorted(df['EPA評核項目'].unique().tolist())
+                standard_categories = sorted(df['EPA評核項目'].unique().tolist())
             
             # 按標準順序建立學生的評分值
             student_values = []
             categories = []
             score_column = '教師評核EPA等級_數值' if '教師評核EPA等級_數值' in student_df.columns else '教師評核EPA等級'
             
-            # 檢查是否有日期欄位，用於排序
-            date_columns = ['時間戳記', '評核日期', '日期', '梯次', '時間', '回饋時間']
-            date_column = None
-            for col in date_columns:
-                if col in student_df.columns:
-                    date_column = col
-                    break
-            
             for category in standard_categories:
                 category_data = student_df[student_df['EPA評核項目'] == category]
                 if not category_data.empty:
-                    # 如果有日期欄位，按日期排序並取最後三次評核
-                    if date_column:
-                        try:
-                            # 嘗試將日期列轉換為日期時間類型
-                            category_data[date_column] = pd.to_datetime(category_data[date_column], errors='coerce')
-                            # 按日期排序
-                            category_data = category_data.sort_values(by=date_column)
-                            # 取最後三次評核，如果不足三筆則使用全部
-                            last_three = category_data.tail(3)
-                            records_count = len(last_three)
-                            if records_count > 0:
-                                avg_score = last_three[score_column].mean()
-                                if records_count < 3:
-                                    print(f"警告: {category} 只有 {records_count} 筆評核記錄，少於預期的3筆")
-                            else:
-                                avg_score = category_data[score_column].mean()  # 如果轉換失敗，使用所有數據
-                        except Exception as e:
-                            # 如果日期排序出錯，使用所有資料計算平均
-                            print(f"日期排序出錯: {e}, 使用所有資料計算平均")
-                            avg_score = category_data[score_column].mean()
-                    else:
-                        # 如果沒有日期欄位，直接取最後三筆資料
-                        last_three = category_data.tail(3)
-                        records_count = len(last_three)
-                        avg_score = last_three[score_column].mean()
-                        if records_count < 3:
-                            print(f"警告: {category} 只有 {records_count} 筆評核記錄，少於預期的3筆")
-                    
+                    avg_score = category_data[score_column].mean()
                     categories.append(category)
                     student_values.append(avg_score)
-                # else: # 如果學生沒有某項目的分數，可以選擇跳過或補0
-                #     categories.append(category)
-                #     student_values.append(0) 
+                else:
+                    # 若該項目沒有分數，自動補 1
+                    categories.append(category)
+                    student_values.append(1)
             
             # 如果沒有足夠的資料，建立空圖
-            if len(categories) < 3:
-                original_count = len(categories)
-                # 使用 standard_categories 中尚未使用的項目，或創建空白項目
-                unused_categories = []
-                if standard_categories:
-                    unused_categories = [cat for cat in standard_categories if cat not in categories]
-                
-                # 首先嘗試使用未使用的標準項目
-                for i in range(min(3 - original_count, len(unused_categories))):
-                    categories.append(unused_categories[i])
-                    student_values.append(1)  # 空白項目分數為1
-                
-                # 如果標準項目不足，則補充空白項目
-                for i in range(3 - len(categories)):
-                    categories.append(f"空白項目{i+1}")
-                    student_values.append(1)  # 空白項目分數為1
+            if len(categories) < 2:
+                fig = go.Figure()
+                fig.update_layout(
+                    title=f"學生 {student_label} 的評核項目不足，無法繪製雷達圖",
+                    annotations=[
+                        dict(
+                            text="至少需要2個評核項目才能繪製雷達圖",
+                            showarrow=False,
+                            xref="paper",
+                            yref="paper",
+                            x=0.5,
+                            y=0.5
+                        )
+                    ]
+                )
+                return fig
             
             # 確保資料是閉合的
             categories_closed = categories + [categories[0]]
@@ -237,13 +191,42 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                 name=labels['individual'].format(student_label) # 使用組合標籤
             ))
             
+            # 只顯示該學生所屬階層的平均，不顯示全體平均與CI區間
+            student_layer = None
+            if '階層' in student_df.columns and not student_df.empty:
+                student_layer = student_df['階層'].iloc[0]
+            if student_layer and proceeded_EPA_df is not None and hasattr(proceeded_EPA_df, 'columns') and '階層' in proceeded_EPA_df.columns:
+                full_score_column = '教師評核EPA等級_數值' if '教師評核EPA等級_數值' in proceeded_EPA_df.columns else '教師評核EPA等級'
+                layer_df = proceeded_EPA_df[proceeded_EPA_df['階層'] == student_layer]
+                if layer_df.empty:
+                    print(f'警告：找不到階層 {student_layer} 的資料')
+                # 強制 categories 來源與階層平均一致
+                categories_for_layer = categories
+                layer_values = []
+                for category in categories_for_layer:
+                    layer_data = layer_df[layer_df['EPA評核項目'] == category]
+                    if not layer_data.empty:
+                        layer_avg = layer_data[full_score_column].mean()
+                        layer_values.append(layer_avg)
+                    else:
+                        layer_values.append(1)  # 若無資料補1
+                layer_values_closed = layer_values + [layer_values[0]]
+                layer_color = layer_colors.get(student_layer, get_random_color(student_layer, 0.7))
+                fig.add_trace(go.Scatterpolar(
+                    r=layer_values_closed,
+                    theta=categories_closed,
+                    fill='none',
+                    name=f'{student_layer} 階層平均',
+                    line=dict(dash='dash', color=layer_color)
+                ))
+
             # 繪製所有階層的平均值 (虛線)
-            if full_df is not None and '階層' in full_df.columns:
-                full_score_column = '教師評核EPA等級_數值' if '教師評核EPA等級_數值' in full_df.columns else '教師評核EPA等級'
-                all_layers = sorted(full_df['階層'].unique().tolist())
+            if proceeded_EPA_df is not None and hasattr(proceeded_EPA_df, 'columns') and '階層' in proceeded_EPA_df.columns:
+                full_score_column = '教師評核EPA等級_數值' if '教師評核EPA等級_數值' in proceeded_EPA_df.columns else '教師評核EPA等級'
+                all_layers = sorted(proceeded_EPA_df['階層'].unique().tolist())
                 
                 for layer in all_layers:
-                    layer_df = full_df[full_df['階層'] == layer]
+                    layer_df = proceeded_EPA_df[proceeded_EPA_df['階層'] == layer]
                     layer_values = []
                     # 確保使用與學生相同的 categories 順序
                     for category in categories:
@@ -252,7 +235,7 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                             layer_avg = layer_data[full_score_column].mean()
                             layer_values.append(layer_avg)
                         else:
-                            layer_values.append(1) # 如果該階層無此項目資料，補1
+                            layer_values.append(0) # 如果該階層無此項目資料，補0
                     
                     # 檢查是否有計算出值
                     if any(v > 0 for v in layer_values): # 至少有一項大於0才繪製
@@ -265,20 +248,24 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                             name=labels['layer'].format(layer), # 階層平均標籤
                             line=dict(dash='dash', color=layer_color) # 虛線及顏色
                         ))
+            # 如果 proceeded_EPA_df 無效，顯示提示
+            elif proceeded_EPA_df is None:
+                fig.add_annotation(
+                    text="無法取得全體資料，無法比較階層平均",
+                    showarrow=False,
+                    xref="paper",
+                    yref="paper",
+                    x=0.5,
+                    y=0.5
+                )
 
             # 設定圖表樣式 - 使用組合標籤
-            title_text = f"學生 {student_label} 的EPA評核雷達圖"
-            # 檢查是否有任何項目少於三筆記錄
-            has_insufficient_data = any(len(student_df[student_df['EPA評核項目'] == cat]) < 3 for cat in categories if cat in standard_categories)
-            if has_insufficient_data:
-                title_text += " (部分項目少於3筆評核)"
-
             fig.update_layout(
                 polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
                 showlegend=True,
                 height=450,
                 margin=dict(t=50, b=50, l=50, r=50),
-                title=title_text
+                title=f"學生 {student_label} 的EPA評核雷達圖" # 使用組合標籤
             )
             
             return fig
