@@ -15,9 +15,7 @@ from modules.visualization import plot_radar_chart, plot_epa_trend_px
 # 暫時註解掉不需要的導入
 # from modules.data_analysis import analyze_epa_data
 
-# 設定字體，確保在 Streamlit Cloud 中能正確顯示
-# 使用最基礎的字體設定，避免字體缺失問題
-FONT_FAMILY = "sans-serif"
+# 字體設定已移除，使用系統預設字體以避免 Streamlit Cloud 字體缺失問題
 
 # 在檔案開頭宣告全域變數
 proceeded_EPA_df = None
@@ -283,7 +281,6 @@ def create_dept_grade_percentage_chart(df, dept_column):
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
-            font=dict(family=FONT_FAMILY),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -354,7 +351,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                         x=dept,
                         y=label_y,
                         text=f"{level_label} ({percentage:.1f}%)",
-                        font=dict(size=10, color="black", weight="bold", family=FONT_FAMILY),
+                        font=dict(size=10, color="black", weight="bold"),
                         showarrow=False,
                         bgcolor="white",
                         bordercolor="gray",
@@ -370,7 +367,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=dept,
                 y=100 + 8,  # 在百分比圖上方顯示，位置更高
                 text=f"總量: {int(total_quantity)}",
-                font=dict(size=12, color="black", weight="bold", family=FONT_FAMILY),
+                font=dict(size=12, color="black", weight="bold"),
                 showarrow=False,
                 bgcolor="lightgreen",
                 bordercolor="green",
@@ -404,7 +401,6 @@ def create_dept_grade_percentage_chart(df, dept_column):
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
-            font=dict(family=FONT_FAMILY),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -442,7 +438,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                         x=dept,
                         y=label_y,
                         text=f"{level_label} ({int(quantity)})",
-                        font=dict(size=10, color="black", weight="bold", family=FONT_FAMILY),
+                        font=dict(size=10, color="black", weight="bold"),
                         showarrow=False,
                         bgcolor="white",
                         bordercolor="gray",
@@ -458,7 +454,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=dept,
                 y=total_quantity + 8,  # 在長條圖上方顯示，位置更高
                 text=f"總量: {int(total_quantity)}",
-                font=dict(size=12, color="black", weight="bold", family=FONT_FAMILY),
+                font=dict(size=12, color="black", weight="bold"),
                 showarrow=False,
                 bgcolor="lightblue",
                 bordercolor="blue",
@@ -476,7 +472,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red", family=FONT_FAMILY)
+            font=dict(size=16, color="red")
         )
         fig.update_layout(
             title="實習科部教師評核等級百分比分析",
@@ -490,7 +486,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red", family=FONT_FAMILY)
+            font=dict(size=16, color="red")
         )
         fig_quantity.update_layout(
             title="實習科部教師評核等級數量分析",
@@ -685,7 +681,7 @@ def create_dept_grade_distribution_chart(df, dept_name):
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red", family=FONT_FAMILY)
+            font=dict(size=16, color="red")
         )
         fig.update_layout(
             title=f"{dept_name} 評核等級分布",
