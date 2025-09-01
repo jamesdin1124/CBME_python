@@ -15,6 +15,10 @@ from modules.visualization import plot_radar_chart, plot_epa_trend_px
 # 暫時註解掉不需要的導入
 # from modules.data_analysis import analyze_epa_data
 
+# 設定字體，確保在 Streamlit Cloud 中能正確顯示
+# 使用最基礎的字體設定，避免字體缺失問題
+FONT_FAMILY = "sans-serif"
+
 # 在檔案開頭宣告全域變數
 proceeded_EPA_df = None
 
@@ -279,6 +283,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
+            font=dict(family=FONT_FAMILY),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -349,7 +354,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                         x=dept,
                         y=label_y,
                         text=f"{level_label} ({percentage:.1f}%)",
-                        font=dict(size=10, color="black", weight="bold"),
+                        font=dict(size=10, color="black", weight="bold", family=FONT_FAMILY),
                         showarrow=False,
                         bgcolor="white",
                         bordercolor="gray",
@@ -365,7 +370,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=dept,
                 y=100 + 8,  # 在百分比圖上方顯示，位置更高
                 text=f"總量: {int(total_quantity)}",
-                font=dict(size=12, color="black", weight="bold"),
+                font=dict(size=12, color="black", weight="bold", family=FONT_FAMILY),
                 showarrow=False,
                 bgcolor="lightgreen",
                 bordercolor="green",
@@ -399,6 +404,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
+            font=dict(family=FONT_FAMILY),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -436,7 +442,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                         x=dept,
                         y=label_y,
                         text=f"{level_label} ({int(quantity)})",
-                        font=dict(size=10, color="black", weight="bold"),
+                        font=dict(size=10, color="black", weight="bold", family=FONT_FAMILY),
                         showarrow=False,
                         bgcolor="white",
                         bordercolor="gray",
@@ -452,7 +458,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=dept,
                 y=total_quantity + 8,  # 在長條圖上方顯示，位置更高
                 text=f"總量: {int(total_quantity)}",
-                font=dict(size=12, color="black", weight="bold"),
+                font=dict(size=12, color="black", weight="bold", family=FONT_FAMILY),
                 showarrow=False,
                 bgcolor="lightblue",
                 bordercolor="blue",
@@ -470,11 +476,12 @@ def create_dept_grade_percentage_chart(df, dept_column):
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red")
+            font=dict(size=16, color="red", family=FONT_FAMILY)
         )
         fig.update_layout(
             title="實習科部教師評核等級百分比分析",
-            height=400
+            height=400,
+            font=dict(family=FONT_FAMILY)
         )
         
         # 創建第二個錯誤圖表
@@ -483,11 +490,12 @@ def create_dept_grade_percentage_chart(df, dept_column):
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red")
+            font=dict(size=16, color="red", family=FONT_FAMILY)
         )
         fig_quantity.update_layout(
             title="實習科部教師評核等級數量分析",
-            height=400
+            height=400,
+            font=dict(family=FONT_FAMILY)
         )
         
         return fig, fig_quantity
@@ -642,6 +650,7 @@ def create_dept_grade_distribution_chart(df, dept_name):
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
+            font=dict(family=FONT_FAMILY),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -676,11 +685,12 @@ def create_dept_grade_distribution_chart(df, dept_name):
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red")
+            font=dict(size=16, color="red", family=FONT_FAMILY)
         )
         fig.update_layout(
             title=f"{dept_name} 評核等級分布",
-            height=400
+            height=400,
+            font=dict(family=FONT_FAMILY)
         )
         return fig
 
@@ -1359,6 +1369,7 @@ def display_visualizations():
                 height=500,
                 margin=dict(t=50, b=50, l=50, r=50),
                 showlegend=True,
+                font=dict(family=FONT_FAMILY),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
             )
             st.plotly_chart(radar_fig, use_container_width=True, key="all_layers_radar_chart")
@@ -1388,7 +1399,8 @@ def display_visualizations():
                     trend_fig.update_layout(
                         xaxis=dict(categoryorder='array', categoryarray=batch_order),
                         height=450,
-                        margin=dict(t=30, b=30, l=30, r=30)
+                        margin=dict(t=30, b=30, l=30, r=30),
+                        font=dict(family=FONT_FAMILY)
                     )
                     st.plotly_chart(trend_fig, use_container_width=True, key=f"trend_chart_{layer}")
                     if layer != selected_layers[-1]:
