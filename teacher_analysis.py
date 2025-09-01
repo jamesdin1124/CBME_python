@@ -237,8 +237,8 @@ def process_epa_form_data(df):
             # 使用 matplotlib 和 seaborn 繪製箱型圖 - 將老師的評分與整體評分放在一起比較
             st.write("##### EPA 項目評分分布比較 (老師 vs 整體)")
             
-            # 設定中文字型
-            plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']
+            # 設定字體，使用最基礎的字體設定避免 Streamlit Cloud 字體缺失問題
+            plt.rcParams['font.sans-serif'] = ['sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
             # 創建圖形 - 使用更大的尺寸以容納更多資料
@@ -422,8 +422,8 @@ def process_epa_form_data(df):
                 
                 # 檢查是否有足夠的資料進行比較
                 if len(teachers) > 1:
-                    # 設定中文字型
-                    plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']
+                    # 設定字體，使用最基礎的字體設定避免 Streamlit Cloud 字體缺失問題
+                    plt.rcParams['font.sans-serif'] = ['sans-serif']
                     plt.rcParams['axes.unicode_minus'] = False
                     
                     # 創建圖形 - 使用更大的尺寸以容納更多資料
@@ -473,8 +473,8 @@ def process_epa_form_data(df):
                 # 繪製箱型圖，顯示所有EPA項目的分布情況
                 st.write("#### 各EPA項目的分數分布箱型圖")
                 
-                # 設定中文字型
-                plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']
+                # 設定字體，使用最基礎的字體設定避免 Streamlit Cloud 字體缺失問題
+                plt.rcParams['font.sans-serif'] = ['sans-serif']
                 plt.rcParams['axes.unicode_minus'] = False
                 
                 # 創建圖形

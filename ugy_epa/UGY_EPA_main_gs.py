@@ -17,7 +17,7 @@ from modules.visualization import plot_radar_chart, plot_epa_trend_px
 
 # 設定字體，確保在 Streamlit Cloud 中能正確顯示
 # 使用最基礎的字體設定，避免字體缺失問題
-FONT_FAMILY = "Arial Unicode MS"
+FONT_FAMILY = "sans-serif"
 
 # 在檔案開頭宣告全域變數
 proceeded_EPA_df = None

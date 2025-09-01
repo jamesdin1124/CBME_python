@@ -761,7 +761,7 @@ def analyze_epa_data(df):
                     angles = np.linspace(0, 2*np.pi, len(categories), endpoint=True)
                     
                     # 設定中文字型
-                    plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']
+                    plt.rcParams['font.sans-serif'] = ['sans-serif']
                     plt.rcParams['axes.unicode_minus'] = False
                     
                     # 創建雷達圖
@@ -937,7 +937,7 @@ def analyze_epa_data(df):
             angles = np.linspace(0, 2*np.pi, len(overall_categories), endpoint=True)
             
             # 設定中文字型
-            plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']
+            plt.rcParams['font.sans-serif'] = ['sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
             # 為每個學員創建雷達圖和資料表格
