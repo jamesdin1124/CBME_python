@@ -969,7 +969,7 @@ def display_student_data(student_df, student_id, standard_categories=None):
                     layer_avg = layer_data[full_score_column].mean()
                     layer_values.append(layer_avg)
                 else:
-                    layer_values.append(1)  # 若無資料補1
+                    layer_values.append(1)  # 若無資料補1（包括空白項目）
             layer_values_closed = layer_values + [layer_values[0]]
             layer_color = layer_colors.get(student_layer, get_random_color(student_layer, 0.7))
             radar_fig.add_trace(go.Scatterpolar(

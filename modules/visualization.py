@@ -143,6 +143,13 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
             if standard_categories is None:
                 standard_categories = sorted(df['EPA評核項目'].unique().tolist())
             
+            # 檢查項目數量，如不足則補充空白項目（與完整模式保持一致）
+            if len(standard_categories) < 3:
+                original_count = len(standard_categories)
+                standard_categories = list(standard_categories)  # 先轉換為列表以便添加新項目
+                for i in range(3 - original_count):
+                    standard_categories.append(f"空白項目{i+1}")
+            
             # 按標準順序建立學生的評分值
             student_values = []
             categories = []
@@ -209,7 +216,7 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                         layer_avg = layer_data[full_score_column].mean()
                         layer_values.append(layer_avg)
                     else:
-                        layer_values.append(1)  # 若無資料補1
+                        layer_values.append(1)  # 若無資料補1（包括空白項目）
                 layer_values_closed = layer_values + [layer_values[0]]
                 layer_color = layer_colors.get(student_layer, get_random_color(student_layer, 0.7))
                 fig.add_trace(go.Scatterpolar(
@@ -235,7 +242,7 @@ def plot_radar_chart(df=None, plot_types=None, student_id=None, categories=None,
                             layer_avg = layer_data[full_score_column].mean()
                             layer_values.append(layer_avg)
                         else:
-                            layer_values.append(0) # 如果該階層無此項目資料，補0
+                            layer_values.append(1) # 如果該階層無此項目資料，補1（包括空白項目）
                     
                     # 檢查是否有計算出值
                     if any(v > 0 for v in layer_values): # 至少有一項大於0才繪製
