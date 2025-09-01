@@ -245,7 +245,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 color = '#CCCCCC'  # 預設顏色
             color_map[grade] = color
         
-        # 創建圖表
+        # 創建圖表 - 移除所有字體相關設定
         fig = px.bar(
             complete_df,
             x='科部',
@@ -261,27 +261,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
             color_discrete_map=color_map
         )
         
-        # 強制更新顏色配置
-        # 直接使用我們已經創建好的顏色映射
-        for i, trace in enumerate(fig.data):
-            # 根據trace的順序和我們已知的評核等級順序來確定顏色
-            # 假設trace的順序與unique_grades的順序一致
-            if i < len(unique_grades):
-                grade_name = unique_grades[i]
-                grade_color = color_map[grade_name]
-                
-                # 設定顏色
-                if hasattr(trace, 'marker') and hasattr(trace.marker, 'color'):
-                    trace.marker.color = grade_color
-                else:
-                    trace.marker = dict(color=grade_color)
-                
-                # 強制更新trace的顏色
-                trace.update(marker_color=grade_color)
-        
-
-        
-        # 更新圖表樣式
+        # 移除所有字體相關設定，使用系統預設
         fig.update_layout(
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
@@ -302,6 +282,24 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 range=[0, 100]
             )
         )
+        
+        # 強制更新顏色配置
+        # 直接使用我們已經創建好的顏色映射
+        for i, trace in enumerate(fig.data):
+            # 根據trace的順序和我們已知的評核等級順序來確定顏色
+            # 假設trace的順序與unique_grades的順序一致
+            if i < len(unique_grades):
+                grade_name = unique_grades[i]
+                grade_color = color_map[grade_name]
+                
+                # 設定顏色
+                if hasattr(trace, 'marker') and hasattr(trace.marker, 'color'):
+                    trace.marker.color = grade_color
+                else:
+                    trace.marker = dict(color=grade_color)
+                
+                # 強制更新trace的顏色
+                trace.update(marker_color=grade_color)
         
         # 添加百分比標籤 - 修正定位邏輯
         # 為每個科部計算累積高度，確保標籤在正確的顏色區塊中央
@@ -385,7 +383,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
         quantity_df = complete_df.copy()
         quantity_df['數量'] = quantity_df['數量'].astype(float)
         
-        # 創建數量圖表
+        # 創建數量圖表 - 移除所有字體相關設定
         fig_quantity = px.bar(
             quantity_df,
             x='科部',
@@ -401,7 +399,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
             color_discrete_map=color_map
         )
         
-        # 更新數量圖表樣式
+        # 移除所有字體相關設定，使用系統預設
         fig_quantity.update_layout(
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
@@ -421,6 +419,8 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 title="數量"
             )
         )
+        
+
         
         # 為數量圖表添加標籤和總量
         for dept in quantity_df['科部'].unique():
