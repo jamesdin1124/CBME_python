@@ -16,3 +16,4 @@ google-auth-httplib2==0.2.0
 gspread==6.0.2
 supabase==2.7.4
 altair>=4.0,<6
+typing-extensions>=4.3.0
