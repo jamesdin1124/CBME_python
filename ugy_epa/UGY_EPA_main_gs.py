@@ -1535,10 +1535,10 @@ def show_UGY_EPA_section():
         # 執行資料載入與處理流程
         raw_df, sheet_titles = load_sheet_data(show_info=False)
         
-        # 添加除錯訊息
-        st.write("除錯訊息：")
-        st.write(f"1. 工作表列表：{sheet_titles}")
-        st.write(f"2. 原始資料是否為空：{raw_df is None or raw_df.empty}")
+        # 除錯訊息已隱藏
+        # st.write("除錯訊息：")
+        # st.write(f"1. 工作表列表：{sheet_titles}")
+        # st.write(f"2. 原始資料是否為空：{raw_df is None or raw_df.empty}")
         
         # 嘗試載入實習科部資料，如果失敗則嘗試載入訓練科部資料
         dept_df = None
@@ -1584,10 +1584,10 @@ def show_UGY_EPA_section():
             selected_sheet = sheet_titles[0] # 假設第一個是主要的EPA資料表
             epa_raw_df, _ = load_sheet_data(sheet_title=selected_sheet, show_info=False)
 
-            # 添加除錯訊息
-            st.write(f"3. EPA原始資料是否為空：{epa_raw_df is None or epa_raw_df.empty}")
-            if epa_raw_df is not None:
-                st.write(f"4. EPA原始資料欄位：{epa_raw_df.columns.tolist()}")
+            # 除錯訊息已隱藏
+            # st.write(f"3. EPA原始資料是否為空：{epa_raw_df is None or epa_raw_df.empty}")
+            # if epa_raw_df is not None:
+            #     st.write(f"4. EPA原始資料欄位：{epa_raw_df.columns.tolist()}")
 
             if epa_raw_df is not None:
                 with st.expander("載入的原始EPA資料", expanded=False):
@@ -1595,10 +1595,10 @@ def show_UGY_EPA_section():
                 
                 current_processed_df = process_data(epa_raw_df.copy()) # 傳入副本進行處理
                 
-                # 添加除錯訊息
-                st.write(f"5. 處理後資料是否為空：{current_processed_df is None or current_processed_df.empty}")
-                if current_processed_df is not None:
-                    st.write(f"6. 處理後資料欄位：{current_processed_df.columns.tolist()}")
+                # 除錯訊息已隱藏
+                # st.write(f"5. 處理後資料是否為空：{current_processed_df is None or current_processed_df.empty}")
+                # if current_processed_df is not None:
+                #     st.write(f"6. 處理後資料欄位：{current_processed_df.columns.tolist()}")
                 
                 if current_processed_df is not None and not current_processed_df.empty:
                     if processed_dept_df is not None:
