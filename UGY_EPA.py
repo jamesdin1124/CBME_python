@@ -530,7 +530,6 @@ def analyze_epa_data(df):
                     angles = np.linspace(0, 2*np.pi, len(categories), endpoint=True)
                     
                     # 設定中文字型
-                    plt.rcParams['font.sans-serif'] = ['sans-serif']
                     plt.rcParams['axes.unicode_minus'] = False
                     
                     # 創建雷達圖
@@ -700,7 +699,6 @@ def analyze_epa_data(df):
             angles = np.linspace(0, 2*np.pi, len(overall_categories), endpoint=True)
             
             # 設定中文字型
-            plt.rcParams['font.sans-serif'] = ['sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
             # 為每個學員創建雷達圖和資料表格
@@ -966,7 +964,6 @@ def analyze_epa_data(df):
             st.write("##### EPA 項目評分分布比較 (老師 vs 整體)")
             
             # 設定中文字型
-            plt.rcParams['font.sans-serif'] = ['sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
             # 創建圖形 - 使用更大的尺寸以容納更多資料
@@ -1154,7 +1151,6 @@ def analyze_epa_data(df):
             # 檢查是否有足夠的資料進行比較
             if len(teachers) > 1:
                 # 設定中文字型
-                plt.rcParams['font.sans-serif'] = ['sans-serif']
                 plt.rcParams['axes.unicode_minus'] = False
                 
                 # 創建圖形 - 使用更大的尺寸以容納更多資料
@@ -1209,7 +1205,6 @@ def analyze_epa_data(df):
                 st.write("#### 各EPA項目的分數分布箱型圖")
                 
                 # 設定中文字型
-                plt.rcParams['font.sans-serif'] = ['sans-serif']
                 plt.rcParams['axes.unicode_minus'] = False
                 
                 # 創建圖形

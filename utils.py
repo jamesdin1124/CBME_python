@@ -302,7 +302,6 @@ def display_statistical_charts(df, value_column, group_column=None, chart_type="
         key_prefix = f"stat_{id(df)}_"
     
     # 設定中文字型
-    plt.rcParams['font.sans-serif'] = ['sans-serif']
     plt.rcParams['axes.unicode_minus'] = False
     
     # 創建圖形
@@ -500,7 +499,6 @@ def display_student_epa_radar_matplotlib(df, epa_column, value_column, student_c
             angles = np.linspace(0, 2*np.pi, len(overall_categories), endpoint=True)
             
             # 設定中文字型
-            plt.rcParams['font.sans-serif'] = ['sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
             # 篩選該學員的資料
@@ -606,7 +604,6 @@ def display_all_students_epa_radar(df, epa_column, value_column, student_column,
         angles = np.linspace(0, 2*np.pi, len(overall_categories), endpoint=True)
         
         # 設定中文字型
-        plt.rcParams['font.sans-serif'] = ['sans-serif']
         plt.rcParams['axes.unicode_minus'] = False
         
         # 為每個學員創建雷達圖和資料表格
