@@ -646,7 +646,6 @@ def create_dept_grade_distribution_chart(df, dept_name):
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
-            ,
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -1365,7 +1364,6 @@ def display_visualizations():
                 height=500,
                 margin=dict(t=50, b=50, l=50, r=50),
                 showlegend=True,
-                ,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
             )
             st.plotly_chart(radar_fig, use_container_width=True, key="all_layers_radar_chart")
@@ -1395,8 +1393,7 @@ def display_visualizations():
                     trend_fig.update_layout(
                         xaxis=dict(categoryorder='array', categoryarray=batch_order),
                         height=450,
-                        margin=dict(t=30, b=30, l=30, r=30),
-                        
+                        margin=dict(t=30, b=30, l=30, r=30)
                     )
                     st.plotly_chart(trend_fig, use_container_width=True, key=f"trend_chart_{layer}")
                     if layer != selected_layers[-1]:
