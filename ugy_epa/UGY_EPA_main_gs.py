@@ -105,6 +105,11 @@ def create_dept_grade_percentage_chart(df, dept_column):
         # 過濾有效的科部和評核等級資料
         valid_data = df[[dept_column, '教師評核EPA等級_數值']].dropna()
         
+        # 添加調試信息
+        st.write(f"調試信息：原始資料行數 {len(df)}，有效資料行數 {len(valid_data)}")
+        st.write(f"調試信息：科部欄位 '{dept_column}' 的唯一值：{sorted(df[dept_column].dropna().unique())}")
+        st.write(f"調試信息：評核等級的唯一值：{sorted(df['教師評核EPA等級_數值'].dropna().unique())}")
+        
         if valid_data.empty:
             # 如果沒有有效資料，創建一個空的圖表
             fig = go.Figure()
