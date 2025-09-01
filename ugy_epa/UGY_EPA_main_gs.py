@@ -332,7 +332,6 @@ def create_dept_grade_percentage_chart(df, dept_column):
                         x=dept,
                         y=label_y,
                         text=f"{level_label} ({percentage:.1f}%)",
-                        font=dict(size=10, color="black", weight="bold"),
                         showarrow=False,
                         bgcolor="white",
                         bordercolor="gray",
@@ -348,7 +347,6 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=dept,
                 y=100 + 8,  # 在百分比圖上方顯示，位置更高
                 text=f"總量: {int(total_quantity)}",
-                font=dict(size=12, color="black", weight="bold"),
                 showarrow=False,
                 bgcolor="lightgreen",
                 bordercolor="green",
@@ -416,7 +414,6 @@ def create_dept_grade_percentage_chart(df, dept_column):
                         x=dept,
                         y=label_y,
                         text=f"{level_label} ({int(quantity)})",
-                        font=dict(size=10, color="black", weight="bold"),
                         showarrow=False,
                         bgcolor="white",
                         bordercolor="gray",
@@ -432,7 +429,6 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=dept,
                 y=total_quantity + 8,  # 在長條圖上方顯示，位置更高
                 text=f"總量: {int(total_quantity)}",
-                font=dict(size=12, color="black", weight="bold"),
                 showarrow=False,
                 bgcolor="lightblue",
                 bordercolor="blue",
@@ -449,13 +445,10 @@ def create_dept_grade_percentage_chart(df, dept_column):
         fig.add_annotation(
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red")
+            x=0.5, y=0.5, showarrow=False
         )
         fig.update_layout(
-            title="實習科部教師評核等級百分比分析",
-            height=400,
-            
+            height=400
         )
         
         # 創建第二個錯誤圖表
@@ -463,13 +456,10 @@ def create_dept_grade_percentage_chart(df, dept_column):
         fig_quantity.add_annotation(
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red")
+            x=0.5, y=0.5, showarrow=False
         )
         fig_quantity.update_layout(
-            title="實習科部教師評核等級數量分析",
-            height=400,
-            
+            height=400
         )
         
         return fig, fig_quantity
@@ -657,13 +647,10 @@ def create_dept_grade_distribution_chart(df, dept_name):
         fig.add_annotation(
             text=f"創建圖表時發生錯誤：{str(e)}",
             xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="red")
+            x=0.5, y=0.5, showarrow=False
         )
         fig.update_layout(
-            title=f"{dept_name} 評核等級分布",
-            height=400,
-            
+            height=400
         )
         return fig
 
