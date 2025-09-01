@@ -105,10 +105,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
         # 過濾有效的科部和評核等級資料
         valid_data = df[[dept_column, '教師評核EPA等級_數值']].dropna()
         
-        # 添加調試信息
-        st.write(f"調試信息：原始資料行數 {len(df)}，有效資料行數 {len(valid_data)}")
-        st.write(f"調試信息：科部欄位 '{dept_column}' 的唯一值：{sorted(df[dept_column].dropna().unique())}")
-        st.write(f"調試信息：評核等級的唯一值：{sorted(df['教師評核EPA等級_數值'].dropna().unique())}")
+
         
         if valid_data.empty:
             # 如果沒有有效資料，創建一個空的圖表
@@ -245,24 +242,23 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 color = '#CCCCCC'  # 預設顏色
             color_map[grade] = color
         
-        # 創建圖表 - 移除所有字體相關設定
-        fig = px.bar(
-            complete_df,
-            x='科部',
-            y='百分比',
-            color='評核等級',
-            barmode='stack',
-            title="各實習科部教師評核等級百分比分布",
-            labels={
-                '科部': '實習科部',
-                '百分比': '百分比 (%)',
-                '評核等級': '評核等級'
-            },
-            color_discrete_map=color_map
-        )
+        # 創建圖表 - 使用 go.Figure() 避免 px.bar() 的字體問題
+        fig = go.Figure()
         
-        # 移除所有字體相關設定，使用系統預設
+        # 為每個評核等級創建一個 trace
+        for grade in sorted(complete_df['評核等級'].unique()):
+            grade_data = complete_df[complete_df['評核等級'] == grade]
+            if not grade_data.empty:
+                fig.add_trace(go.Bar(
+                    x=grade_data['科部'],
+                    y=grade_data['百分比'],
+                    name=str(grade),
+                    marker_color=color_map.get(str(grade), '#CCCCCC')
+                ))
+        
+        # 最簡化的布局設定，避免任何字體相關問題
         fig.update_layout(
+            barmode='stack',
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
@@ -274,32 +270,14 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=0.5
             ),
             xaxis=dict(
-                title="實習科部",
                 tickangle=45
             ),
             yaxis=dict(
-                title="百分比 (%)",
                 range=[0, 100]
             )
         )
         
-        # 強制更新顏色配置
-        # 直接使用我們已經創建好的顏色映射
-        for i, trace in enumerate(fig.data):
-            # 根據trace的順序和我們已知的評核等級順序來確定顏色
-            # 假設trace的順序與unique_grades的順序一致
-            if i < len(unique_grades):
-                grade_name = unique_grades[i]
-                grade_color = color_map[grade_name]
-                
-                # 設定顏色
-                if hasattr(trace, 'marker') and hasattr(trace.marker, 'color'):
-                    trace.marker.color = grade_color
-                else:
-                    trace.marker = dict(color=grade_color)
-                
-                # 強制更新trace的顏色
-                trace.update(marker_color=grade_color)
+
         
         # 添加百分比標籤 - 修正定位邏輯
         # 為每個科部計算累積高度，確保標籤在正確的顏色區塊中央
@@ -383,24 +361,23 @@ def create_dept_grade_percentage_chart(df, dept_column):
         quantity_df = complete_df.copy()
         quantity_df['數量'] = quantity_df['數量'].astype(float)
         
-        # 創建數量圖表 - 移除所有字體相關設定
-        fig_quantity = px.bar(
-            quantity_df,
-            x='科部',
-            y='數量',
-            color='評核等級',
-            barmode='stack',
-            title="各實習科部教師評核等級數量分布",
-            labels={
-                '科部': '實習科部',
-                '數量': '數量',
-                '評核等級': '評核等級'
-            },
-            color_discrete_map=color_map
-        )
+        # 創建數量圖表 - 使用 go.Figure() 避免 px.bar() 的字體問題
+        fig_quantity = go.Figure()
         
-        # 移除所有字體相關設定，使用系統預設
+        # 為每個評核等級創建一個 trace
+        for grade in sorted(quantity_df['評核等級'].unique()):
+            grade_data = quantity_df[quantity_df['評核等級'] == grade]
+            if not grade_data.empty:
+                fig_quantity.add_trace(go.Bar(
+                    x=grade_data['科部'],
+                    y=grade_data['數量'],
+                    name=str(grade),
+                    marker_color=color_map.get(str(grade), '#CCCCCC')
+                ))
+        
+        # 最簡化的布局設定，避免任何字體相關問題
         fig_quantity.update_layout(
+            barmode='stack',
             height=500,
             margin=dict(t=80, b=80, l=80, r=80),
             showlegend=True,
@@ -412,11 +389,7 @@ def create_dept_grade_percentage_chart(df, dept_column):
                 x=0.5
             ),
             xaxis=dict(
-                title="實習科部",
                 tickangle=45
-            ),
-            yaxis=dict(
-                title="數量"
             )
         )
         
