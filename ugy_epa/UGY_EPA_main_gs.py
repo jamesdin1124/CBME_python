@@ -856,19 +856,42 @@ def process_data(df):
             
             # 日期轉換和梯次處理
             try:
+                # 檢查並處理時間戳記欄位
                 if '時間戳記' in df.columns:
+                    # 先檢查時間戳記欄位是否包含有效的日期資料
+                    sample_values = df['時間戳記'].dropna().head(5).tolist()
+                    show_diagnostic(f"時間戳記欄位樣本值：{sample_values}", "info")
+                    
+                    # 嘗試轉換時間戳記
                     df['評核日期'] = df['時間戳記'].apply(convert_tw_time)
-                    df['評核日期'] = df['評核日期'].dt.date
+                    
+                    # 檢查轉換結果
+                    valid_dates = df['評核日期'].dropna()
+                    if len(valid_dates) > 0:
+                        df['評核日期'] = df['評核日期'].dt.date
+                        show_diagnostic(f"成功轉換 {len(valid_dates)} 筆日期資料", "info")
+                    else:
+                        show_diagnostic("時間戳記欄位中沒有有效的日期資料", "warning")
+                        df = df.drop('評核日期', axis=1)  # 移除空的評核日期欄位
+                        
                 elif '評核時間' in df.columns:
-                    df['評核日期'] = pd.to_datetime(df['評核時間']).dt.date
+                    try:
+                        df['評核日期'] = pd.to_datetime(df['評核時間']).dt.date
+                        show_diagnostic("使用評核時間欄位轉換日期", "info")
+                    except Exception as e:
+                        show_diagnostic(f"評核時間欄位轉換失敗：{str(e)}", "warning")
+                        df = df.drop('評核日期', axis=1)  # 移除轉換失敗的欄位
                 
-                if '評核日期' in df.columns:
+                # 如果有有效的評核日期，進行梯次處理
+                if '評核日期' in df.columns and not df['評核日期'].isna().all():
                     df['梯次'] = df['評核日期'].astype(str).apply(convert_date_to_batch)
-                    show_diagnostic("日期轉換成功", "info")
+                    show_diagnostic("日期轉換和梯次處理成功", "info")
                 else:
-                    st.warning("找不到日期欄位，跳過梯次處理")
+                    st.warning("找不到有效的日期欄位，跳過梯次處理")
+                    
             except Exception as e:
                 st.error(f"日期處理失敗：{str(e)}")
+                show_diagnostic(f"詳細錯誤：{str(e)}", "error")
             
             show_diagnostic("資料處理完成", "info")
             return df

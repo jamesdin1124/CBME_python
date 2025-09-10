@@ -117,14 +117,36 @@ def convert_tw_time(time_str):
     Returns:
         datetime: 轉換後的日期時間物件
     """
-    # 移除所有空格
-    time_str = time_str.strip()
-    # 轉換上午/下午時間
-    if '上午' in time_str:
-        time_str = time_str.replace('上午', 'AM')
-    elif '下午' in time_str:
-        time_str = time_str.replace('下午', 'PM')
-    return pd.to_datetime(time_str, format='%Y/%m/%d %p %I:%M:%S')
+    # 檢查輸入是否為空值
+    if pd.isna(time_str) or time_str is None:
+        return None
+        
+    # 將輸入轉換為字串並去除前後空白
+    time_str = str(time_str).strip()
+    
+    # 檢查是否為 EPA 等級描述（包含這些關鍵字的不是日期）
+    epa_keywords = ['教師在旁', '學員在旁', '不允許', '允許', '逐步', '必要時', '立即到場', '稍後到場', 'on call', 'Level']
+    if any(keyword in time_str for keyword in epa_keywords):
+        # 這不是日期，返回 None
+        return None
+    
+    # 檢查是否包含日期格式的關鍵字
+    if not any(char.isdigit() for char in time_str):
+        # 沒有數字，不是日期格式
+        return None
+    
+    try:
+        # 移除所有空格
+        time_str = time_str.strip()
+        # 轉換上午/下午時間
+        if '上午' in time_str:
+            time_str = time_str.replace('上午', 'AM')
+        elif '下午' in time_str:
+            time_str = time_str.replace('下午', 'PM')
+        return pd.to_datetime(time_str, format='%Y/%m/%d %p %I:%M:%S')
+    except Exception as e:
+        # 如果轉換失敗，返回 None
+        return None
 
 def process_training_departments(df):
     """處理訓練科部資料
