@@ -1176,6 +1176,24 @@ def display_visualizations():
             # 按科部篩選
             current_df_view = current_df_view[current_df_view['實習科部'].isin(selected_depts)].copy()
     
+    # ========== 梯次時間區段篩選 ==========
+    if '梯次' in current_df_view.columns:
+        all_batches = sorted(current_df_view['梯次'].dropna().unique().tolist())
+        if all_batches:
+            selected_batches = st.multiselect(
+                "選擇梯次時間區段 (可複選)",
+                options=all_batches,
+                default=all_batches,
+                format_func=lambda x: f"梯次: {x}",
+                key="overview_batch_selector"
+            )
+            if not selected_batches:
+                st.warning("請選擇至少一個梯次時間區段")
+                return
+            
+            # 按梯次篩選
+            current_df_view = current_df_view[current_df_view['梯次'].isin(selected_batches)].copy()
+    
     # ========== 1. 計算梯次排序（背景處理） ==========
     try:
         layer_batch_orders = {}
@@ -1677,7 +1695,25 @@ def show_UGY_EPA_section():
             # 按科部篩選
             student_filter_df = student_filter_df[student_filter_df[dept_column].isin(selected_depts_student)].copy()
         
-        # 2. 階層篩選 (可複選)
+        # 2. 梯次時間區段篩選 (可複選)
+        if '梯次' in student_filter_df.columns:
+            all_batches_student = sorted(student_filter_df['梯次'].dropna().unique().tolist())
+            if all_batches_student:
+                selected_batches_student = st.multiselect(
+                    "選擇梯次時間區段 (可複選)",
+                    options=all_batches_student,
+                    default=all_batches_student,
+                    format_func=lambda x: f"梯次: {x}",
+                    key="student_batch_selector"
+                )
+                if not selected_batches_student:
+                    st.warning("請選擇至少一個梯次時間區段")
+                    return
+                
+                # 按梯次篩選
+                student_filter_df = student_filter_df[student_filter_df['梯次'].isin(selected_batches_student)].copy()
+        
+        # 3. 階層篩選 (可複選)
         if '階層' in student_filter_df.columns:
             all_layers_student = sorted(student_filter_df['階層'].unique().tolist())
             
@@ -1696,7 +1732,7 @@ def show_UGY_EPA_section():
             # 按階層篩選
             student_filter_df = student_filter_df[student_filter_df['階層'].isin(selected_layers_student)].copy()
         
-        # 3. EPA評核項目篩選 (可複選)
+        # 4. EPA評核項目篩選 (可複選)
         if 'EPA評核項目' in student_filter_df.columns:
             all_epa_items_student = sorted(student_filter_df['EPA評核項目'].unique().tolist())
             
