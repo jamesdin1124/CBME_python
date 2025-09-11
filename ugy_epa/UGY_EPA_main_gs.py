@@ -1199,10 +1199,13 @@ def display_visualizations():
             if 'EPA評核項目' in current_df_view.columns:
                 all_epa_items = sorted(current_df_view['EPA評核項目'].unique().tolist())
                 
+                # 預設只選擇「當班處置」項目
+                default_epa_items = ['當班處置'] if '當班處置' in all_epa_items else all_epa_items[:1] if all_epa_items else []
+                
                 selected_epa_items = st.multiselect(
                     "選擇EPA評核項目 (可複選)",
                     options=all_epa_items,
-                    default=all_epa_items,
+                    default=default_epa_items,
                     format_func=lambda x: f"項目: {x}",
                     key="overview_epa_selector_with_layers"
                 )
@@ -1270,10 +1273,13 @@ def display_visualizations():
             if 'EPA評核項目' in current_df_view.columns:
                 all_epa_items = sorted(current_df_view['EPA評核項目'].unique().tolist())
                 
+                # 預設只選擇「當班處置」項目
+                default_epa_items = ['當班處置'] if '當班處置' in all_epa_items else all_epa_items[:1] if all_epa_items else []
+                
                 selected_epa_items = st.multiselect(
                     "選擇EPA評核項目 (可複選)",
                     options=all_epa_items,
-                    default=all_epa_items,
+                    default=default_epa_items,
                     format_func=lambda x: f"項目: {x}",
                     key="overview_epa_selector_no_layers"
                 )
@@ -1694,10 +1700,13 @@ def show_UGY_EPA_section():
         if 'EPA評核項目' in student_filter_df.columns:
             all_epa_items_student = sorted(student_filter_df['EPA評核項目'].unique().tolist())
             
+            # 預設只選擇「當班處置」項目
+            default_epa_items_student = ['當班處置'] if '當班處置' in all_epa_items_student else all_epa_items_student[:1] if all_epa_items_student else []
+            
             selected_epa_items_student = st.multiselect(
                 "選擇EPA評核項目 (可複選)",
                 options=all_epa_items_student,
-                default=all_epa_items_student,
+                default=default_epa_items_student,
                 format_func=lambda x: f"項目: {x}",
                 key="student_epa_selector"
             )
