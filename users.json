@@ -19,5 +19,11 @@
         "role": "student",
         "name": "a",
         "student_id": "408010044"
+    },
+    "NDMU": {
+        "password": "6dc8415d7fdd761d8d81f07f570ee2ac4d28a5dfb42eab2439738e7cd4429660",
+        "role": "student",
+        "name": "NDMU",
+        "student_id": "582"
     }
 }

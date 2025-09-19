@@ -648,7 +648,7 @@ def main():
     
     # 定義科別列表
     departments = [
-        "小兒科", 
+        "小兒部", 
         "內科", 
         "外科", 
         "婦產科", 
@@ -739,8 +739,8 @@ def main():
         tab_names.append("UGY整合")
         tabs.append("PGY")
         tab_names.append("PGY")
-        tabs.append("R")
-        tab_names.append("R")
+        tabs.append("住院醫師")
+        tab_names.append("住院醫師")
         tabs.append("老師評分分析")
         tab_names.append("老師評分分析")
     elif st.session_state.role == 'student':
@@ -858,18 +858,25 @@ def main():
         
         with tab4:
             if check_permission(st.session_state.role, 'can_view_all'):
-                st.header("R 分析")
-                if current_data is not None:
-                    r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
-                    if not r_data.empty:
-                        if selected_dept == "麻醉科":
-                            show_ANE_R_EPA_peer_analysis_section(r_data)
-                        else:
-                            show_resident_analysis_section(r_data)
-                    else:
-                        st.warning("沒有住院醫師資料")
+                # 檢查是否選擇小兒部
+                if selected_dept == "小兒部":
+                    # 直接顯示小兒部評核系統
+                    from pediatric_evaluation import show_pediatric_evaluation_section
+                    show_pediatric_evaluation_section()
                 else:
-                    st.warning("請先載入資料")
+                    # 顯示一般住院醫師分析
+                    st.header("住院醫師分析")
+                    if current_data is not None:
+                        r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
+                        if not r_data.empty:
+                            if selected_dept == "麻醉科":
+                                show_ANE_R_EPA_peer_analysis_section(r_data)
+                            else:
+                                show_resident_analysis_section(r_data)
+                        else:
+                            st.warning("沒有住院醫師資料")
+                    else:
+                        st.warning("請先載入資料")
         
         with tab5:
             if check_permission(st.session_state.role, 'can_view_all'):
