@@ -11,8 +11,8 @@ from modules.data_processing import (
     get_student_departments,
     merge_epa_with_departments
 )
-from modules.visualization import plot_radar_chart, plot_epa_trend_px
-from modules.individual_student_radar import create_individual_student_radar_with_layers
+from modules.visualization.visualization import plot_radar_chart, plot_epa_trend_px
+from modules.visualization.individual_radar import create_individual_student_radar_with_layers
 # 暫時註解掉不需要的導入
 # from modules.data_analysis import analyze_epa_data
 
@@ -82,7 +82,7 @@ def safe_process_departments(df):
         processed_df.attrs['date_columns'] = [col for col in potential_dept_columns 
                                             if any(sep in col for sep in ['/', '-', '.'])]
         
-        st.success(f"成功處理 {len(processed_df)} 筆學生資料，找到 {len(potential_dept_columns)} 個科部欄位")
+        show_diagnostic(f"成功處理 {len(processed_df)} 筆學生資料，找到 {len(potential_dept_columns)} 個科部欄位", "success")
         return processed_df
         
     except Exception as e:
@@ -739,7 +739,7 @@ def safe_merge_epa_with_departments(epa_df, dept_df):
                                 epa_data.loc[idx, '訓練科部'] = dept_value
                                 break
             
-            st.success(f"成功合併訓練科部資料，共處理 {len(epa_data)} 筆EPA資料")
+            show_diagnostic(f"成功合併訓練科部資料，共處理 {len(epa_data)} 筆EPA資料", "success")
             return epa_data
             
         except Exception as e:
@@ -1738,7 +1738,7 @@ def show_UGY_EPA_section():
         
         # 顯示篩選後的統計資訊
         if not student_filter_df.empty:
-            st.success(f"篩選後資料：{len(student_filter_df)} 筆記錄")
+            show_diagnostic(f"篩選後資料：{len(student_filter_df)} 筆記錄", "success")
         else:
             st.warning("篩選後沒有符合條件的資料")
             return
@@ -1782,7 +1782,7 @@ def show_UGY_EPA_section():
             # 確保梯次欄位存在才計算梯次數量
             num_batches_display = len(student_filter_df['梯次'].unique()) if '梯次' in student_filter_df.columns else "N/A"
 
-            st.success(f"已選擇 {num_batches_display} 個梯次，共有 {total_students} 名不重複學生")
+            show_diagnostic(f"已選擇 {num_batches_display} 個梯次，共有 {total_students} 名不重複學生", "success")
             
             # 獲取所有學生列表
             student_ids_in_batches = student_filter_df[student_id_column].dropna().unique()

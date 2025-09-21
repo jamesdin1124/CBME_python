@@ -15,14 +15,14 @@ import os
 import re
 import sys  # 匯入 sys
 from io import BytesIO
-from analysis_pgy_students import show_analysis_section
-from analysis_residents import show_resident_analysis_section
-from analysis_anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
-from analysis_teachers import show_teacher_analysis_section, fetch_google_form_data
-from analysis_ugy_peers import show_UGY_peer_analysis_section
-from analysis_ugy_overview import show_ugy_student_overview
-from analysis_ugy_individual import show_ugy_student_analysis
-from modules.epa_constants import EPA_LEVEL_MAPPING
+from pages.pgy.pgy_students import show_analysis_section
+from pages.residents.residents import show_resident_analysis_section
+from pages.residents.anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
+from pages.teachers.teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
+from pages.ugy.ugy_peers import show_UGY_peer_analysis_section
+from pages.ugy.ugy_overview import show_ugy_student_overview
+from pages.ugy.ugy_individual import show_ugy_student_analysis
+from config.epa_constants import EPA_LEVEL_MAPPING
 from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page, filter_data_by_permission, get_user_department
 import plotly.express as px
 import plotly.graph_objects as go
@@ -929,7 +929,7 @@ def main():
                         # 檢查是否選擇小兒部
                         if selected_dept == "小兒部":
                             # 直接顯示小兒部評核系統
-                            from analysis_pediatric import show_pediatric_evaluation_section
+                            from pages.pediatric.pediatric_analysis import show_pediatric_evaluation_section
                             show_pediatric_evaluation_section()
                         else:
                             # 顯示一般住院醫師分析

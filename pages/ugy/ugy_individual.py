@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 import re
 import plotly.express as px
 import numpy as np
-from ugy_epa.ugy_epa_google_sheets import display_student_data
+from pages.ugy.ugy_data.ugy_epa_google_sheets import display_student_data
 
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     """用於自然排序的鍵函數"""
@@ -319,19 +319,9 @@ def show_individual_student_analysis(df):
         return
     
     # 顯示資料統計
-    st.success(f"共找到 {len(student_filter_df)} 筆資料")
+    st.info(f"共找到 {len(student_filter_df)} 筆資料")
     
-    # 添加分析模式選擇
-    analysis_mode = st.radio(
-        "選擇分析模式",
-        ["個別學生分析", "整體平均分數分析"],
-        horizontal=True
-    )
-    
-    if analysis_mode == "整體平均分數分析":
-        # 顯示所有學生各階層各EPA項目的平均分數
-        display_average_scores_table(student_filter_df)
-        return
+    # 直接顯示個別學生分析，移除分析模式選擇
     
     # 檢查可用的學生識別欄位
     if '學員姓名' in student_filter_df.columns:

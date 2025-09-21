@@ -3,7 +3,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import re
 import json
-from .utils import extract_spreadsheet_id, extract_gid
+from modules.utils.data_utils import extract_spreadsheet_id, extract_gid
 import pandas as pd
 import os
 import traceback
@@ -248,7 +248,7 @@ def get_credentials_from_file() -> Optional[Dict[str, Any]]:
                     st.error(f"最終憑證驗證失敗：{error_msg}")
                     return None
                 else:
-                    st.success("憑證驗證成功")
+                    show_diagnostic("憑證驗證成功", "success")
                     return credentials
                     
         except Exception as e:
@@ -269,11 +269,11 @@ def test_connection(client: gspread.Client) -> bool:
         
         if spreadsheet_id:
             test_sheet = client.open_by_key(spreadsheet_id)
-            st.success(f"成功打開試算表: {test_sheet.title}")
+            show_diagnostic(f"成功打開試算表: {test_sheet.title}", "success")
             return True
             
         spreadsheets = client.list_spreadsheet_files()
-        st.success(f"Google API 連接成功！找到 {len(spreadsheets)} 個試算表。")
+        show_diagnostic(f"Google API 連接成功！找到 {len(spreadsheets)} 個試算表。", "success")
         return True
     except Exception as e:
         st.error(f"連接測試失敗：{str(e)}")

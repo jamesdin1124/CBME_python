@@ -17,9 +17,9 @@ from modules.data_processing import (
     get_student_departments,
     merge_epa_with_departments
 )
-from modules.visualization import plot_radar_chart, plot_epa_trend_px
-from modules.dept_chart_visualization import create_dept_grade_percentage_chart
-from modules.radar_trend_visualization import create_layer_radar_chart, create_epa_trend_charts
+from modules.visualization.visualization import plot_radar_chart, plot_epa_trend_px
+from modules.visualization.dept_charts import create_dept_grade_percentage_chart
+from modules.visualization.radar_trend import create_layer_radar_chart, create_epa_trend_charts
 
 # 在檔案開頭宣告全域變數
 proceeded_EPA_df = None
@@ -182,7 +182,7 @@ def safe_process_departments(df):
         processed_df.attrs['date_columns'] = [col for col in potential_dept_columns 
                                             if any(sep in col for sep in ['/', '-', '.'])]
         
-        st.success(f"成功處理 {len(processed_df)} 筆學生資料，找到 {len(potential_dept_columns)} 個科部欄位")
+        show_diagnostic(f"成功處理 {len(processed_df)} 筆學生資料，找到 {len(potential_dept_columns)} 個科部欄位", "success")
         return processed_df
         
     except Exception as e:
@@ -273,7 +273,7 @@ def safe_merge_epa_with_departments(epa_df, dept_df):
                                 epa_data.loc[idx, '訓練科部'] = dept_value
                                 break
             
-            st.success(f"成功合併訓練科部資料，共處理 {len(epa_data)} 筆EPA資料")
+            show_diagnostic(f"成功合併訓練科部資料，共處理 {len(epa_data)} 筆EPA資料", "success")
             return epa_data
             
         except Exception as e:

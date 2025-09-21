@@ -802,7 +802,7 @@ def show_data_management():
             with st.spinner("正在載入資料..."):
                 df, sheet_titles = load_pediatric_data()
                 if df is not None:
-                    st.success("資料載入成功！")
+                    st.info("資料載入成功！")
                     st.session_state['pediatric_data'] = df
                 else:
                     st.error("資料載入失敗")
@@ -837,14 +837,14 @@ def show_data_management():
             st.warning("發現缺失資料：")
             st.dataframe(missing_data.to_frame('缺失數量'))
         else:
-            st.success("沒有發現缺失資料")
+            st.info("沒有發現缺失資料")
         
         # 檢查重複資料
         duplicates = df.duplicated().sum()
         if duplicates > 0:
             st.warning(f"發現 {duplicates} 筆重複資料")
         else:
-            st.success("沒有發現重複資料")
+            st.info("沒有發現重複資料")
     
     # 資料統計摘要
     st.markdown("### 📊 資料統計摘要")

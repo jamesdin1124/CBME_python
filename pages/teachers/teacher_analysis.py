@@ -89,7 +89,7 @@ def setup_google_connection():
                 st.session_state.google_credentials = credentials_dict
                 st.session_state.google_client = client
                 
-                st.success("Google API 連接成功！")
+                st.info("Google API 連接成功！")
                 return client
             
             # 如果已經有憑證，直接使用
