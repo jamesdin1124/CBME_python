@@ -13,12 +13,12 @@ import os
 import re
 import sys  # 匯入 sys
 from io import BytesIO
-from student_analysis import show_analysis_section
-from resident_analysis import show_resident_analysis_section
-from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
-from teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
-from UGY_peer_analysis import show_UGY_peer_analysis_section
-from ugy_epa.UGY_EPA_main_gs import show_UGY_EPA_section
+from analysis_pgy_students import show_analysis_section
+from analysis_residents import show_resident_analysis_section
+from analysis_anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
+from analysis_teachers import show_teacher_analysis_section, fetch_google_form_data
+from analysis_ugy_peers import show_UGY_peer_analysis_section
+from ugy_epa.ugy_epa_google_sheets import show_UGY_EPA_section
 from modules.epa_constants import EPA_LEVEL_MAPPING
 from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page
 import plotly.express as px

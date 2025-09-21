@@ -4,7 +4,7 @@
 """
 
 import streamlit as st
-from pediatric_evaluation import show_pediatric_evaluation_section
+from analysis_pediatric import show_pediatric_evaluation_section
 
 def test_pediatric_integration():
     """測試小兒部評核系統整合"""
@@ -56,7 +56,7 @@ def test_pediatric_integration():
     
     # 檢查必要的模組
     try:
-        from pediatric_evaluation import (
+        from analysis_pediatric import (
             PEDIATRIC_SKILL_REQUIREMENTS,
             load_pediatric_data,
             process_pediatric_data

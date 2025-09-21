@@ -2,17 +2,26 @@ import streamlit as st
 import pandas as pd
 import os
 from io import BytesIO
-from student_analysis import show_analysis_section
+from analysis_pgy_students import show_analysis_section
 import sys
-from resident_analysis import show_resident_analysis_section
+from analysis_residents import show_resident_analysis_section
+from analysis_anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
 import re
+from UGY_EPA import show_google_form_import_section
+
+# 設定頁面配置為寬屏模式
+st.set_page_config(
+    layout="wide",  # 使用寬屏模式
+    page_title="臨床教師評核系統",
+    initial_sidebar_state="expanded"  # 預設展開側邊欄
+)
 
 # 獲取當前檔案的目錄
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
 try:
-    from UGY_peer_analysis import show_UGY_peer_analysis_section
+    from analysis_ugy_peers import show_UGY_peer_analysis_section
 except ImportError:
     st.error("無法載入 UGY_peer_analysis 模組，請確認檔案位置是否正確")
 
@@ -23,13 +32,50 @@ def merge_excel_files(uploaded_files):
             return None
             
         # 定義轉換對照表
-        
         teacher_evaluation_texts = {
+            'Level I': 1,
             ' Level I': 1,
+            'Level1': 1,
+            'Level 1': 1,
+            'Level 1&2': 1.5,
+            'Level1&2': 1.5,
+            'LevelI&2': 1.5,
+            'Level&2': 1.5,
+            'Level II': 2,
             ' Level II': 2,
+            'Level2': 2,
+            'Level 2': 2,
+            'Level2&3': 2.5,
+            'Level 2&3': 2.5,
+            'Leve 2&3': 2.5,
+            'Level 2a': 2,
+            'Level2a': 2,
+            'Level 2b': 2.5,
+            'Level2b': 2.5,
+            'Level III': 3,
             ' Level III': 3,
-            ' Level IV': 4,
-            ' Level V': 5
+            'Level3': 3,
+            'Level 3': 3,
+            'Level 3a': 3,
+            'Level3a': 3,
+            'Level 3b': 3.3,
+            'Level3b': 3.3,
+            'Level3c': 3.6,
+            'Level 3c': 3.6,
+            'Level 3&4': 3.5,
+            'Level3&4': 3.5,
+            'Leve 3&4': 3.5,
+            'Lvel 3&4': 3.5,
+            'Level IV': 4,
+            ' Level IV': 4, 
+            'Level4': 4,
+            'Level 4': 4,
+            'Level4&5': 4.5,
+            'Level 4&5': 4.5,
+            'Level 5': 5,
+            'Level V': 5,
+            ' Level V': 5,
+            'Level5': 5
         }
         
         teacher_support_texts = {
@@ -43,7 +89,6 @@ def merge_excel_files(uploaded_files):
         # 合併所有Excel檔案
         all_data = []
         for uploaded_file in uploaded_files:
-            # 直接從上傳的檔案讀取DataFrame
             df = pd.read_excel(uploaded_file)
             
             # 處理檔案名稱，移除括號內的版本號
@@ -67,9 +112,17 @@ def merge_excel_files(uploaded_files):
                 df[col] = df[col].replace("本表單與畢業成績無關，請依學生表現落實評量;", "")
                 
                 if '教師評核' in col:
+                    # 確保轉換後的值是數值型態
+                    df[col] = df[col].apply(lambda x: teacher_evaluation_texts.get(str(x).strip(), x))
+                    # 強制轉換為數值型態
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                elif '學員自評' in col:
                     df[col] = df[col].apply(lambda x: teacher_evaluation_texts.get(str(x), x))
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
                 elif 'EPA' in col:
                     df[col] = df[col].apply(lambda x: teacher_support_texts.get(str(x), x))
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
             
             # 加入處理過的檔案名稱欄位
             df['檔案名稱'] = clean_filename
@@ -187,41 +240,70 @@ def main():
     # 側邊欄設置
     with st.sidebar:
         st.header("資料處理")
-        # 改用檔案上傳功能
-        uploaded_files = st.file_uploader(
-            "請上傳Excel檔案",
+        
+        # UGY資料上傳區域
+        st.subheader("CEPO 評核資料")
+        ugy_files = st.file_uploader(
+            "請上傳 CEPO Excel檔案",
             type=['xlsx', 'xls'],
-            accept_multiple_files=True
+            accept_multiple_files=True,
+            key="ugy_files"
         )
         
-        if st.button("合併Excel檔案") and uploaded_files:
-            result = merge_excel_files(uploaded_files)
-            if result is not None:
-                st.success("檔案合併成功！")
-                st.session_state.merged_data = result
+        if st.button("合併 CEPO Excel檔案") and ugy_files:
+            ugy_result = merge_excel_files(ugy_files)
+            if ugy_result is not None:
+                st.success("CEPO 檔案合併成功！")
+                st.session_state.ugy_data = ugy_result
             else:
-                st.error("檔案合併失敗！")
-    
-    # 修改分頁順序
-    tab1, tab2, tab3 = st.tabs(["UGY個別學員分析", "UGY整體分析", "住院醫師分析"])
+                st.error("CEPO 檔案合併失敗！")
+        
+        # 住院醫師資料上傳區域
+        st.subheader("住院醫師評核資料")
+        resident_files = st.file_uploader(
+            "請上傳住院醫師 Excel檔案",
+            type=['xlsx', 'xls'],
+            accept_multiple_files=True,
+            key="resident_files"
+        )
+        
+        if st.button("合併住院醫師 Excel檔案") and resident_files:
+            resident_result = merge_excel_files(resident_files)
+            if resident_result is not None:
+                st.success("住院醫師檔案合併成功！")
+                st.session_state.resident_data = resident_result
+            else:
+                st.error("住院醫師檔案合併失敗！")
+
+    # 分頁設置
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["UGY個別學員分析", "UGY整體分析", "住院醫師分析", "麻醉科住院醫師EPA分析", "Google表單匯入"])
     
     with tab1:
-        if 'merged_data' in st.session_state:
-            show_analysis_section()
+        if 'ugy_data' in st.session_state:
+            show_analysis_section(st.session_state.ugy_data)
         else:
-            st.warning("請先在側邊欄合併Excel檔案")
+            st.warning("請先在側邊欄合併 CEPO Excel檔案")
     
     with tab2:
-        if 'merged_data' in st.session_state:
-            show_UGY_peer_analysis_section(st.session_state.merged_data)
+        if 'ugy_data' in st.session_state:
+            show_UGY_peer_analysis_section(st.session_state.ugy_data)
         else:
-            st.warning("請先在側邊欄合併Excel檔案")
+            st.warning("請先在側邊欄合併 CEPO Excel檔案")
     
     with tab3:
-        if 'merged_data' in st.session_state:
-            show_resident_analysis_section(st.session_state.merged_data)
+        if 'resident_data' in st.session_state:
+            show_resident_analysis_section(st.session_state.resident_data)
         else:
-            st.warning("請先在側邊欄合併Excel檔案")
+            st.warning("請先在側邊欄合併住院醫師 Excel檔案")
+    
+    with tab4:
+        if 'ugy_data' in st.session_state:
+            show_ANE_R_EPA_peer_analysis_section(st.session_state.ugy_data)
+        else:
+            st.warning("請先在側邊欄合併 CEPO Excel檔案")
+    
+    with tab5:
+        show_google_form_import_section()
 
 if __name__ == "__main__":
     main()

@@ -756,6 +756,17 @@ def show_UGY_EPA_section():
                                 # 獲取不重複的學生學號列表
                                 students = sorted([str(num) for num in student_numbers])
                                 
+                                # 根據使用者角色過濾學生選項
+                                user_role = st.session_state.get('role', 'admin')
+                                user_student_id = st.session_state.get('student_id', None)
+                                
+                                # 如果是UGY（student角色），只能看到自己的資料
+                                if user_role == 'student' and user_student_id:
+                                    students = [str(user_student_id)] if str(user_student_id) in students else []
+                                    if not students:
+                                        st.warning("找不到您的評核資料，請確認資料已正確上傳。")
+                                        return
+                                
                                 # 學生選擇器
                                 selected_student = st.selectbox(
                                     "選擇學生學號",

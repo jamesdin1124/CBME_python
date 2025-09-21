@@ -5,7 +5,7 @@
 
 import streamlit as st
 import pandas as pd
-from pediatric_evaluation import (
+from analysis_pediatric import (
     PEDIATRIC_SKILL_REQUIREMENTS,
     calculate_skill_counts,
     show_skill_progress,

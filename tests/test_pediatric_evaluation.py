@@ -5,7 +5,7 @@
 
 import streamlit as st
 import pandas as pd
-from pediatric_evaluation import (
+from analysis_pediatric import (
     show_pediatric_evaluation_section,
     load_pediatric_data,
     process_pediatric_data,

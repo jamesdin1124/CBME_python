@@ -6,7 +6,7 @@ from datetime import datetime
 # 設定頁面配置為寬屏模式
 st.set_page_config(
     layout="wide",  # 使用寬屏模式
-    page_title="臨床教師評核系統",
+    page_title="學生評核系統",
     initial_sidebar_state="expanded"  # 預設展開側邊欄
 )
 
@@ -15,14 +15,15 @@ import os
 import re
 import sys  # 匯入 sys
 from io import BytesIO
-from student_analysis import show_analysis_section
-from resident_analysis import show_resident_analysis_section
-from ANE_R_EPA_analysis import show_ANE_R_EPA_peer_analysis_section
-from teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
-from UGY_peer_analysis import show_UGY_peer_analysis_section
-from ugy_epa.UGY_EPA_main_gs import show_UGY_EPA_section
+from analysis_pgy_students import show_analysis_section
+from analysis_residents import show_resident_analysis_section
+from analysis_anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
+from analysis_teachers import show_teacher_analysis_section, fetch_google_form_data
+from analysis_ugy_peers import show_UGY_peer_analysis_section
+from analysis_ugy_overview import show_ugy_student_overview
+from analysis_ugy_individual import show_ugy_student_analysis
 from modules.epa_constants import EPA_LEVEL_MAPPING
-from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page
+from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page, filter_data_by_permission, get_user_department
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -642,9 +643,11 @@ def main():
             st.session_state.username = None
             st.session_state.role = None
             st.session_state.user_name = None
+            st.session_state.user_department = None
+            st.session_state.student_id = None
             st.rerun()
     
-    st.title("臨床教師評核系統")
+    st.title("學生評核系統")
     
     # 定義科別列表
     departments = [
@@ -668,16 +671,29 @@ def main():
         "其他科別"
     ]
     
+    # 獲取使用者科別
+    user_department = st.session_state.get('user_department', None)
+    
     # 側邊欄設置
     with st.sidebar:
         st.header("資料來源選擇")
         
         st.header("科別選擇")
         
-        # 科別選擇
+        # 科別選擇 - 根據權限限制可選擇的科別
+        if check_permission(st.session_state.role, 'can_view_all'):
+            # 管理員可以選擇所有科別
+            available_departments = departments
+        elif st.session_state.role == 'teacher' and user_department:
+            # 主治醫師只能選擇自己的科別
+            available_departments = [user_department]
+        else:
+            # 其他角色只能選擇自己的科別（如果有的話）
+            available_departments = [user_department] if user_department else departments
+        
         selected_dept = st.selectbox(
             "請選擇科別",
-            departments
+            available_departments
         )
         
         # 根據權限顯示上傳區域
@@ -702,7 +718,7 @@ def main():
                 else:
                     st.error(f"{selected_dept}檔案合併失敗！")
         
-        # 顯示已上傳的科別
+        # 顯示已上傳的科別 - 根據權限過濾
         if check_permission(st.session_state.role, 'can_view_all'):
             st.subheader("已上傳的科別")
             uploaded_depts = [dept for dept in departments if f"{dept}_data" in st.session_state]
@@ -711,6 +727,13 @@ def main():
                     st.write(f"✅ {dept}")
             else:
                 st.write("尚未上傳任何科別資料")
+        elif st.session_state.role == 'teacher' and user_department:
+            # 主治醫師只能看到自己科的資料
+            st.subheader("已上傳的科別")
+            if f"{user_department}_data" in st.session_state:
+                st.write(f"✅ {user_department}")
+            else:
+                st.write(f"尚未上傳 {user_department} 的資料")
         
         # 系統管理員可以管理使用者
         if check_permission(st.session_state.role, 'can_manage_users'):
@@ -729,95 +752,125 @@ def main():
                 st.markdown('<meta http-equiv="refresh" content="0;URL=test_results">', unsafe_allow_html=True)
 
     # 分頁設置 - 根據權限顯示不同的分頁
-    tabs = []
     tab_names = []
     
+    # 根據角色和權限顯示不同的分頁
     if check_permission(st.session_state.role, 'can_view_all'):
-        tabs.append("UGY EPA")
-        tab_names.append("UGY EPA")
-        tabs.append("UGY整合")
-        tab_names.append("UGY整合")
-        tabs.append("PGY")
+        # 管理員可以看到所有資料
+        tab_names.append("UGY")
         tab_names.append("PGY")
-        tabs.append("住院醫師")
         tab_names.append("住院醫師")
-        tabs.append("老師評分分析")
         tab_names.append("老師評分分析")
+    elif check_permission(st.session_state.role, 'can_view_ugy_data'):
+        # 主治醫師和住院醫師可以看到UGY資料
+        tab_names.append("UGY")
+        
+        if check_permission(st.session_state.role, 'can_view_pgy_data'):
+            tab_names.append("PGY")
+        
+        if check_permission(st.session_state.role, 'can_view_resident_data'):
+            tab_names.append("住院醫師")
+        
+        if check_permission(st.session_state.role, 'can_view_analytics'):
+            tab_names.append("老師評分分析")
     elif st.session_state.role == 'student':
-        # 學生只能看到自己的資料
-        tabs.append("我的評核資料")
+        # UGY只能看到自己的資料
         tab_names.append("我的評核資料")
     
-    if not tabs:
+    if not tab_names:
         st.warning("您沒有權限查看任何資料")
         return
     
     # 根據角色動態創建分頁
     if st.session_state.role == 'student':
-        tab1 = st.tabs(tab_names)[0]
-        with tab1:
-            st.header("我的評核資料")
-            # 從 session state 中獲取所有科別的資料
-            all_data = []
-            for dept in departments:
-                if f"{dept}_data" in st.session_state:
-                    all_data.append(st.session_state[f"{dept}_data"])
-            
-            if all_data:
-                # 合併所有科別的資料
-                current_data = pd.concat(all_data, ignore_index=True)
-                # 過濾出該學生的資料
-                student_data = current_data[current_data['學號'] == st.session_state.get('student_id')]
-                if not student_data.empty:
-                    # 顯示基本資訊
-                    st.subheader("基本資訊")
-                    st.write(f"姓名：{student_data['姓名'].iloc[0]}")
-                    st.write(f"學號：{student_data['學號'].iloc[0]}")
-                    st.write(f"科別：{student_data['科別'].iloc[0]}")
+        # UGY現在也可能有多個分頁
+        tabs = st.tabs(tab_names)
+        
+        # 根據分頁名稱動態處理內容
+        for i, tab_name in enumerate(tab_names):
+            with tabs[i]:
+                if tab_name == "我的評核資料":
+                    st.header("我的評核資料")
+                    # 從 session state 中獲取所有科別的資料
+                    all_data = []
+                    for dept in departments:
+                        if f"{dept}_data" in st.session_state:
+                            all_data.append(st.session_state[f"{dept}_data"])
                     
-                    # 顯示 EPA 評分
-                    st.subheader("EPA 評分")
-                    epa_columns = [col for col in student_data.columns if 'EPA' in col]
-                    for epa_col in epa_columns:
-                        st.write(f"{epa_col}：{student_data[epa_col].iloc[0]}")
-                    
-                    # 顯示評語
-                    if '評語' in student_data.columns:
-                        st.subheader("評語")
-                        st.write(student_data['評語'].iloc[0])
-                    
-                    # 顯示趨勢圖
-                    st.subheader("評分趨勢")
-                    if len(student_data) > 1:  # 確保有多筆資料才顯示趨勢圖
-                        trend_data = student_data[epa_columns].T
-                        trend_data.columns = ['評分']
-                        st.line_chart(trend_data)
-                    
-                    # 顯示雷達圖
-                    st.subheader("能力雷達圖")
-                    if epa_columns:
-                        radar_data = student_data[epa_columns].iloc[0]
-                        fig = go.Figure()
-                        fig.add_trace(go.Scatterpolar(
-                            r=radar_data.values,
-                            theta=radar_data.index,
-                            fill='toself',
-                            name='能力評分'
-                        ))
-                        fig.update_layout(
-                            polar=dict(
-                                radialaxis=dict(
-                                    visible=True,
-                                    range=[0, 5]
+                    if all_data:
+                        # 合併所有科別的資料
+                        current_data = pd.concat(all_data, ignore_index=True)
+                        # 過濾出該學生的資料
+                        student_data = current_data[current_data['學號'] == st.session_state.get('student_id')]
+                        if not student_data.empty:
+                            # 顯示基本資訊
+                            st.subheader("基本資訊")
+                            st.write(f"姓名：{student_data['姓名'].iloc[0]}")
+                            st.write(f"學號：{student_data['學號'].iloc[0]}")
+                            st.write(f"科別：{student_data['科別'].iloc[0]}")
+                            
+                            # 顯示 EPA 評分
+                            st.subheader("EPA 評分")
+                            epa_columns = [col for col in student_data.columns if 'EPA' in col]
+                            for epa_col in epa_columns:
+                                st.write(f"{epa_col}：{student_data[epa_col].iloc[0]}")
+                            
+                            # 顯示評語
+                            if '評語' in student_data.columns:
+                                st.subheader("評語")
+                                st.write(student_data['評語'].iloc[0])
+                            
+                            # 顯示趨勢圖
+                            st.subheader("評分趨勢")
+                            if len(student_data) > 1:  # 確保有多筆資料才顯示趨勢圖
+                                trend_data = student_data[epa_columns].T
+                                trend_data.columns = ['評分']
+                                st.line_chart(trend_data)
+                            
+                            # 顯示雷達圖
+                            st.subheader("能力雷達圖")
+                            if epa_columns:
+                                radar_data = student_data[epa_columns].iloc[0]
+                                fig = go.Figure()
+                                fig.add_trace(go.Scatterpolar(
+                                    r=radar_data.values,
+                                    theta=radar_data.index,
+                                    fill='toself',
+                                    name='能力評分'
+                                ))
+                                fig.update_layout(
+                                    polar=dict(
+                                        radialaxis=dict(
+                                            visible=True,
+                                            range=[0, 5]
+                                        )
+                                    ),
+                                    showlegend=False
                                 )
-                            ),
-                            showlegend=False
-                        )
-                        st.plotly_chart(fig)
-                else:
-                    st.warning("找不到您的評核資料")
-            else:
-                st.warning("尚未上傳任何評核資料")
+                                st.plotly_chart(fig)
+                        else:
+                            st.warning("找不到您的評核資料")
+                    else:
+                        st.warning("尚未上傳任何評核資料")
+                
+                elif tab_name == "UGY":
+                    if check_permission(st.session_state.role, 'can_view_ugy_data'):
+                        # 根據角色決定顯示的分頁
+                        if st.session_state.role == 'student':
+                            # 學生帳號只顯示個別學生分析
+                            st.header("我的評核資料分析")
+                            show_ugy_student_analysis()
+                        else:
+                            # 其他角色顯示完整的分頁
+                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析"])
+                            
+                            with ugy_subtabs[0]:
+                                st.header("學生總覽")
+                                show_ugy_student_overview()
+                            
+                            with ugy_subtabs[1]:
+                                st.header("個別學生分析")
+                                show_ugy_student_analysis()
     else:
         # 為非學生角色準備 current_data
         current_data = None
@@ -829,63 +882,83 @@ def main():
         if all_data:
             current_data = pd.concat(all_data, ignore_index=True)
         
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_names)
+        # 動態創建分頁
+        tabs = st.tabs(tab_names)
         
-        with tab1:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                show_UGY_EPA_section()
-        
-        with tab2:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                st.header("UGY整合分析")
-                if current_data is not None:
-                    st.session_state.ugy_data = current_data
-                    show_UGY_peer_analysis_section(current_data)
-                else:
-                    st.warning("請先載入資料")
-        
-        with tab3:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                st.header("PGY 分析")
-                if current_data is not None:
-                    pgy_data = current_data[current_data['檔案名稱'].str.contains('PGY', case=False, na=False)]
-                    if not pgy_data.empty:
-                        show_analysis_section(pgy_data)
-                    else:
-                        st.warning("沒有 PGY 資料")
-                else:
-                    st.warning("請先載入資料")
-        
-        with tab4:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                # 檢查是否選擇小兒部
-                if selected_dept == "小兒部":
-                    # 直接顯示小兒部評核系統
-                    from pediatric_evaluation import show_pediatric_evaluation_section
-                    show_pediatric_evaluation_section()
-                else:
-                    # 顯示一般住院醫師分析
-                    st.header("住院醫師分析")
-                    if current_data is not None:
-                        r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
-                        if not r_data.empty:
-                            if selected_dept == "麻醉科":
-                                show_ANE_R_EPA_peer_analysis_section(r_data)
-                            else:
-                                show_resident_analysis_section(r_data)
+        # 根據分頁名稱動態處理內容
+        for i, tab_name in enumerate(tab_names):
+            with tabs[i]:
+                if tab_name == "UGY":
+                    if check_permission(st.session_state.role, 'can_view_all') or check_permission(st.session_state.role, 'can_view_ugy_data'):
+                        # 根據角色決定顯示的分頁
+                        if st.session_state.role == 'student':
+                            # 學生帳號只顯示個別學生分析
+                            st.header("我的評核資料分析")
+                            show_ugy_student_analysis()
                         else:
-                            st.warning("沒有住院醫師資料")
-                    else:
-                        st.warning("請先載入資料")
-        
-        with tab5:
-            if check_permission(st.session_state.role, 'can_view_all'):
-                show_teacher_analysis_section()
+                            # 其他角色顯示完整的分頁
+                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析"])
+                            
+                            with ugy_subtabs[0]:
+                                st.header("學生總覽")
+                                show_ugy_student_overview()
+                            
+                            with ugy_subtabs[1]:
+                                st.header("個別學生分析")
+                                show_ugy_student_analysis()
+                
+                elif tab_name == "PGY":
+                    if check_permission(st.session_state.role, 'can_view_pgy_data'):
+                        st.header("PGY 分析")
+                        if current_data is not None:
+                            pgy_data = current_data[current_data['檔案名稱'].str.contains('PGY', case=False, na=False)]
+                            if not pgy_data.empty:
+                                # 根據權限過濾PGY資料
+                                filtered_pgy_data = filter_data_by_permission(pgy_data, st.session_state.role, user_department, 'pgy')
+                                if not filtered_pgy_data.empty:
+                                    show_analysis_section(filtered_pgy_data)
+                                else:
+                                    st.warning("您沒有權限查看此資料")
+                            else:
+                                st.warning("沒有 PGY 資料")
+                        else:
+                            st.warning("請先載入資料")
+                
+                elif tab_name == "住院醫師":
+                    if check_permission(st.session_state.role, 'can_view_resident_data') or check_permission(st.session_state.role, 'can_view_all'):
+                        # 檢查是否選擇小兒部
+                        if selected_dept == "小兒部":
+                            # 直接顯示小兒部評核系統
+                            from analysis_pediatric import show_pediatric_evaluation_section
+                            show_pediatric_evaluation_section()
+                        else:
+                            # 顯示一般住院醫師分析
+                            st.header("住院醫師分析")
+                            if current_data is not None:
+                                r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
+                                if not r_data.empty:
+                                    # 根據權限過濾住院醫師資料
+                                    filtered_r_data = filter_data_by_permission(r_data, st.session_state.role, user_department, 'resident')
+                                    if not filtered_r_data.empty:
+                                        if selected_dept == "麻醉科":
+                                            show_ANE_R_EPA_peer_analysis_section(filtered_r_data)
+                                        else:
+                                            show_resident_analysis_section(filtered_r_data)
+                                    else:
+                                        st.warning("您沒有權限查看此資料")
+                                else:
+                                    st.warning("沒有住院醫師資料")
+                            else:
+                                st.warning("請先載入資料")
+                
+                elif tab_name == "老師評分分析":
+                    if check_permission(st.session_state.role, 'can_view_analytics'):
+                        show_teacher_analysis_section()
 
 if __name__ == "__main__":
     main()
 
-# streamlit run new_dashboard.py
+# streamlit run main_dashboard.py
 
 # GitHub 更新指令說明
 # 1. 初次設定
@@ -904,3 +977,4 @@ if __name__ == "__main__":
 # 4. 查看狀態
 # git status  # 檢查檔案狀態
 # git log  # 查看提交歷史 
+

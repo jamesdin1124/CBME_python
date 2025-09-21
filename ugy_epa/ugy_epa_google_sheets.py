@@ -1809,11 +1809,20 @@ def show_UGY_EPA_section():
             # 添加學生選擇器
             st.subheader("選擇要查看的學生")
             
+            # 根據使用者角色過濾學生選項
+            user_role = st.session_state.get('role', 'admin')
+            user_student_id = st.session_state.get('student_id', None)
+            
             # 創建學生選項列表，包含姓名和ID
             student_options = []
             student_display_names = {}
             
             for student_id in students_to_show:
+                # 如果是UGY（student角色），只能看到自己的資料
+                if user_role == 'student' and user_student_id:
+                    if str(student_id) != str(user_student_id):
+                        continue  # 跳過不是自己的學生ID
+                
                 student_data = student_filter_df[student_filter_df[student_id_column].astype(str) == student_id]
                 if not student_data.empty and '學員姓名' in student_data.columns:
                     student_name = student_data['學員姓名'].iloc[0]
@@ -1823,6 +1832,11 @@ def show_UGY_EPA_section():
                 
                 student_options.append(student_id)
                 student_display_names[student_id] = display_name
+            
+            # 如果UGY沒有找到自己的資料，顯示提示
+            if user_role == 'student' and not student_options:
+                st.warning("找不到您的評核資料，請確認資料已正確上傳。")
+                return
             
             selected_student = st.selectbox(
                 "請選擇學生：",
@@ -1866,7 +1880,7 @@ def show_UGY_EPA_section():
                             st.metric("平均分數", "N/A")
                     
                     # 顯示該學生的資料
-                    with st.expander("學生評核資料", expanded=True):
+                    with st.expander("學生評核資料", expanded=False):
                         st.dataframe(student_df_all_batches)
                     
 

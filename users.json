@@ -2,28 +2,67 @@
     "jamesdin1124": {
         "password": "6bb294618a900d422c0b51b7e22c9c40b3a8285cdb23cf71fb33795a79932d74",
         "role": "admin",
-        "name": "丁肇壯"
-    },
-    "NDMC": {
-        "password": "6dc8415d7fdd761d8d81f07f570ee2ac4d28a5dfb42eab2439738e7cd4429660",
-        "role": "teacher",
-        "name": "test"
-    },
-    "student": {
-        "password": "264c8c381bf16c982a4e59b0dd4c6f7808c51a05f64c35db42cc78a2a72875bb",
-        "role": "student",
-        "name": "teststudent"
-    },
-    "a": {
-        "password": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
-        "role": "student",
-        "name": "a",
-        "student_id": "408010044"
+        "name": "丁肇壯",
+        "department": "管理部"
     },
     "NDMU": {
         "password": "6dc8415d7fdd761d8d81f07f570ee2ac4d28a5dfb42eab2439738e7cd4429660",
-        "role": "student",
+        "role": "admin",
         "name": "NDMU",
-        "student_id": "582"
+        "department": "管理部"
+    },
+    "NDMC": {
+        "password": "6dc8415d7fdd761d8d81f07f570ee2ac4d28a5dfb42eab2439738e7cd4429660",
+        "role": "admin",
+        "name": "NDMC",
+        "department": "管理部"
+    },
+    "test_teacher_ped": {
+        "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "role": "teacher",
+        "name": "小兒部主治醫師",
+        "department": "小兒部",
+        "extension": "1234",
+        "email": "teacher.ped@hospital.com"
+    },
+    "test_resident_ped": {
+        "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "role": "resident",
+        "name": "小兒部住院醫師",
+        "department": "小兒部",
+        "extension": "5678",
+        "email": "resident.ped@hospital.com"
+    },
+    "test_ugy_ped": {
+        "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "role": "student",
+        "name": "劉元榮",
+        "department": "小兒部",
+        "student_id": "408010001",
+        "email": "ugy.ped@hospital.com"
+    },
+    "test_teacher_cardio": {
+        "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "role": "teacher",
+        "name": "心臟科主治醫師",
+        "department": "內科",
+        "extension": "2345",
+        "email": "teacher.cardio@hospital.com"
+    },
+    "test_resident_cardio": {
+        "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "role": "resident",
+        "name": "心臟科住院醫師",
+        "department": "內科",
+        "extension": "6789",
+        "email": "resident.cardio@hospital.com"
+    },
+    "test_ugy_cardio": {
+        "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "role": "student",
+        "name": "心臟科UGY",
+        "department": "內科",
+        "student_id": "408010002",
+        "email": "ugy.cardio@hospital.com"
     }
 }

@@ -5,45 +5,62 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 import re
+import pandas as pd
 
 # 使用者權限定義
 USER_ROLES = {
     'admin': '系統管理員',
-    'teacher': '教師',
+    'teacher': '主治醫師',
     'resident': '住院醫師',
-    'student': '醫學生'
+    'student': 'UGY'
 }
 
 # 權限設定
 PERMISSIONS = {
     'admin': {
-        'can_view_all': True,
+        'can_view_all': True,           # 管理員可以看到全部資料
         'can_edit_all': True,
         'can_manage_users': True,
         'can_upload_files': True,
-        'can_view_analytics': True
+        'can_view_analytics': True,
+        'can_view_department_data': True,  # 可以查看所有科別資料
+        'can_view_ugy_data': True,          # 可以查看所有UGY資料
+        'can_view_pgy_data': True,          # 可以查看所有PGY資料
+        'can_view_resident_data': True      # 可以查看所有住院醫師資料
     },
     'teacher': {
-        'can_view_all': True,
+        'can_view_all': False,          # 主治醫師不能看到全部資料
         'can_edit_all': False,
         'can_manage_users': False,
         'can_upload_files': True,
-        'can_view_analytics': True
+        'can_view_analytics': True,
+        'can_view_department_data': True,   # 可以看到自己科住院醫師的資料
+        'can_view_ugy_data': True,          # 可以看到所有UGY資料
+        'can_view_pgy_data': True,          # 可以看到所有PGY資料
+        'can_view_resident_data': False    # 只能看到自己科的住院醫師資料
     },
     'resident': {
-        'can_view_all': False,
-        'can_edit_all': False,
-        'can_manage_users': False,
-        'can_upload_files': False,
-        'can_view_analytics': False
-    },
-    'student': {
-        'can_view_all': False,
+        'can_view_all': False,          # 住院醫師不能看到全部資料
         'can_edit_all': False,
         'can_manage_users': False,
         'can_upload_files': False,
         'can_view_analytics': False,
-        'can_view_own_data': True
+        'can_view_department_data': False,  # 不能看到其他科資料
+        'can_view_ugy_data': True,          # 可以看到所有UGY資料
+        'can_view_pgy_data': False,         # 不能看到PGY資料
+        'can_view_resident_data': True     # 可以看到自己的住院醫師資料
+    },
+    'student': {
+        'can_view_all': False,          # UGY不能看到全部資料
+        'can_edit_all': False,
+        'can_manage_users': False,
+        'can_upload_files': False,
+        'can_view_analytics': False,
+        'can_view_department_data': False,  # 不能看到科別資料
+        'can_view_ugy_data': True,          # 可以看到UGY EPA資料（會過濾為只顯示自己的）
+        'can_view_pgy_data': False,         # 不能看到PGY資料
+        'can_view_resident_data': False,   # 不能看到住院醫師資料
+        'can_view_own_data': True          # 只能看到自己的資料
     }
 }
 
@@ -76,7 +93,7 @@ def authenticate_user(username, password):
         return users[username]['role']
     return None
 
-def create_user(username, password, role, name, student_id=None):
+def create_user(username, password, role, name, student_id=None, department=None, extension=None, email=None):
     """建立新使用者"""
     users = load_users()
     if username in users:
@@ -88,9 +105,19 @@ def create_user(username, password, role, name, student_id=None):
         'name': name
     }
     
-    # 如果是學生，添加學號
+    # 如果是學生(UGY)，添加學號
     if role == 'student' and student_id:
         user_data['student_id'] = student_id
+    
+    # 添加科別資訊
+    if department:
+        user_data['department'] = department
+    
+    # 添加其他資訊
+    if extension:
+        user_data['extension'] = extension
+    if email:
+        user_data['email'] = email
     
     users[username] = user_data
     save_users(users)
@@ -120,6 +147,116 @@ def check_permission(role, permission):
     """檢查使用者是否有特定權限"""
     return PERMISSIONS.get(role, {}).get(permission, False)
 
+def check_data_access_permission(user_role, user_department, target_data_type, target_department=None):
+    """
+    檢查使用者是否有權限存取特定類型的資料
+    
+    Args:
+        user_role (str): 使用者角色
+        user_department (str): 使用者所屬科別
+        target_data_type (str): 目標資料類型 ('ugy', 'pgy', 'resident', 'department')
+        target_department (str): 目標科別（僅在存取科別資料時需要）
+    
+    Returns:
+        bool: 是否有權限存取
+    """
+    # 管理員可以存取所有資料
+    if user_role == 'admin':
+        return True
+    
+    # 檢查特定資料類型的權限
+    if target_data_type == 'ugy':
+        # UGY只能查看自己的資料，這個檢查需要在資料過濾層面處理
+        return PERMISSIONS.get(user_role, {}).get('can_view_ugy_data', False)
+    elif target_data_type == 'pgy':
+        return PERMISSIONS.get(user_role, {}).get('can_view_pgy_data', False)
+    elif target_data_type == 'resident':
+        # 住院醫師資料需要額外檢查科別
+        if user_role == 'teacher':
+            # 主治醫師只能看自己科的住院醫師資料
+            return user_department == target_department
+        elif user_role == 'resident':
+            # 住院醫師只能看自己的資料
+            return user_department == target_department
+        else:
+            return PERMISSIONS.get(user_role, {}).get('can_view_resident_data', False)
+    elif target_data_type == 'department':
+        # 科別資料存取權限
+        if user_role == 'teacher':
+            # 主治醫師只能看自己科的資料
+            return user_department == target_department
+        else:
+            return PERMISSIONS.get(user_role, {}).get('can_view_department_data', False)
+    
+    return False
+
+def get_user_department(username):
+    """獲取使用者的科別"""
+    users = load_users()
+    if username in users:
+        return users[username].get('department', None)
+    return None
+
+def filter_data_by_permission(data, user_role, user_department, data_type):
+    """
+    根據使用者權限過濾資料
+    
+    Args:
+        data (pd.DataFrame): 原始資料
+        user_role (str): 使用者角色
+        user_department (str): 使用者科別
+        data_type (str): 資料類型
+    
+    Returns:
+        pd.DataFrame: 過濾後的資料
+    """
+    if data is None or data.empty:
+        return data
+    
+    # 管理員可以看到所有資料
+    if user_role == 'admin':
+        return data
+    
+    # 根據資料類型過濾
+    if data_type == 'ugy':
+        if not PERMISSIONS.get(user_role, {}).get('can_view_ugy_data', False):
+            return pd.DataFrame()  # 返回空DataFrame
+        # UGY資料：學生只能看自己的，其他人可以看全部
+        if user_role == 'student':
+            if '學號' in data.columns and 'student_id' in st.session_state:
+                return data[data['學號'] == st.session_state['student_id']]
+        return data
+    
+    elif data_type == 'pgy':
+        if not PERMISSIONS.get(user_role, {}).get('can_view_pgy_data', False):
+            return pd.DataFrame()
+        return data
+    
+    elif data_type == 'resident':
+        if not PERMISSIONS.get(user_role, {}).get('can_view_resident_data', False):
+            return pd.DataFrame()
+        # 住院醫師資料需要根據科別過濾
+        if user_role == 'teacher' and user_department:
+            # 主治醫師只能看自己科的住院醫師
+            if '科別' in data.columns:
+                return data[data['科別'] == user_department]
+        elif user_role == 'resident' and user_department:
+            # 住院醫師只能看自己的資料
+            if '姓名' in data.columns and 'user_name' in st.session_state:
+                return data[data['姓名'] == st.session_state['user_name']]
+        return data
+    
+    elif data_type == 'department':
+        if not PERMISSIONS.get(user_role, {}).get('can_view_department_data', False):
+            return pd.DataFrame()
+        # 科別資料需要根據科別過濾
+        if user_role == 'teacher' and user_department:
+            if '科別' in data.columns:
+                return data[data['科別'] == user_department]
+        return data
+    
+    return data
+
 def show_login_page():
     """顯示登入頁面"""
     st.title("臨床教師評核系統 - 登入")
@@ -138,7 +275,13 @@ def show_login_page():
                 user = load_users()[username]
                 st.session_state['user_name'] = user['name']
                 
-                # 如果是學生，儲存學號
+                # 儲存科別資訊
+                if 'department' in user:
+                    st.session_state['user_department'] = user['department']
+                else:
+                    st.session_state['user_department'] = None
+                
+                # 如果是學生(UGY)，儲存學號
                 if role == 'student':
                     if 'student_id' in user:
                         st.session_state['student_id'] = user['student_id']
@@ -171,12 +314,40 @@ def show_user_management():
                 new_password = st.text_input("密碼", type="password")
                 new_name = st.text_input("姓名")
                 new_role = st.selectbox("權限", options=list(USER_ROLES.keys()), format_func=lambda x: USER_ROLES[x])
+                
+                # 科別選擇
+                departments = [
+                    "小兒部", "內科", "外科", "婦產科", "神經科", "精神科", 
+                    "家醫科", "急診醫學科", "麻醉科", "放射科", "病理科", 
+                    "復健科", "皮膚科", "眼科", "耳鼻喉科", "泌尿科", "骨科", "其他科別"
+                ]
+                new_department = st.selectbox("科別", options=[""] + departments)
+                
+                # 其他資訊
+                new_extension = st.text_input("分機號碼")
+                new_email = st.text_input("電子郵件")
+                
+                # 如果是學生(UGY)，添加學號欄位
+                new_student_id = None
+                if new_role == 'student':
+                    new_student_id = st.text_input("學號")
+                
                 submitted = st.form_submit_button("新增")
                 
                 if submitted:
-                    success, message = create_user(new_username, new_password, new_role, new_name)
+                    success, message = create_user(
+                        new_username, 
+                        new_password, 
+                        new_role, 
+                        new_name,
+                        student_id=new_student_id,
+                        department=new_department if new_department else None,
+                        extension=new_extension if new_extension else None,
+                        email=new_email if new_email else None
+                    )
                     if success:
                         st.success(message)
+                        st.rerun()
                     else:
                         st.error(message)
         
@@ -184,16 +355,39 @@ def show_user_management():
         st.subheader("使用者列表")
         users = load_users()
         for username, user_data in users.items():
-            with st.expander(f"{username} ({USER_ROLES[user_data['role']]})"):
+            # 顯示使用者詳細資訊
+            role_name = USER_ROLES.get(user_data['role'], user_data['role'])
+            department = user_data.get('department', '未設定')
+            name = user_data.get('name', '未設定')
+            
+            with st.expander(f"{name} ({username}) - {role_name} - {department}"):
+                # 顯示使用者詳細資訊
                 col1, col2 = st.columns(2)
                 with col1:
+                    st.write(f"**姓名:** {name}")
+                    st.write(f"**使用者名稱:** {username}")
+                    st.write(f"**角色:** {role_name}")
+                    st.write(f"**科別:** {department}")
+                    
+                    # 顯示其他資訊
+                    if 'student_id' in user_data:
+                        st.write(f"**學號:** {user_data['student_id']}")
+                    if 'extension' in user_data:
+                        st.write(f"**分機:** {user_data['extension']}")
+                    if 'email' in user_data:
+                        st.write(f"**電子郵件:** {user_data['email']}")
+                
+                with col2:
+                    # 操作按鈕
                     if st.button("刪除", key=f"delete_{username}"):
                         success, message = delete_user(username)
                         if success:
                             st.success(message)
+                            st.rerun()
                         else:
                             st.error(message)
-                with col2:
+                    
+                    # 權限更新
                     new_role = st.selectbox(
                         "更新權限",
                         options=list(USER_ROLES.keys()),
@@ -204,6 +398,7 @@ def show_user_management():
                         success, message = update_user_role(username, new_role)
                         if success:
                             st.success(message)
+                            st.rerun()
                         else:
                             st.error(message)
     
@@ -525,7 +720,19 @@ def show_registration_page():
         name = st.text_input("姓名")
         role = st.selectbox("身份", options=['student'], format_func=lambda x: USER_ROLES[x])
         
-        # 如果是學生，添加學號欄位
+        # 科別選擇
+        departments = [
+            "小兒部", "內科", "外科", "婦產科", "神經科", "精神科", 
+            "家醫科", "急診醫學科", "麻醉科", "放射科", "病理科", 
+            "復健科", "皮膚科", "眼科", "耳鼻喉科", "泌尿科", "骨科", "其他科別"
+        ]
+        department = st.selectbox("科別", options=[""] + departments)
+        
+        # 其他資訊
+        extension = st.text_input("分機號碼")
+        email = st.text_input("電子郵件")
+        
+        # 如果是學生(UGY)，添加學號欄位
         student_id = None
         if role == 'student':
             student_id = st.text_input("學號")
@@ -552,7 +759,10 @@ def show_registration_page():
                 password=hash_password(password),
                 role=role,
                 name=name,
-                student_id=student_id if role == 'student' else None
+                student_id=student_id if role == 'student' else None,
+                department=department if department else None,
+                extension=extension if extension else None,
+                email=email if email else None
             )
             
             if success:

@@ -5,7 +5,7 @@
 
 import streamlit as st
 import pandas as pd
-from pediatric_evaluation import PEDIATRIC_SKILL_REQUIREMENTS, show_skill_progress
+from analysis_pediatric import PEDIATRIC_SKILL_REQUIREMENTS, show_skill_progress
 
 def test_skill_display():
     """測試技能顯示格式"""
