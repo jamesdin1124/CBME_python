@@ -953,12 +953,26 @@ def main():
                 
                 elif tab_name == "老師評分分析":
                     if check_permission(st.session_state.role, 'can_view_analytics'):
-                        show_teacher_analysis_section()
+                        # 添加分析模式選擇
+                        analysis_mode = st.radio(
+                            "選擇分析模式",
+                            ["基本教師分析", "教師評分模式分析", "教師比較分析"],
+                            horizontal=True
+                        )
+                        
+                        if analysis_mode == "基本教師分析":
+                            show_teacher_analysis_section()
+                        elif analysis_mode == "教師評分模式分析":
+                            from pages.teachers.teacher_scoring_analysis import show_teacher_scoring_analysis
+                            show_teacher_scoring_analysis()
+                        elif analysis_mode == "教師比較分析":
+                            from pages.teachers.teacher_scoring_analysis import show_teacher_comparison
+                            show_teacher_comparison()
 
 if __name__ == "__main__":
     main()
 
-# streamlit run main_dashboard.py
+# streamlit run new_dashboard.py
 
 # GitHub 更新指令說明
 # 1. 初次設定
