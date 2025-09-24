@@ -192,10 +192,11 @@ def convert_reliability_to_numeric(reliability_text):
     
     # 使用UGY core EPA量表對應關係
     reliability_mapping = {
-        # 10等級量表對應
+        # 5等級量表對應
         '不允許學員觀察': 1,
         '學員在旁觀察': 1.5,
         '允許學員在旁觀察': 1.5,
+        '允許住院醫師在旁觀察': 1.5,
         '教師在旁逐步共同操作': 2,
         '教師在旁必要時協助': 2.5,
         '教師可立即到場協助，事後逐項確認': 3,
