@@ -931,6 +931,20 @@ def main():
                             # 直接顯示小兒部評核系統
                             from pages.pediatric.pediatric_analysis import show_pediatric_evaluation_section
                             show_pediatric_evaluation_section()
+                        elif selected_dept == "家醫部":
+                            # 顯示家醫部專用EPA評核系統
+                            from pages.FAM.fam_residents import show_fam_resident_evaluation_section
+                            # 將家醫部資料存入session state以供家醫部系統使用
+                            if f"{selected_dept}_data" in st.session_state:
+                                st.session_state.fam_data = st.session_state[f"{selected_dept}_data"]
+                                show_fam_resident_evaluation_section()
+                            elif 'merged_data' in st.session_state and st.session_state.merged_data is not None:
+                                # 如果使用合併資料，也嘗試使用
+                                st.session_state.fam_data = st.session_state.merged_data
+                                show_fam_resident_evaluation_section()
+                            else:
+                                st.warning("請先上傳家醫部EPA評核資料檔案")
+                                st.info("💡 提示：請在左側側邊欄選擇「家醫部」科別，然後上傳並合併資料檔案。")
                         else:
                             # 顯示一般住院醫師分析
                             st.header("住院醫師分析")
