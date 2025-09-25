@@ -37,7 +37,7 @@ PERMISSIONS = {
         'can_view_department_data': True,   # 可以看到自己科住院醫師的資料
         'can_view_ugy_data': True,          # 可以看到所有UGY資料
         'can_view_pgy_data': True,          # 可以看到所有PGY資料
-        'can_view_resident_data': False    # 只能看到自己科的住院醫師資料
+        'can_view_resident_data': True     # 可以看到自己科的住院醫師資料
     },
     'resident': {
         'can_view_all': False,          # 住院醫師不能看到全部資料

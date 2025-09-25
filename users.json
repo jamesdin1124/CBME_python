@@ -45,7 +45,7 @@
         "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
         "role": "teacher",
         "name": "心臟科主治醫師",
-        "department": "內科",
+        "department": "內科部",
         "extension": "2345",
         "email": "teacher.cardio@hospital.com"
     },
@@ -53,7 +53,7 @@
         "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
         "role": "resident",
         "name": "心臟科住院醫師",
-        "department": "內科",
+        "department": "內科部",
         "extension": "6789",
         "email": "resident.cardio@hospital.com"
     },
@@ -61,8 +61,16 @@
         "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
         "role": "student",
         "name": "心臟科UGY",
-        "department": "內科",
+        "department": "內科部",
         "student_id": "408010002",
         "email": "ugy.cardio@hospital.com"
+    },
+    "FAM": {
+        "password": "4a0ff72c7687d47e09c5799be26c271b0d435e21fc7bcdbd9868a6ae324a26cc",
+        "role": "teacher",
+        "name": "FAM",
+        "department": "家醫部",
+        "extension": "9876",
+        "email": "teacher.fam@hospital.com"
     }
 }

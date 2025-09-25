@@ -71,19 +71,13 @@ def show_fam_resident_evaluation_section():
         st.session_state.debug_mode = False
     
     # 創建分頁
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 資料概覽", "👥 個別評核分析", "🎯 EPA項目追蹤", "📈 學習進度分析"])
+    tab1, tab2 = st.tabs(["📊 資料概覽", "👥 個別評核分析"])
     
     with tab1:
         show_data_overview()
     
     with tab2:
         show_individual_analysis()
-    
-    with tab3:
-        show_epa_tracking()
-    
-    with tab4:
-        show_learning_progress()
 
 def load_fam_data():
     """載入家醫部評核資料"""
@@ -194,24 +188,23 @@ def show_data_overview():
     st.subheader("👥 住院醫師評核分布")
     st.info("💡 顯示每個住院醫師整體EPA分數的分布情況")
     
-    # 創建每個住院醫師EPA分數的boxplot和折線圖
-    col1, col2 = st.columns([1, 1])
+    # 創建每個住院醫師EPA分數的boxplot和折線圖（上下獨立呈現）
     
-    with col1:
-        # Boxplot顯示分數分布
-        fig = visualizer.create_student_epa_scores_boxplot(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True, key="student_epa_scores_boxplot")
-        else:
-            st.warning("無法生成住院醫師EPA分數分布圖")
+    # Boxplot顯示分數分布
+    st.write("**📊 EPA分數分布箱線圖**")
+    fig = visualizer.create_student_epa_scores_boxplot(df)
+    if fig:
+        st.plotly_chart(fig, use_container_width=True, key="student_epa_scores_boxplot")
+    else:
+        st.warning("無法生成住院醫師EPA分數分布圖")
     
-    with col2:
-        # 折線圖顯示每個學生隨時間的EPA分數趨勢
-        line_fig = visualizer.create_student_epa_scores_line_chart(df)
-        if line_fig:
-            st.plotly_chart(line_fig, use_container_width=True, key="student_epa_scores_line_chart")
-        else:
-            st.warning("無法生成住院醫師EPA分數趨勢圖")
+    # 折線圖顯示每個學生隨時間的EPA分數趨勢
+    st.write("**📈 EPA分數時間趨勢圖**")
+    line_fig = visualizer.create_student_epa_scores_line_chart(df)
+    if line_fig:
+        st.plotly_chart(line_fig, use_container_width=True, key="student_epa_scores_line_chart")
+    else:
+        st.warning("無法生成住院醫師EPA分數趨勢圖")
     
     # 複雜程度分布
     complexity_distribution = processor.get_complexity_distribution(df)
@@ -475,33 +468,91 @@ def show_individual_analysis():
                                         else:
                                             date_str = str(row['日期'])
                                     
+                                    # 處理回饋內容，保留換行符並移除字符限制
+                                    feedback_content = str(row['教師給學員回饋']).strip()
+                                    
                                     table_data.append({
                                         '日期': date_str,
-                                        '回饋內容': str(row['教師給學員回饋'])[:100] + ('...' if len(str(row['教師給學員回饋'])) > 100 else '')
+                                        '回饋內容': feedback_content
                                     })
                                 
                                 # 創建DataFrame並顯示表格
                                 feedback_df = pd.DataFrame(table_data)
                                 
-                                # 使用Streamlit表格顯示
-                                st.dataframe(
-                                    feedback_df,
-                                    use_container_width=True,
-                                    hide_index=True,
-                                    column_config={
-                                        "日期": st.column_config.TextColumn(
-                                            "日期",
-                                            help="評核日期",
-                                            width="small"
-                                        ),
-                                        "回饋內容": st.column_config.TextColumn(
-                                            "回饋內容",
-                                            help="教師給學員的回饋內容",
-                                            width="large"
-                                        )
-                                    },
-                                    height=300  # 設置固定高度，使表格可滾動
-                                )
+                                # 使用自定義CSS實現垂直滾動的教師回饋區域
+                                st.markdown("""
+                                <style>
+                                .feedback-scroll-container {
+                                    max-height: 300px;
+                                    overflow-y: auto;
+                                    border: 1px solid #e1e5e9;
+                                    border-radius: 0.5rem;
+                                    padding: 15px;
+                                    margin: 10px 0;
+                                    background-color: #fafafa;
+                                }
+                                .feedback-item {
+                                    margin-bottom: 15px;
+                                    padding-bottom: 10px;
+                                    border-bottom: 1px dashed #ddd;
+                                }
+                                .feedback-item:last-child {
+                                    border-bottom: none;
+                                    margin-bottom: 0;
+                                }
+                                .feedback-date {
+                                    font-weight: bold;
+                                    color: #2563eb;
+                                    margin-bottom: 5px;
+                                }
+                                .feedback-content {
+                                    margin-left: 10px;
+                                    line-height: 1.6;
+                                    color: #374151;
+                                }
+                                .feedback-content ul {
+                                    margin: 5px 0;
+                                    padding-left: 20px;
+                                }
+                                .feedback-content li {
+                                    margin-bottom: 3px;
+                                }
+                                </style>
+                                """, unsafe_allow_html=True)
+                                
+                                st.write("**教師回饋內容：**")
+                                
+                                # 創建滾動容器
+                                html_content = '<div class="feedback-scroll-container">'
+                                
+                                for i, row in feedback_df.iterrows():
+                                    date_str = row['日期']
+                                    feedback_text = str(row['回饋內容']).strip()
+                                    
+                                    html_content += '<div class="feedback-item">'
+                                    html_content += f'<div class="feedback-date">📅 {date_str}</div>'
+                                    
+                                    if feedback_text and feedback_text != 'nan':
+                                        # 處理回饋內容，保持原始格式
+                                        feedback_lines = feedback_text.split('\n')
+                                        html_content += '<div class="feedback-content"><ul>'
+                                        for line in feedback_lines:
+                                            if line.strip():  # 只顯示非空行
+                                                # 轉義HTML特殊字符
+                                                escaped_line = line.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                                html_content += f'<li>{escaped_line}</li>'
+                                        html_content += '</ul></div>'
+                                    else:
+                                        html_content += '<div class="feedback-content"><ul><li>無回饋內容</li></ul></div>'
+                                    
+                                    html_content += '</div>'
+                                
+                                html_content += '</div>'
+                                
+                                st.markdown(html_content, unsafe_allow_html=True)
+                                
+                                # 添加滾動提示
+                                st.caption("💡 提示：可以上下滾動查看所有回饋內容")
                                 
                                 # 顯示回饋統計
                                 total_feedback = len(feedback_data)
@@ -519,267 +570,7 @@ def show_individual_analysis():
     else:
         st.warning("沒有找到住院醫師資料")
 
-def show_epa_tracking():
-    """顯示EPA項目追蹤"""
-    st.subheader("🎯 EPA項目完成追蹤")
-    
-    # 載入資料
-    df, error = load_fam_data()
-    
-    if error:
-        st.error(error)
-        return
-    
-    if df is None or df.empty:
-        st.warning("沒有可用的資料")
-        return
-    
-    # 初始化處理器和視覺化模組
-    processor = FAMDataProcessor()
-    visualizer = FAMVisualization()
-    
-    # 選擇住院醫師
-    students = processor.get_student_list(df)
-    if students:
-        selected_student = st.selectbox("選擇住院醫師", students, key="epa_tracking_student")
-        
-        if selected_student:
-            student_data = processor.get_student_data(df, selected_student)
-            
-            st.subheader(f"{selected_student} - EPA項目完成追蹤")
-            
-            # 計算EPA項目完成狀況
-            progress_df = processor.calculate_epa_progress(student_data)
-            
-            # 顯示進度條
-            st.subheader("完成進度")
-            for _, row in progress_df.iterrows():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.progress(row['完成率(%)'] / 100)
-                    st.write(f"**{row['EPA項目']}**: {row['已完成次數']}/{row['要求次數']} 次")
-                with col2:
-                    st.write(row['狀態'])
-            
-            # 進度圖表
-            fig = visualizer.create_epa_progress_chart(progress_df, selected_student)
-            st.plotly_chart(fig, use_container_width=True, key="epa_progress_chart")
-            
-            # 詳細完成狀況表格
-            st.subheader("詳細完成狀況")
-            st.dataframe(
-                progress_df,
-                use_container_width=True,
-                hide_index=True
-            )
-            
-            # EPA項目詳細分析（保留原有功能）
-            st.subheader("🔍 EPA項目詳細分析")
-            epa_items = processor.get_epa_items(df)
-            if epa_items:
-                selected_epa = st.selectbox("選擇EPA項目進行詳細分析", epa_items, key="epa_detail_analysis")
-                
-                if selected_epa:
-                    epa_data = student_data[student_data['EPA項目'] == selected_epa]
-                    
-                    if not epa_data.empty:
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.metric("完成次數", len(epa_data))
-                            st.metric("要求次數", FAM_EPA_REQUIREMENTS.get(selected_epa, {}).get('minimum', 0))
-                        
-                        with col2:
-                            if '複雜程度' in epa_data.columns:
-                                complexity_counts = epa_data['複雜程度'].value_counts()
-                                st.write("複雜度分布:")
-                                for complexity, count in complexity_counts.items():
-                                    st.write(f"- {complexity}: {count}次")
-                        
-                        # 時間進度分析
-                        epa_temporal_data = processor.get_epa_temporal_progress(student_data, selected_epa)
-                        if epa_temporal_data is not None:
-                            st.subheader(f"{selected_epa} - 時間進度分析")
-                            fig = visualizer.create_epa_temporal_chart(epa_temporal_data, selected_epa, selected_student)
-                            st.plotly_chart(fig, use_container_width=True, key=f"epa_comparison_{selected_epa}")
-                    else:
-                        st.info(f"該住院醫師尚未完成任何 {selected_epa} 項目")
-    else:
-        st.warning("沒有找到住院醫師資料")
 
-def show_learning_progress():
-    """顯示學習進度分析"""
-    st.subheader("📈 學習進度分析")
-    
-    # 載入資料
-    df, error = load_fam_data()
-    
-    if error:
-        st.error(error)
-        return
-    
-    if df is None or df.empty:
-        st.warning("沒有可用的資料")
-        return
-    
-    # 初始化處理器和視覺化模組
-    processor = FAMDataProcessor()
-    visualizer = FAMVisualization()
-    
-    # 選擇住院醫師
-    students = processor.get_student_list(df)
-    if students:
-        selected_student = st.selectbox("選擇住院醫師", students, key="learning_progress_student")
-        
-        if selected_student:
-            student_data = processor.get_student_data(df, selected_student)
-            
-            # 時間序列分析
-            temporal_progress = processor.get_temporal_progress(student_data)
-            if temporal_progress is not None:
-                st.subheader(f"{selected_student} - 學習進度時間軸")
-                
-                # 轉換月份為字串格式
-                temporal_progress['月份'] = temporal_progress['月份'].astype(str)
-                
-                fig = visualizer.create_temporal_progress_chart(temporal_progress)
-                st.plotly_chart(fig, use_container_width=True, key="learning_progress_chart")
-                
-                # EPA項目學習進度
-                epa_items = processor.get_epa_items(df)
-                if epa_items:
-                    st.subheader("EPA項目學習進度")
-                    
-                    # 選擇特定EPA項目
-                    selected_epa = st.selectbox("選擇EPA項目", epa_items, key="epa_progress_item")
-                    
-                    if selected_epa:
-                        epa_temporal_data = processor.get_epa_temporal_progress(student_data, selected_epa)
-                        if epa_temporal_data is not None:
-                            fig = visualizer.create_epa_temporal_chart(epa_temporal_data, selected_epa, selected_student)
-                            st.plotly_chart(fig, use_container_width=True, key=f"learning_epa_temporal_{selected_epa}")
-                        else:
-                            st.info(f"該住院醫師尚未完成任何 {selected_epa} 項目")
-            
-            # 複雜度挑戰進度
-            complexity_analysis = processor.get_complexity_analysis(student_data)
-            if complexity_analysis:
-                st.subheader("複雜度挑戰進度")
-                
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    fig = visualizer.create_complexity_challenge_chart(
-                        complexity_analysis['counts'], 
-                        selected_student
-                    )
-                    st.plotly_chart(fig, use_container_width=True, key="complexity_challenge_chart")
-                
-                with col2:
-                    st.subheader("複雜度統計")
-                    st.metric("平均複雜度", f"{complexity_analysis['average']:.1f}")
-                    
-                    total_cases = sum(complexity_analysis['distribution'].values())
-                    for complexity, count in complexity_analysis['distribution'].items():
-                        percentage = (count / total_cases) * 100
-                        st.metric(complexity, f"{count}次 ({percentage:.1f}%)")
-            
-            # 同儕比較
-            st.subheader("同儕比較分析")
-            epa_items = processor.get_epa_items(df)
-            if epa_items:
-                # 選擇比較模式
-                comparison_mode = st.radio(
-                    "選擇比較模式",
-                    ["完成次數比較", "信賴程度比較", "全部EPA項目比較"],
-                    key="comparison_mode"
-                )
-                
-                if comparison_mode == "全部EPA項目比較":
-                    # 創建包含所有EPA項目的比較雷達圖
-                    st.subheader("🏥 全部EPA項目同儕比較")
-                    st.info("💡 此雷達圖顯示所有學員在各個EPA項目上的信賴程度表現")
-                    
-                    # 創建全部EPA項目比較雷達圖
-                    all_epa_radar_fig = visualizer.create_all_epa_comparison_radar_chart(
-                        df,
-                        f"所有學員 - 全部EPA項目信賴程度比較"
-                    )
-                    
-                    if all_epa_radar_fig:
-                        st.plotly_chart(all_epa_radar_fig, use_container_width=True, key="peer_all_epa_radar")
-                        
-                        # 顯示該學員的整體表現摘要
-                        st.subheader(f"{selected_student} - 整體EPA表現摘要")
-                        overall_analysis = processor.calculate_reliability_progress(student_data)
-                        if overall_analysis:
-                            col1, col2, col3, col4 = st.columns(4)
-                            with col1:
-                                st.metric("平均信賴程度", f"{overall_analysis['average']:.1f}")
-                            with col2:
-                                st.metric("總評核次數", overall_analysis['total_count'])
-                            with col3:
-                                st.metric("EPA項目種類", len(overall_analysis['distribution']))
-                            with col4:
-                                # 計算最高信賴程度
-                                max_reliability = max(overall_analysis['distribution'].keys(), 
-                                                    key=lambda x: {'不允許學員觀察': 0, '學員在旁觀察': 1, '教師在旁逐步共同操作': 2, 
-                                                                 '教師在旁必要時協助': 3, '教師事後重點確認': 4, '必要時知會教師確認': 4, '獨立執行': 5}.get(x, 0))
-                                st.metric("最高信賴程度", max_reliability)
-                    else:
-                        st.info("無法生成全部EPA項目比較雷達圖，可能缺少信賴程度資料")
-                
-                else:
-                    selected_epa_comparison = st.selectbox("選擇EPA項目進行同儕比較", epa_items, key="epa_comparison")
-                    
-                    if selected_epa_comparison:
-                        if comparison_mode == "完成次數比較":
-                            # 計算所有住院醫師在該EPA項目的完成次數
-                            all_students_epa = df[df['EPA項目'] == selected_epa_comparison]['學員'].value_counts()
-                            
-                            fig = visualizer.create_epa_comparison_chart(all_students_epa, selected_epa_comparison)
-                            st.plotly_chart(fig, use_container_width=True, key=f"peer_epa_comparison_{selected_epa_comparison}")
-                            
-                            # 顯示排名
-                            current_student_count = all_students_epa.get(selected_student, 0)
-                            rank = (all_students_epa >= current_student_count).sum()
-                            total_students = len(all_students_epa)
-                            
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("完成次數", current_student_count)
-                            with col2:
-                                st.metric("排名", f"{rank}/{total_students}")
-                            with col3:
-                                percentile = ((total_students - rank + 1) / total_students) * 100
-                                st.metric("百分位數", f"{percentile:.1f}%")
-                        
-                        else:  # 信賴程度比較
-                            # 創建信賴程度比較雷達圖
-                            radar_fig = visualizer.create_epa_comparison_radar_chart(
-                                df, 
-                                selected_epa_comparison,
-                                f"各學員 - {selected_epa_comparison} 信賴程度比較"
-                            )
-                            
-                            if radar_fig:
-                                st.plotly_chart(radar_fig, use_container_width=True, key=f"peer_reliability_radar_{selected_epa_comparison}")
-                            else:
-                                st.info("無法生成信賴程度比較雷達圖，可能缺少信賴程度資料")
-                            
-                            # 顯示該學員在該EPA項目的表現
-                            student_epa_data = student_data[student_data['EPA項目'] == selected_epa_comparison]
-                            if not student_epa_data.empty:
-                                reliability_analysis = processor.calculate_reliability_progress(student_epa_data)
-                                if reliability_analysis:
-                                    st.subheader(f"{selected_student} - {selected_epa_comparison} 表現")
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        st.metric("平均信賴程度", f"{reliability_analysis['average']:.1f}")
-                                    with col2:
-                                        st.metric("評核次數", len(student_epa_data))
-    else:
-        st.warning("沒有找到住院醫師資料")
 
 # 主要功能函數
 def main():

@@ -1478,7 +1478,19 @@ class FAMVisualization:
             
             # 為每個住院醫師添加一條線
             students = line_df['住院醫師'].unique()
-            colors = px.colors.qualitative.Set1  # 使用不同的顏色
+            # 使用更鮮明、對比度更高的顏色
+            colors = [
+                '#FF0000',  # 紅色 - 鮮明
+                '#0000FF',  # 藍色 - 鮮明
+                '#00AA00',  # 綠色 - 鮮明
+                '#AA00AA',  # 紫色 - 鮮明
+                '#FF8800',  # 橙色 - 鮮明
+                '#0066CC',  # 深藍色 - 鮮明
+                '#CC6600',  # 深橙色 - 鮮明
+                '#990099',  # 深紫色 - 鮮明
+                '#009900',  # 深綠色 - 鮮明
+                '#CC0000'   # 深紅色 - 鮮明
+            ]
             
             for i, student in enumerate(students):
                 student_data = line_df[line_df['住院醫師'] == student]
@@ -1489,8 +1501,12 @@ class FAMVisualization:
                     y=student_data['EPA分數'],
                     mode='lines+markers',
                     name=student,
-                    line=dict(color=color, width=2),
-                    marker=dict(size=6),
+                    line=dict(color=color, width=3),  # 增加線條寬度
+                    marker=dict(
+                        size=8,  # 增加標記大小
+                        color=color,
+                        line=dict(width=2, color='white')  # 添加白色邊框增加對比度
+                    ),
                     hovertemplate=f'<b>{student}</b><br>' +
                                  '日期: %{x}<br>' +
                                  'EPA分數: %{y:.2f}<extra></extra>'
