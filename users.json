@@ -72,5 +72,13 @@
         "department": "家醫部",
         "extension": "9876",
         "email": "teacher.fam@hospital.com"
+    },
+    "PED": {
+        "password": "278a7300eb77098f053895d0f7e5b87d3fff228f3d74cafa35f016ba28b1391d",
+        "role": "teacher",
+        "name": "FAM",
+        "department": "小兒部",
+        "extension": "5432",
+        "email": "teacher.ped@hospital.com"
     }
 }
