@@ -22,6 +22,7 @@ from pages.teachers.teacher_analysis import show_teacher_analysis_section, fetch
 from pages.ugy.ugy_peers import show_UGY_peer_analysis_section
 from pages.ugy.ugy_overview import show_ugy_student_overview
 from pages.ugy.ugy_individual import show_ugy_student_analysis
+from pages.ugy.ugy_teacher_analysis import show_ugy_teacher_analysis
 from config.epa_constants import EPA_LEVEL_MAPPING
 from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page, filter_data_by_permission, get_user_department
 import plotly.express as px
@@ -862,7 +863,7 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析"])
+                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析", "老師分析"])
                             
                             with ugy_subtabs[0]:
                                 st.header("學生總覽")
@@ -871,6 +872,10 @@ def main():
                             with ugy_subtabs[1]:
                                 st.header("個別學生分析")
                                 show_ugy_student_analysis()
+                            
+                            with ugy_subtabs[2]:
+                                st.header("老師分析")
+                                show_ugy_teacher_analysis()
     else:
         # 為非學生角色準備 current_data
         current_data = None
@@ -897,7 +902,7 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析"])
+                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析", "老師分析"])
                             
                             with ugy_subtabs[0]:
                                 st.header("學生總覽")
@@ -906,6 +911,10 @@ def main():
                             with ugy_subtabs[1]:
                                 st.header("個別學生分析")
                                 show_ugy_student_analysis()
+                            
+                            with ugy_subtabs[2]:
+                                st.header("老師分析")
+                                show_ugy_teacher_analysis()
                 
                 elif tab_name == "PGY":
                     if check_permission(st.session_state.role, 'can_view_pgy_data'):
