@@ -1567,7 +1567,7 @@ class FAMVisualization:
                 violingroupgap=0.1
             )
             
-            # 自定義小提琴圖顏色
+            # 自定義小提琴圖顏色（與個別住院醫師分析格式一致）
             fig.update_traces(
                 marker_color='rgba(55,128,191,0.8)',
                 marker_line_color='rgba(55,128,191,1)',
@@ -1578,7 +1578,9 @@ class FAMVisualization:
                 fillcolor='rgba(55,128,191,0.3)',
                 opacity=0.8,
                 box_visible=True,
-                meanline_visible=True
+                meanline_visible=True,
+                pointpos=0,  # 數據點位置設為0（小提琴中央）
+                jitter=0.3   # 數據點散佈程度
             )
             
             # 旋轉X軸標籤以避免重疊
