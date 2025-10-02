@@ -471,11 +471,11 @@ def show_individual_analysis():
                     epa_data = trend_df[trend_df['學員'] == selected_student]
                     epa_data = epa_data[epa_data['EPA項目'] == epa_item]
                     
-                    if not epa_data.empty:
-                        # 創建左右兩欄布局（1:1比例）
-                        col_left, col_right = st.columns([1, 1])
-                        
-                        with col_left:
+                    # 創建左右兩欄布局（1:1比例）
+                    col_left, col_right = st.columns([1, 1])
+                    
+                    with col_left:
+                        if not epa_data.empty:
                             # 創建增強版趨勢圖（支援多資料來源）
                             try:
                                 # 優先使用增強版趨勢圖
@@ -545,121 +545,121 @@ def show_individual_analysis():
                                             st.write(f"• {source}: {avg:.2f}")
                                 else:
                                     st.metric("平均信賴程度", "N/A")
-                    else:
-                        st.info(f"ℹ️ {epa_item} 尚未有足夠的月度評核記錄來呈現趨勢。")
+                        else:
+                            st.info(f"ℹ️ {epa_item} 尚未有足夠的月度評核記錄來呈現趨勢。")
+                    
+                    with col_right:
+                        # 顯示該EPA項目的教師回饋
+                        st.write(f"**{epa_item} 教師回饋**")
                         
-                        with col_right:
-                            # 顯示該EPA項目的教師回饋
-                            st.write(f"**{epa_item} 教師回饋**")
-                            
-                            # 獲取該EPA項目的教師回饋
-                            feedback_data = epa_data[epa_data['教師給學員回饋'].notna() & (epa_data['教師給學員回饋'] != '')]
-                            
-                            if not feedback_data.empty:
-                                # 準備表格數據
-                                table_data = []
-                                for idx, (_, row) in enumerate(feedback_data.iterrows(), 1):
-                                    # 格式化日期
-                                    date_str = "N/A"
-                                    if '日期' in row and pd.notna(row['日期']):
-                                        if hasattr(row['日期'], 'strftime'):
-                                            date_str = row['日期'].strftime('%Y-%m-%d')
-                                        else:
-                                            date_str = str(row['日期'])
-                                    
-                                    # 處理回饋內容，保留換行符並移除字符限制
-                                    feedback_content = str(row['教師給學員回饋']).strip()
-                                    
-                                    table_data.append({
-                                        '日期': date_str,
-                                        '回饋內容': feedback_content
-                                    })
-                                
-                                # 創建DataFrame並顯示表格
-                                feedback_df = pd.DataFrame(table_data)
-                                
-                                # 使用自定義CSS實現垂直滾動的教師回饋區域
-                                st.markdown("""
-                                <style>
-                                .feedback-scroll-container {
-                                    max-height: 300px;
-                                    overflow-y: auto;
-                                    border: 1px solid #e1e5e9;
-                                    border-radius: 0.5rem;
-                                    padding: 15px;
-                                    margin: 10px 0;
-                                    background-color: #fafafa;
-                                }
-                                .feedback-item {
-                                    margin-bottom: 15px;
-                                    padding-bottom: 10px;
-                                    border-bottom: 1px dashed #ddd;
-                                }
-                                .feedback-item:last-child {
-                                    border-bottom: none;
-                                    margin-bottom: 0;
-                                }
-                                .feedback-date {
-                                    font-weight: bold;
-                                    color: #2563eb;
-                                    margin-bottom: 5px;
-                                }
-                                .feedback-content {
-                                    margin-left: 10px;
-                                    line-height: 1.6;
-                                    color: #374151;
-                                }
-                                .feedback-content ul {
-                                    margin: 5px 0;
-                                    padding-left: 20px;
-                                }
-                                .feedback-content li {
-                                    margin-bottom: 3px;
-                                }
-                                </style>
-                                """, unsafe_allow_html=True)
-                                
-                                st.write("**教師回饋內容：**")
-                                
-                                # 創建滾動容器
-                                html_content = '<div class="feedback-scroll-container">'
-                                
-                                for i, row in feedback_df.iterrows():
-                                    date_str = row['日期']
-                                    feedback_text = str(row['回饋內容']).strip()
-                                    
-                                    html_content += '<div class="feedback-item">'
-                                    html_content += f'<div class="feedback-date">📅 {date_str}</div>'
-                                    
-                                    if feedback_text and feedback_text != 'nan':
-                                        # 處理回饋內容，保持原始格式
-                                        feedback_lines = feedback_text.split('\n')
-                                        html_content += '<div class="feedback-content"><ul>'
-                                        for line in feedback_lines:
-                                            if line.strip():  # 只顯示非空行
-                                                # 轉義HTML特殊字符
-                                                escaped_line = line.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                                                html_content += f'<li>{escaped_line}</li>'
-                                        html_content += '</ul></div>'
+                        # 獲取該EPA項目的教師回饋
+                        feedback_data = epa_data[epa_data['教師給學員回饋'].notna() & (epa_data['教師給學員回饋'] != '')]
+                        
+                        if not feedback_data.empty:
+                            # 準備表格數據
+                            table_data = []
+                            for idx, (_, row) in enumerate(feedback_data.iterrows(), 1):
+                                # 格式化日期
+                                date_str = "N/A"
+                                if '日期' in row and pd.notna(row['日期']):
+                                    if hasattr(row['日期'], 'strftime'):
+                                        date_str = row['日期'].strftime('%Y-%m-%d')
                                     else:
-                                        html_content += '<div class="feedback-content"><ul><li>無回饋內容</li></ul></div>'
-                                    
-                                    html_content += '</div>'
+                                        date_str = str(row['日期'])
+                                
+                                # 處理回饋內容，保留換行符並移除字符限制
+                                feedback_content = str(row['教師給學員回饋']).strip()
+                                
+                                table_data.append({
+                                    '日期': date_str,
+                                    '回饋內容': feedback_content
+                                })
+                            
+                            # 創建DataFrame並顯示表格
+                            feedback_df = pd.DataFrame(table_data)
+                            
+                            # 使用自定義CSS實現垂直滾動的教師回饋區域
+                            st.markdown("""
+                            <style>
+                            .feedback-scroll-container {
+                                max-height: 300px;
+                                overflow-y: auto;
+                                border: 1px solid #e1e5e9;
+                                border-radius: 0.5rem;
+                                padding: 15px;
+                                margin: 10px 0;
+                                background-color: #fafafa;
+                            }
+                            .feedback-item {
+                                margin-bottom: 15px;
+                                padding-bottom: 10px;
+                                border-bottom: 1px dashed #ddd;
+                            }
+                            .feedback-item:last-child {
+                                border-bottom: none;
+                                margin-bottom: 0;
+                            }
+                            .feedback-date {
+                                font-weight: bold;
+                                color: #2563eb;
+                                margin-bottom: 5px;
+                            }
+                            .feedback-content {
+                                margin-left: 10px;
+                                line-height: 1.6;
+                                color: #374151;
+                            }
+                            .feedback-content ul {
+                                margin: 5px 0;
+                                padding-left: 20px;
+                            }
+                            .feedback-content li {
+                                margin-bottom: 3px;
+                            }
+                            </style>
+                            """, unsafe_allow_html=True)
+                            
+                            st.write("**教師回饋內容：**")
+                            
+                            # 創建滾動容器
+                            html_content = '<div class="feedback-scroll-container">'
+                            
+                            for i, row in feedback_df.iterrows():
+                                date_str = row['日期']
+                                feedback_text = str(row['回饋內容']).strip()
+                                
+                                html_content += '<div class="feedback-item">'
+                                html_content += f'<div class="feedback-date">📅 {date_str}</div>'
+                                
+                                if feedback_text and feedback_text != 'nan':
+                                    # 處理回饋內容，保持原始格式
+                                    feedback_lines = feedback_text.split('\n')
+                                    html_content += '<div class="feedback-content"><ul>'
+                                    for line in feedback_lines:
+                                        if line.strip():  # 只顯示非空行
+                                            # 轉義HTML特殊字符
+                                            escaped_line = line.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                            html_content += f'<li>{escaped_line}</li>'
+                                    html_content += '</ul></div>'
+                                else:
+                                    html_content += '<div class="feedback-content"><ul><li>無回饋內容</li></ul></div>'
                                 
                                 html_content += '</div>'
-                                
-                                st.markdown(html_content, unsafe_allow_html=True)
-                                
-                                # 添加滾動提示
-                                st.caption("💡 提示：可以上下滾動查看所有回饋內容")
-                                
-                                # 顯示回饋統計
-                                total_feedback = len(feedback_data)
-                                st.write(f"**回饋統計：**")
-                                st.write(f"• 總回饋次數: {total_feedback}")
-                                st.write(f"• 回饋率: {(total_feedback/len(epa_data)*100):.1f}%")
-                            else:
-                                st.info("暫無教師回饋")
+                            
+                            html_content += '</div>'
+                            
+                            st.markdown(html_content, unsafe_allow_html=True)
+                            
+                            # 添加滾動提示
+                            st.caption("💡 提示：可以上下滾動查看所有回饋內容")
+                            
+                            # 顯示回饋統計
+                            total_feedback = len(feedback_data)
+                            st.write(f"**回饋統計：**")
+                            st.write(f"• 總回饋次數: {total_feedback}")
+                            st.write(f"• 回饋率: {(total_feedback/len(epa_data)*100):.1f}%")
+                        else:
+                            st.info("暫無教師回饋")
                     
                     # 在每個EPA項目之間添加分隔線
                     st.divider()
