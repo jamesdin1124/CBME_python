@@ -591,6 +591,15 @@ def show_individual_analysis():
                             # 創建DataFrame並顯示表格
                             feedback_df = pd.DataFrame(table_data)
                             
+                            # 按照日期排序（升序：最早的在前）
+                            try:
+                                feedback_df['日期_parsed'] = pd.to_datetime(feedback_df['日期'], format='mixed', dayfirst=False)
+                                feedback_df = feedback_df.sort_values('日期_parsed', ascending=True)
+                                feedback_df = feedback_df.drop('日期_parsed', axis=1)
+                            except Exception as e:
+                                # 如果日期解析失敗，保持原始順序
+                                print(f"日期解析錯誤，保持原始順序: {e}")
+                            
                             # 使用自定義CSS實現垂直滾動的教師回饋區域
                             st.markdown("""
                             <style>
