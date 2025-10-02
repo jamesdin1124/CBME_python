@@ -192,6 +192,47 @@ class EmwayDataConverter:
                 teacher_feedback = row.iloc[8] if len(row) > 8 else ""
                 teacher_ccc_feedback = row.iloc[9] if len(row) > 9 else ""
                 
+                # 日期過濾：只保留2024年12月31日之前的資料
+                if date and pd.notna(date):
+                    try:
+                        # 嘗試解析日期
+                        if isinstance(date, str):
+                            # 處理各種日期格式
+                            date_str = str(date).strip()
+                            if date_str:
+                                # 嘗試不同的日期格式
+                                date_formats = [
+                                    '%Y-%m-%d',
+                                    '%Y/%m/%d', 
+                                    '%Y-%m-%d %H:%M:%S',
+                                    '%Y/%m/%d %H:%M:%S',
+                                    '%m/%d/%Y',
+                                    '%d/%m/%Y'
+                                ]
+                                
+                                parsed_date = None
+                                for fmt in date_formats:
+                                    try:
+                                        parsed_date = pd.to_datetime(date_str, format=fmt)
+                                        break
+                                    except:
+                                        continue
+                                
+                                # 如果特定格式都失敗，嘗試通用解析
+                                if parsed_date is None:
+                                    parsed_date = pd.to_datetime(date_str, errors='coerce')
+                                
+                                # 檢查日期是否在2024年12月31日之前
+                                cutoff_date = pd.to_datetime('2024-12-31')
+                                if parsed_date is not None and parsed_date > cutoff_date:
+                                    print(f"跳過2024年12月31日後的資料: {date_str} (學員: {student_name_parsed})")
+                                    continue
+                                    
+                    except Exception as e:
+                        print(f"日期解析錯誤 {date}: {str(e)}")
+                        # 如果日期解析失敗，仍然保留該記錄
+                        pass
+                
                 # 轉換資料格式
                 converted_row = {
                     '臨床訓練計畫': '2024家庭醫學專科醫師EPA訓練計畫',

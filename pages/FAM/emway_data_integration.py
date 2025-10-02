@@ -175,22 +175,14 @@ class EmwayDataIntegration:
             print("合併現有資料和EMYWAY資料...")
             integrated_df = pd.concat([current_df, emway_df], ignore_index=True)
         
-        # 新增資料來源標記和去重處理
+        # 新增資料來源標記
         if not current_df.empty and not emway_df.empty:
             # 為現有資料標記來源
             current_df['資料來源'] = '現有系統'
             emway_df['資料來源'] = 'EMYWAY歷史資料'
             
-            # 進行去重處理：移除EMYWAY中與現有系統重複的資料
-            print("進行去重處理：移除EMYWAY中與現有系統重複的資料...")
-            emway_df_filtered = self.remove_duplicates_with_current_system(current_df, emway_df)
-            
-            print(f"去重前EMYWAY資料: {len(emway_df)} 筆")
-            print(f"去重後EMYWAY資料: {len(emway_df_filtered)} 筆")
-            print(f"移除重複資料: {len(emway_df) - len(emway_df_filtered)} 筆")
-            
             # 重新合併
-            integrated_df = pd.concat([current_df, emway_df_filtered], ignore_index=True)
+            integrated_df = pd.concat([current_df, emway_df], ignore_index=True)
         elif not current_df.empty:
             integrated_df['資料來源'] = '現有系統'
         elif not emway_df.empty:
@@ -218,54 +210,6 @@ class EmwayDataIntegration:
         
         print(f"整合完成！總共 {len(integrated_df)} 筆資料")
         return integrated_df
-    
-    def remove_duplicates_with_current_system(self, current_df, emway_df):
-        """移除EMYWAY中與現有系統重複的資料，保留現有系統的資料"""
-        try:
-            if current_df.empty or emway_df.empty:
-                return emway_df
-            
-            # 定義用於比較的關鍵欄位
-            key_columns = ['學員', 'EPA項目', '日期', '病歷號碼', '個案姓名', '觀察場域']
-            
-            # 確保所有關鍵欄位都存在
-            available_key_columns = [col for col in key_columns if col in current_df.columns and col in emway_df.columns]
-            
-            if not available_key_columns:
-                print("⚠️ 沒有可用的關鍵欄位進行去重比較")
-                return emway_df
-            
-            print(f"使用關鍵欄位進行去重: {available_key_columns}")
-            
-            # 創建比較用的合併鍵
-            current_df['merge_key'] = current_df[available_key_columns].astype(str).agg('|'.join, axis=1)
-            emway_df['merge_key'] = emway_df[available_key_columns].astype(str).agg('|'.join, axis=1)
-            
-            # 找出EMYWAY中與現有系統重複的記錄
-            current_keys = set(current_df['merge_key'])
-            emway_duplicates = emway_df[emway_df['merge_key'].isin(current_keys)]
-            
-            print(f"發現重複記錄: {len(emway_duplicates)} 筆")
-            
-            # 移除EMYWAY中的重複記錄
-            emway_df_filtered = emway_df[~emway_df['merge_key'].isin(current_keys)]
-            
-            # 移除臨時欄位
-            emway_df_filtered = emway_df_filtered.drop('merge_key', axis=1)
-            
-            # 顯示去重統計
-            if len(emway_duplicates) > 0:
-                print("重複記錄範例:")
-                for i, (_, row) in enumerate(emway_duplicates.head(3).iterrows()):
-                    print(f"  {i+1}. {row.get('學員', 'N/A')} - {row.get('EPA項目', 'N/A')} - {row.get('日期', 'N/A')} - {row.get('個案姓名', 'N/A')}")
-            
-            return emway_df_filtered
-            
-        except Exception as e:
-            print(f"去重處理時發生錯誤: {e}")
-            import traceback
-            print(f"詳細錯誤信息: {traceback.format_exc()}")
-            return emway_df
     
     def save_integrated_data(self, df):
         """儲存整合後的資料"""
