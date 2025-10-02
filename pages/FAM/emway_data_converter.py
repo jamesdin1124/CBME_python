@@ -59,10 +59,15 @@ class EmwayDataConverter:
     
     def extract_student_name(self, folder_name):
         """從資料夾名稱提取學員姓名"""
-        # 從 "CEPO併Emyway EPA統計分析(含統計圖)_張玄穎" 提取 "張玄穎"
+        # 從 "CEPO併Emyway EPA統計分析(含統計圖)_張玄穎" 提取 "張玄穎"（最後三個字符）
         match = re.search(r'_([^/]+)/?$', folder_name)
         if match:
-            return match.group(1)
+            full_name = match.group(1)
+            # 提取最後三個字符作為學員姓名
+            if len(full_name) >= 3:
+                return full_name[-3:]
+            else:
+                return full_name
         return "未知學員"
     
     def extract_epa_number(self, filename):
@@ -173,9 +178,8 @@ class EmwayDataConverter:
                 signature_flow = row.iloc[0] if len(row) > 0 else ""
                 student_name_parsed, student_id, teacher_name = self.parse_signature_flow(signature_flow)
                 
-                # 如果解析失敗，使用資料夾名稱中的學員姓名
-                if not student_name_parsed:
-                    student_name_parsed = student_name
+                # 優先使用資料夾名稱中的學員姓名，確保一致性
+                student_name_parsed = student_name
                 
                 # 提取各欄位資料
                 date = row.iloc[1] if len(row) > 1 else ""
