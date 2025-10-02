@@ -50,21 +50,75 @@ class EmwayDataIntegration:
         return df
     
     def standardize_epa_names(self, df):
-        """標準化EPA項目名稱"""
+        """標準化EPA項目名稱，合併相同數字的EPA項目"""
         epa_mapping = {
+            # EPA01 - 門診戒菸
+            'EPA01.門診戒菸': '01門診戒菸',
             '01門診戒菸': '01門診戒菸',
+            
+            # EPA02 - 門診/社區衛教
+            'EPA02.門診/社區衛教': '02門診/社區衛教',
+            'EPA02.門診/社區衛教、': '02門診/社區衛教',
             '02門診/社區衛教': '02門診/社區衛教',
-            '03健康檢查': '03健康檢查',
-            '04預防接種': '04預防接種',
-            '05門診診療': '05門診診療',
-            '06急診診療': '06急診診療',
-            '07住院診療': '07住院診療',
-            '08急重症照護': '08急重症照護',
-            '09手術': '09手術',
+            '02.門診/社區衛教': '02門診/社區衛教',
+            '02. 門診/社區衛教': '02門診/社區衛教',
+            
+            # EPA03 - 預防注射
+            'EPA03.預防注射': '03預防注射',
+            '03預防注射': '03預防注射',
+            '03.預防注射': '03預防注射',
+            
+            # EPA04 - 旅遊門診
+            'EPA04.旅遊門診': '04旅遊門診',
+            '04旅遊門診': '04旅遊門診',
+            '04.旅遊門診': '04旅遊門診',
+            
+            # EPA05 - 健康檢查
+            'EPA05.健康檢查': '05健康檢查',
+            '05健康檢查': '05健康檢查',
+            '05.健康檢查': '05健康檢查',
+            
+            # EPA06 - 社區篩檢
+            'EPA06.社區篩檢': '06社區篩檢',
+            '06社區篩檢': '06社區篩檢',
+            '06.社區篩檢': '06社區篩檢',
+            
+            # EPA07 - 慢病照護
+            'EPA07.慢病照護': '07慢病照護',
+            '07慢病照護': '07慢病照護',
+            '07.慢病照護': '07慢病照護',
+            '07慢病照護': '07慢病照護',
+            
+            # EPA08 - 急症照護/急症診療
+            'EPA08.急症診療': '08急症照護',
+            'EPA08.急症照護': '08急症照護',
+            '08急症照護': '08急症照護',
+            '08急症診療': '08急症照護',
+            '08.急症診療': '08急症照護',
+            '08.急症照護': '08急症照護',
+            
+            # EPA09 - 居家整合醫療
+            'EPA09.居家整合醫療': '09居家整合醫療',
+            '09居家整合醫療': '09居家整合醫療',
+            '09.居家整合醫療': '09居家整合醫療',
+            
+            # EPA10 - 出院準備/照護轉銜
+            'EPA10.出院準備/照護轉銜': '10出院準備/照護轉銜',
             '10出院準備/照護轉銜': '10出院準備/照護轉銜',
             '10.出院準備/照護轉銜': '10出院準備/照護轉銜',
+            '10.出院準備': '10出院準備/照護轉銜',
+            
+            # EPA11 - 末病照護/安寧緩和
+            'EPA11.末病照護/安寧緩和': '11末病照護/安寧緩和',
             '11末病照護/安寧緩和': '11末病照護/安寧緩和',
-            '12社區照護': '12社區照護'
+            '11.末病照護/安寧緩和': '11末病照護/安寧緩和',
+            
+            # EPA12 - 悲傷支持/社區照護
+            'EPA12.悲傷支持': '12悲傷支持',
+            '12悲傷支持': '12悲傷支持',
+            '12.悲傷支持': '12悲傷支持',
+            '12社區照護': '12社區照護',
+            '12.社區照護': '12社區照護'
         }
         
         df['EPA項目'] = df['EPA項目'].map(epa_mapping).fillna(df['EPA項目'])
@@ -121,18 +175,6 @@ class EmwayDataIntegration:
             print("合併現有資料和EMYWAY資料...")
             integrated_df = pd.concat([current_df, emway_df], ignore_index=True)
         
-        # 清理資料
-        print("清理資料...")
-        integrated_df = self.clean_data(integrated_df)
-        
-        # 標準化EPA項目名稱
-        print("標準化EPA項目名稱...")
-        integrated_df = self.standardize_epa_names(integrated_df)
-        
-        # 標準化信賴程度評分
-        print("標準化信賴程度評分...")
-        integrated_df = self.standardize_reliability_scores(integrated_df)
-        
         # 新增資料來源標記
         if not current_df.empty and not emway_df.empty:
             # 為現有資料標記來源
@@ -145,6 +187,26 @@ class EmwayDataIntegration:
             integrated_df['資料來源'] = '現有系統'
         elif not emway_df.empty:
             integrated_df['資料來源'] = 'EMYWAY歷史資料'
+        
+        # 標準化EPA項目名稱
+        print("標準化EPA項目名稱...")
+        integrated_df = self.standardize_epa_names(integrated_df)
+        
+        # 標準化信賴程度評分
+        print("標準化信賴程度評分...")
+        integrated_df = self.standardize_reliability_scores(integrated_df)
+        
+        # 清理資料
+        print("清理資料...")
+        integrated_df = self.clean_data(integrated_df)
+        
+        # 顯示標準化後的EPA項目統計
+        if not integrated_df.empty:
+            epa_counts = integrated_df['EPA項目'].value_counts()
+            print(f"標準化後EPA項目數: {len(epa_counts)}")
+            print("前10個EPA項目:")
+            for epa, count in epa_counts.head(10).items():
+                print(f"  {epa}: {count} 筆")
         
         print(f"整合完成！總共 {len(integrated_df)} 筆資料")
         return integrated_df
