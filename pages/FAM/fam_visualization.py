@@ -822,14 +822,13 @@ class FAMVisualization:
             return None
     
     def create_enhanced_monthly_trend_chart(self, epa_data, epa_item, student_name):
-        """創建增強版EPA項目信賴程度趨勢圖，支援多資料來源"""
+        """創建增強版EPA項目信賴程度趨勢圖，使用violin圖合併顯示兩個系統資料"""
         try:
             if epa_data is None or epa_data.empty:
                 return None
             
             import plotly.express as px
             import plotly.graph_objects as go
-            from plotly.subplots import make_subplots
             import pandas as pd
             import numpy as np
             
@@ -874,7 +873,7 @@ class FAMVisualization:
             df_plot = pd.DataFrame(plot_records)
             df_plot = df_plot.sort_values('日期')
             
-            # 創建圖表
+            # 創建violin圖
             fig = go.Figure()
             
             # 獲取所有資料來源
@@ -885,52 +884,43 @@ class FAMVisualization:
                 source_data = df_plot[df_plot['資料來源'] == source]
                 color = colors[i % len(colors)]
                 
-                # 添加散點
-                fig.add_trace(go.Scatter(
-                    x=source_data['月份'],
-                    y=source_data['信賴程度'],
-                    mode='markers',
-                    name=f'{source}',
-                    marker=dict(
-                        color=color,
-                        size=8,
-                        symbol='circle'
-                    ),
-                    hovertemplate=f'<b>{source}</b><br>' +
-                                 '月份: %{x}<br>' +
-                                 '信賴程度: %{y}<br>' +
-                                 '<extra></extra>'
-                ))
+                # 為每個月份創建violin圖
+                months = sorted(source_data['月份'].unique())
                 
-                # 如果有足夠的數據點，添加趨勢線
-                if len(source_data) >= 2:
-                    # 計算月度平均值
-                    monthly_avg = source_data.groupby('月份')['信賴程度'].mean().reset_index()
-                    monthly_avg = monthly_avg.sort_values('月份')
+                for month in months:
+                    month_data = source_data[source_data['月份'] == month]['信賴程度'].values
                     
-                    fig.add_trace(go.Scatter(
-                        x=monthly_avg['月份'],
-                        y=monthly_avg['信賴程度'],
-                        mode='lines+markers',
-                        name=f'{source} 趨勢',
-                        line=dict(color=color, width=2, dash='solid'),
-                        marker=dict(size=6),
-                        opacity=0.7,
-                        hovertemplate=f'<b>{source} 趨勢</b><br>' +
-                                     '月份: %{x}<br>' +
-                                     '平均信賴程度: %{y:.2f}<br>' +
-                                     '<extra></extra>'
-                    ))
+                    if len(month_data) > 0:
+                        # 創建violin圖
+                        fig.add_trace(go.Violin(
+                            x=[month] * len(month_data),
+                            y=month_data,
+                            name=f'{source}',
+                            box=dict(visible=True),
+                            meanline=dict(visible=True),
+                            fillcolor=color,
+                            opacity=0.7,
+                            line=dict(color=color, width=2),
+                            points='all',
+                            pointpos=0,
+                            jitter=0.3,
+                            scalemode='count',
+                            hovertemplate=f'<b>{source}</b><br>' +
+                                         f'月份: {month}<br>' +
+                                         '信賴程度: %{y}<br>' +
+                                         '<extra></extra>'
+                        ))
             
             # 更新布局
             fig.update_layout(
-                title=f'{student_name} - {epa_item} 信賴程度趨勢分析',
+                title=f'{student_name} - {epa_item} 信賴程度分布分析',
                 xaxis_title='月份',
                 yaxis_title='信賴程度',
                 yaxis=dict(range=[0, 5.5], tickmode='linear', tick0=0, dtick=1),
                 height=400,
                 showlegend=True,
-                hovermode='closest'
+                hovermode='closest',
+                violinmode='group'  # 將不同資料來源的violin圖並排顯示
             )
             
             # 添加水平參考線
@@ -946,7 +936,7 @@ class FAMVisualization:
             return fig
             
         except Exception as e:
-            print(f"創建增強版趨勢圖時發生錯誤: {e}")
+            print(f"創建violin圖時發生錯誤: {e}")
             return None
     
     def create_simple_monthly_trend_chart(self, monthly_trend_data, epa_item, student_name, epa_data=None):
