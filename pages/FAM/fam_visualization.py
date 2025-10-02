@@ -822,13 +822,14 @@ class FAMVisualization:
             return None
     
     def create_enhanced_monthly_trend_chart(self, epa_data, epa_item, student_name):
-        """創建增強版EPA項目信賴程度趨勢圖，使用violin圖合併顯示兩個系統資料"""
+        """創建增強版EPA項目信賴程度趨勢圖，合併兩個系統資料並顯示平均值和標準差"""
         try:
             if epa_data is None or epa_data.empty:
                 return None
             
             import plotly.express as px
             import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
             import pandas as pd
             import numpy as np
             
@@ -873,54 +874,107 @@ class FAMVisualization:
             df_plot = pd.DataFrame(plot_records)
             df_plot = df_plot.sort_values('日期')
             
-            # 創建violin圖
+            # 創建圖表
             fig = go.Figure()
             
-            # 獲取所有資料來源
-            data_sources = df_plot['資料來源'].unique()
-            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+            # 合併所有資料來源，按月份計算平均值和標準差
+            monthly_stats = df_plot.groupby('月份')['信賴程度'].agg(['mean', 'std', 'count']).reset_index()
+            monthly_stats = monthly_stats.sort_values('月份')
             
-            for i, source in enumerate(data_sources):
-                source_data = df_plot[df_plot['資料來源'] == source]
-                color = colors[i % len(colors)]
-                
-                # 為每個月份創建violin圖
-                months = sorted(source_data['月份'].unique())
-                
-                for month in months:
-                    month_data = source_data[source_data['月份'] == month]['信賴程度'].values
-                    
-                    if len(month_data) > 0:
-                        # 創建violin圖
-                        fig.add_trace(go.Violin(
-                            x=[month] * len(month_data),
-                            y=month_data,
-                            name=f'{source}',
-                            box=dict(visible=True),
-                            meanline=dict(visible=True),
-                            fillcolor=color,
-                            opacity=0.7,
-                            line=dict(color=color, width=2),
-                            points='all',
-                            pointpos=0,
-                            jitter=0.3,
-                            scalemode='count',
-                            hovertemplate=f'<b>{source}</b><br>' +
-                                         f'月份: {month}<br>' +
-                                         '信賴程度: %{y}<br>' +
-                                         '<extra></extra>'
-                        ))
+            # 處理標準差為NaN的情況（只有一個數據點時）
+            monthly_stats['std'] = monthly_stats['std'].fillna(0)
+            
+            # 添加平均值折線
+            fig.add_trace(go.Scatter(
+                x=monthly_stats['月份'],
+                y=monthly_stats['mean'],
+                mode='lines+markers',
+                name='平均值',
+                line=dict(color='#2E86AB', width=3, shape='spline'),
+                marker=dict(size=8, color='#2E86AB'),
+                hovertemplate='<b>平均值</b><br>' +
+                             '月份: %{x}<br>' +
+                             '平均信賴程度: %{y:.2f}<br>' +
+                             '樣本數: %{customdata}<br>' +
+                             '<extra></extra>',
+                customdata=monthly_stats['count']
+            ))
+            
+            # 添加標準差上下限區域
+            upper_bound = monthly_stats['mean'] + monthly_stats['std']
+            lower_bound = monthly_stats['mean'] - monthly_stats['std']
+            
+            # 確保上下限在合理範圍內
+            upper_bound = np.clip(upper_bound, 0, 5)
+            lower_bound = np.clip(lower_bound, 0, 5)
+            
+            # 添加標準差區域（填充）
+            fig.add_trace(go.Scatter(
+                x=monthly_stats['月份'].tolist() + monthly_stats['月份'].tolist()[::-1],
+                y=upper_bound.tolist() + lower_bound.tolist()[::-1],
+                fill='toself',
+                fillcolor='rgba(46, 134, 171, 0.2)',
+                line=dict(color='rgba(255,255,255,0)'),
+                name='±1標準差',
+                hoverinfo='skip'
+            ))
+            
+            # 添加上標準差線
+            fig.add_trace(go.Scatter(
+                x=monthly_stats['月份'],
+                y=upper_bound,
+                mode='lines',
+                name='+1標準差',
+                line=dict(color='rgba(46, 134, 171, 0.6)', width=1, dash='dash'),
+                hoverinfo='skip'
+            ))
+            
+            # 添加下標準差線
+            fig.add_trace(go.Scatter(
+                x=monthly_stats['月份'],
+                y=lower_bound,
+                mode='lines',
+                name='-1標準差',
+                line=dict(color='rgba(46, 134, 171, 0.6)', width=1, dash='dash'),
+                hoverinfo='skip'
+            ))
+            
+            # 添加所有原始數據點（透明，僅用於顯示數據分布）
+            for i, (_, row) in enumerate(df_plot.iterrows()):
+                fig.add_trace(go.Scatter(
+                    x=[row['月份']],
+                    y=[row['信賴程度']],
+                    mode='markers',
+                    marker=dict(
+                        size=4,
+                        color='rgba(128, 128, 128, 0.3)',
+                        symbol='circle'
+                    ),
+                    name='原始數據' if i == 0 else '',
+                    showlegend=i == 0,
+                    hovertemplate='<b>原始數據</b><br>' +
+                                 '月份: %{x}<br>' +
+                                 '信賴程度: %{y}<br>' +
+                                 '來源: ' + row['資料來源'] + '<br>' +
+                                 '<extra></extra>'
+                ))
             
             # 更新布局
             fig.update_layout(
-                title=f'{student_name} - {epa_item} 信賴程度分布分析',
+                title=f'{student_name} - {epa_item} 信賴程度趨勢分析',
                 xaxis_title='月份',
                 yaxis_title='信賴程度',
                 yaxis=dict(range=[0, 5.5], tickmode='linear', tick0=0, dtick=1),
                 height=400,
                 showlegend=True,
                 hovermode='closest',
-                violinmode='group'  # 將不同資料來源的violin圖並排顯示
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
             )
             
             # 添加水平參考線
@@ -936,7 +990,9 @@ class FAMVisualization:
             return fig
             
         except Exception as e:
-            print(f"創建violin圖時發生錯誤: {e}")
+            print(f"創建增強版趨勢圖時發生錯誤: {e}")
+            import traceback
+            print(f"詳細錯誤信息: {traceback.format_exc()}")
             return None
     
     def create_simple_monthly_trend_chart(self, monthly_trend_data, epa_item, student_name, epa_data=None):
