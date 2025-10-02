@@ -545,8 +545,8 @@ def show_individual_analysis():
                                             st.write(f"• {source}: {avg:.2f}")
                                 else:
                                     st.metric("平均信賴程度", "N/A")
-                        else:
-                            st.info(f"ℹ️ {epa_item} 尚未有足夠的月度評核記錄來呈現趨勢。")
+                    else:
+                        st.info(f"ℹ️ {epa_item} 尚未有足夠的月度評核記錄來呈現趨勢。")
                         
                         with col_right:
                             # 顯示該EPA項目的教師回饋
