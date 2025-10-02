@@ -350,6 +350,11 @@ def show_individual_analysis():
                 # 使用已經過濾的資料
                 if not student_data.empty:
                     display_columns = ['日期', 'EPA項目', '病歷號碼', '個案姓名', '診斷', '複雜程度', '觀察場域', '信賴程度(教師評量)', '信賴程度(教師評量)_數值', '教師給學員回饋']
+                    
+                    # 如果有資料來源欄位，將其加入顯示欄位中
+                    if '資料來源' in student_data.columns:
+                        display_columns.append('資料來源')
+                    
                     available_columns = [col for col in display_columns if col in student_data.columns]
                         
                     if available_columns:
