@@ -12,4 +12,4 @@ FROM python:3.11.3-slim
 WORKDIR /app
 COPY --from=builder /app/.venv .venv/
 COPY . .
-CMD ["/app/.venv/bin/streamlit", "run", "utils.py"]
+CMD ["/app/.venv/bin/streamlit", "run", "new_dashboard.py"]
