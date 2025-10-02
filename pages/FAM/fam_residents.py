@@ -88,8 +88,8 @@ def load_fam_data():
             st.write("🔍 調試資訊：")
             st.write("Session state keys:", [key for key in st.session_state.keys() if 'data' in key])
         
-        # 優先嘗試載入整合後的資料檔案
-        integrated_file = "/Users/mbpr/Library/Mobile Documents/com~apple~CloudDocs/Python/CBME_python/pages/FAM/integrated_epa_data.csv"
+        # 優先嘗試載入整合後的資料檔案（使用相對路徑）
+        integrated_file = "pages/FAM/integrated_epa_data.csv"
         df = None
         
         try:
