@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime, date
 import numpy as np
 import re
+import os
 
 # 匯入自定義模組
 from .fam_data_processor import FAMDataProcessor
@@ -87,18 +88,34 @@ def load_fam_data():
             st.write("🔍 調試資訊：")
             st.write("Session state keys:", [key for key in st.session_state.keys() if 'data' in key])
         
-        # 從session state讀取家醫部資料
+        # 優先嘗試載入整合後的資料檔案
+        integrated_file = "/Users/mbpr/Library/Mobile Documents/com~apple~CloudDocs/Python/CBME_python/pages/FAM/integrated_epa_data.csv"
         df = None
-        if 'fam_data' in st.session_state and st.session_state.fam_data is not None:
-            df = st.session_state.fam_data.copy()
+        
+        try:
+            if os.path.exists(integrated_file):
+                df = pd.read_csv(integrated_file, encoding='utf-8')
+                if st.session_state.get('debug_mode', False):
+                    st.write("✅ 從整合資料檔案載入資料")
+            else:
+                if st.session_state.get('debug_mode', False):
+                    st.write("⚠️ 整合資料檔案不存在，嘗試從session state載入")
+        except Exception as e:
             if st.session_state.get('debug_mode', False):
-                st.write("✅ 從 fam_data 載入資料")
-        elif '家醫部_data' in st.session_state and st.session_state['家醫部_data'] is not None:
-            df = st.session_state['家醫部_data'].copy()
-            if st.session_state.get('debug_mode', False):
-                st.write("✅ 從 家醫部_data 載入資料")
-        else:
-            return None, "請先上傳家醫部EPA評核資料檔案"
+                st.write(f"⚠️ 載入整合資料檔案失敗: {str(e)}")
+        
+        # 如果整合資料檔案不存在或載入失敗，從session state讀取
+        if df is None or df.empty:
+            if 'fam_data' in st.session_state and st.session_state.fam_data is not None:
+                df = st.session_state.fam_data.copy()
+                if st.session_state.get('debug_mode', False):
+                    st.write("✅ 從 fam_data 載入資料")
+            elif '家醫部_data' in st.session_state and st.session_state['家醫部_data'] is not None:
+                df = st.session_state['家醫部_data'].copy()
+                if st.session_state.get('debug_mode', False):
+                    st.write("✅ 從 家醫部_data 載入資料")
+            else:
+                return None, "請先上傳家醫部EPA評核資料檔案，或確認整合資料檔案存在"
         
         if df is None or df.empty:
             return None, "資料為空，請檢查上傳的檔案"
@@ -106,6 +123,8 @@ def load_fam_data():
         if st.session_state.get('debug_mode', False):
             st.write(f"📊 原始資料形狀: {df.shape}")
             st.write("📋 原始欄位:", list(df.columns))
+            if '資料來源' in df.columns:
+                st.write("📊 資料來源分布:", df['資料來源'].value_counts().to_dict())
         
         # 使用資料處理器清理資料
         processor = FAMDataProcessor()
@@ -117,6 +136,8 @@ def load_fam_data():
             if not cleaned_df.empty:
                 st.write("👥 學員清單:", cleaned_df['學員'].unique() if '學員' in cleaned_df.columns else "無學員欄位")
                 st.write("🎯 EPA項目:", cleaned_df['EPA項目'].unique() if 'EPA項目' in cleaned_df.columns else "無EPA項目欄位")
+                if '資料來源' in cleaned_df.columns:
+                    st.write("📊 清理後資料來源分布:", cleaned_df['資料來源'].value_counts().to_dict())
         
         return cleaned_df, None
     
@@ -159,6 +180,30 @@ def show_data_overview():
     
     with col4:
         st.metric("評核教師人數", stats['unique_teachers'])
+    
+    # 顯示資料來源資訊
+    if '資料來源' in df.columns:
+        st.subheader("📊 資料來源分布")
+        source_counts = df['資料來源'].value_counts()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**資料來源統計:**")
+            for source, count in source_counts.items():
+                percentage = (count / len(df)) * 100
+                st.write(f"• {source}: {count} 筆 ({percentage:.1f}%)")
+        
+        with col2:
+            # 資料來源圓餅圖
+            fig = px.pie(
+                values=source_counts.values,
+                names=source_counts.index,
+                title="資料來源分布",
+                color_discrete_sequence=px.colors.qualitative.Set3
+            )
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_layout(height=300)
+            st.plotly_chart(fig, use_container_width=True)
     
     # 資料時間範圍
     if stats['date_range']:
@@ -245,9 +290,26 @@ def show_individual_analysis():
     if students:
         selected_student = st.selectbox("選擇住院醫師", students, key="individual_analysis_student")
         
+        # 資料來源過濾選項
+        if '資料來源' in df.columns:
+            data_sources = ['全部'] + list(df['資料來源'].unique())
+            selected_source = st.selectbox(
+                "資料來源", 
+                data_sources, 
+                key="individual_analysis_source",
+                help="選擇要顯示的資料來源"
+            )
+        else:
+            selected_source = '全部'
+        
         if selected_student:
+            # 先過濾資料來源
+            filtered_df = df.copy()
+            if selected_source != '全部' and '資料來源' in df.columns:
+                filtered_df = filtered_df[filtered_df['資料來源'] == selected_source]
+            
             # 取得該住院醫師的資料（已經過濾過的資料）
-            student_data = processor.get_student_data(df, selected_student)
+            student_data = processor.get_student_data(filtered_df, selected_student)
             
             st.subheader(f"住院醫師：{selected_student}")
             

@@ -211,6 +211,266 @@ def detect_outliers_zscore(data, threshold=2.5):
     z_scores = np.abs(stats.zscore(data))
     return data[z_scores > threshold]
 
+def analyze_teacher_feedback_quality(df):
+    """分析老師回饋品質"""
+    try:
+        if df.empty:
+            return None
+        
+        # 尋找回饋相關欄位
+        feedback_columns = []
+        for col in df.columns:
+            if any(keyword in col for keyword in ['回饋', '評語', '建議', 'comment', 'feedback', '建議事項', '回饋意見']):
+                feedback_columns.append(col)
+        
+        if not feedback_columns:
+            st.warning("沒有找到回饋相關欄位")
+            return None
+        
+        # 檢查是否有[教師]欄位
+        teacher_column = None
+        for col in df.columns:
+            if col.strip() == '教師' or col.strip() == '[教師]':
+                teacher_column = col
+                break
+        
+        if teacher_column is None:
+            st.warning("沒有找到[教師]欄位")
+            return None
+        
+        # 分析每位老師的回饋品質
+        teacher_feedback_analysis = []
+        
+        for _, row in df.iterrows():
+            teacher_name = row.get(teacher_column, '')
+            if pd.notna(teacher_name) and str(teacher_name).strip():
+                feedback_data = {}
+                total_feedback_length = 0
+                feedback_count = 0
+                
+                for feedback_col in feedback_columns:
+                    feedback_content = row.get(feedback_col, '')
+                    if pd.notna(feedback_content) and str(feedback_content).strip():
+                        feedback_text = str(feedback_content).strip()
+                        feedback_length = len(feedback_text)
+                        
+                        feedback_data[feedback_col] = {
+                            'content': feedback_text,
+                            'length': feedback_length
+                        }
+                        
+                        total_feedback_length += feedback_length
+                        feedback_count += 1
+                
+                if feedback_count > 0:
+                    avg_feedback_length = total_feedback_length / feedback_count
+                    
+                    # 判斷回饋品質
+                    quality_score = 0
+                    quality_reasons = []
+                    
+                    # 長度評分 (0-40分)
+                    if avg_feedback_length >= 100:
+                        quality_score += 40
+                        quality_reasons.append("回饋內容詳細(≥100字)")
+                    elif avg_feedback_length >= 50:
+                        quality_score += 25
+                        quality_reasons.append("回饋內容中等(50-99字)")
+                    elif avg_feedback_length >= 20:
+                        quality_score += 15
+                        quality_reasons.append("回饋內容簡短(20-49字)")
+                    else:
+                        quality_score += 5
+                        quality_reasons.append("回饋內容過於簡陋(<20字)")
+                    
+                    # 內容豐富度評分 (0-30分)
+                    if feedback_count >= 3:
+                        quality_score += 30
+                        quality_reasons.append("多項回饋欄位完整")
+                    elif feedback_count >= 2:
+                        quality_score += 20
+                        quality_reasons.append("部分回饋欄位完整")
+                    else:
+                        quality_score += 10
+                        quality_reasons.append("回饋欄位不完整")
+                    
+                    # 內容品質評分 (0-30分)
+                    has_specific_suggestions = any(
+                        any(keyword in feedback_data[col]['content'] for keyword in ['建議', '可以', '應該', '需要', '建議事項'])
+                        for col in feedback_data.keys()
+                    )
+                    
+                    has_positive_feedback = any(
+                        any(keyword in feedback_data[col]['content'] for keyword in ['很好', '優秀', '不錯', '進步', '表現'])
+                        for col in feedback_data.keys()
+                    )
+                    
+                    has_constructive_feedback = any(
+                        any(keyword in feedback_data[col]['content'] for keyword in ['改進', '加強', '注意', '避免', '改善'])
+                        for col in feedback_data.keys()
+                    )
+                    
+                    if has_specific_suggestions and has_constructive_feedback:
+                        quality_score += 30
+                        quality_reasons.append("包含具體建議和建設性回饋")
+                    elif has_specific_suggestions or has_constructive_feedback:
+                        quality_score += 20
+                        quality_reasons.append("包含部分具體建議")
+                    else:
+                        quality_score += 10
+                        quality_reasons.append("缺乏具體建議")
+                    
+                    # 判斷品質等級
+                    if quality_score >= 80:
+                        quality_level = "優秀"
+                    elif quality_score >= 60:
+                        quality_level = "良好"
+                    elif quality_score >= 40:
+                        quality_level = "一般"
+                    else:
+                        quality_level = "簡陋"
+                    
+                    teacher_feedback_analysis.append({
+                        '老師姓名': str(teacher_name).strip(),
+                        '回饋欄位數': feedback_count,
+                        '平均回饋長度': round(avg_feedback_length, 1),
+                        '總回饋長度': total_feedback_length,
+                        '品質分數': quality_score,
+                        '品質等級': quality_level,
+                        '品質原因': '; '.join(quality_reasons),
+                        '回饋內容': feedback_data
+                    })
+        
+        if not teacher_feedback_analysis:
+            st.warning("沒有找到有效的回饋資料")
+            return None
+        
+        return pd.DataFrame(teacher_feedback_analysis)
+        
+    except Exception as e:
+        st.error(f"分析老師回饋品質時發生錯誤：{str(e)}")
+        return None
+
+def show_teacher_feedback_quality_analysis(feedback_df):
+    """顯示老師回饋品質分析"""
+    try:
+        st.subheader("📝 老師回饋品質分析")
+        
+        if feedback_df is None or feedback_df.empty:
+            st.warning("沒有老師回饋資料可供分析")
+            return
+        
+        # 顯示統計摘要
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("分析老師數", len(feedback_df))
+        with col2:
+            excellent_count = len(feedback_df[feedback_df['品質等級'] == '優秀'])
+            st.metric("優秀回饋", excellent_count)
+        with col3:
+            poor_count = len(feedback_df[feedback_df['品質等級'] == '簡陋'])
+            st.metric("簡陋回饋", poor_count)
+        with col4:
+            avg_score = feedback_df['品質分數'].mean()
+            st.metric("平均品質分數", f"{avg_score:.1f}")
+        
+        # 品質等級分佈
+        st.markdown("### 📊 回饋品質等級分佈")
+        quality_distribution = feedback_df['品質等級'].value_counts()
+        
+        fig_dist = px.pie(
+            values=quality_distribution.values,
+            names=quality_distribution.index,
+            title="老師回饋品質等級分佈",
+            color_discrete_map={
+                '優秀': '#28a745',
+                '良好': '#17a2b8', 
+                '一般': '#ffc107',
+                '簡陋': '#dc3545'
+            }
+        )
+        st.plotly_chart(fig_dist, use_container_width=True)
+        
+        # 優秀回饋老師名單
+        st.markdown("### 🌟 回饋完整的老師名單")
+        excellent_teachers = feedback_df[feedback_df['品質等級'] == '優秀'].sort_values('品質分數', ascending=False)
+        
+        if not excellent_teachers.empty:
+            st.success(f"找到 {len(excellent_teachers)} 位回饋優秀的老師")
+            
+            display_columns = ['老師姓名', '品質分數', '回饋欄位數', '平均回饋長度', '品質原因']
+            st.dataframe(
+                excellent_teachers[display_columns],
+                use_container_width=True,
+                height=300
+            )
+            
+            # 顯示詳細回饋內容
+            with st.expander("📋 優秀回饋詳細內容", expanded=False):
+                for _, teacher in excellent_teachers.iterrows():
+                    st.write(f"**{teacher['老師姓名']}** (品質分數: {teacher['品質分數']})")
+                    for col, data in teacher['回饋內容'].items():
+                        st.write(f"  - **{col}**: {data['content']}")
+                    st.write("---")
+        else:
+            st.info("沒有找到回饋優秀的老師")
+        
+        # 簡陋回饋老師名單
+        st.markdown("### ⚠️ 回饋過於簡陋的老師名單")
+        poor_teachers = feedback_df[feedback_df['品質等級'] == '簡陋'].sort_values('品質分數', ascending=True)
+        
+        if not poor_teachers.empty:
+            st.warning(f"發現 {len(poor_teachers)} 位回饋簡陋的老師，建議加強回饋品質")
+            
+            display_columns = ['老師姓名', '品質分數', '回饋欄位數', '平均回饋長度', '品質原因']
+            st.dataframe(
+                poor_teachers[display_columns],
+                use_container_width=True,
+                height=300
+            )
+            
+            # 顯示詳細回饋內容
+            with st.expander("📋 簡陋回饋詳細內容", expanded=False):
+                for _, teacher in poor_teachers.iterrows():
+                    st.write(f"**{teacher['老師姓名']}** (品質分數: {teacher['品質分數']})")
+                    for col, data in teacher['回饋內容'].items():
+                        st.write(f"  - **{col}**: {data['content']}")
+                    st.write("---")
+        else:
+            st.success("所有老師的回饋品質都達到基本標準")
+        
+        # 回饋品質排行榜
+        st.markdown("### 🏆 回饋品質排行榜")
+        
+        # 按品質分數排序
+        ranking_df = feedback_df.sort_values('品質分數', ascending=False).copy()
+        ranking_df['排名'] = range(1, len(ranking_df) + 1)
+        
+        display_columns = ['排名', '老師姓名', '品質等級', '品質分數', '回饋欄位數', '平均回饋長度']
+        st.dataframe(
+            ranking_df[display_columns],
+            use_container_width=True,
+            height=400
+        )
+        
+        # 品質分數分佈圖
+        fig_score = px.histogram(
+            feedback_df,
+            x='品質分數',
+            nbins=20,
+            title="老師回饋品質分數分佈",
+            color_discrete_sequence=['#1f77b4']
+        )
+        fig_score.update_layout(height=400)
+        st.plotly_chart(fig_score, use_container_width=True)
+        
+        # 顯示完整資料
+        with st.expander("📋 完整回饋品質分析資料", expanded=False):
+            st.dataframe(feedback_df, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"顯示回饋品質分析時發生錯誤：{str(e)}")
+
 def show_teacher_score_outlier_analysis(teacher_df):
     """顯示老師評核分數outlier分析"""
     try:
@@ -418,11 +678,18 @@ def show_ugy_teacher_analysis():
     with st.expander("📋 老師評核原始資料", expanded=False):
         st.dataframe(teacher_df, use_container_width=True)
     
+    # 提取回饋品質資料
+    with st.spinner("正在分析老師回饋品質..."):
+        feedback_df = analyze_teacher_feedback_quality(df)
+    
     # 創建分析分頁
-    analysis_tab1, analysis_tab2 = st.tabs(["📊 老師評核次數排行榜", "🔍 老師評核分數Outlier分析"])
+    analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs(["📊 老師評核次數排行榜", "🔍 老師評核分數Outlier分析", "📝 老師回饋品質分析"])
     
     with analysis_tab1:
         show_teacher_evaluation_ranking(teacher_df)
     
     with analysis_tab2:
         show_teacher_score_outlier_analysis(teacher_df)
+    
+    with analysis_tab3:
+        show_teacher_feedback_quality_analysis(feedback_df)
