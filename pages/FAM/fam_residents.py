@@ -552,8 +552,12 @@ def show_individual_analysis():
                         # 顯示該EPA項目的教師回饋
                         st.write(f"**{epa_item} 教師回饋**")
                         
-                        # 獲取該EPA項目的教師回饋
-                        feedback_data = epa_data[epa_data['教師給學員回饋'].notna() & (epa_data['教師給學員回饋'] != '')]
+                        # 獲取該EPA項目的教師回饋（使用完整的過濾資料，包含EMYWAY資料）
+                        feedback_data = filtered_df[
+                            (filtered_df['學員'] == selected_student) & 
+                            (filtered_df['EPA項目'] == epa_item)
+                        ]
+                        feedback_data = feedback_data[feedback_data['教師給學員回饋'].notna() & (feedback_data['教師給學員回饋'] != '')]
                         
                         if not feedback_data.empty:
                             # 準備表格數據
@@ -570,9 +574,13 @@ def show_individual_analysis():
                                 # 處理回饋內容，保留換行符並移除字符限制
                                 feedback_content = str(row['教師給學員回饋']).strip()
                                 
+                                # 獲取資料來源
+                                data_source = row.get('資料來源', '未知來源')
+                                
                                 table_data.append({
                                     '日期': date_str,
-                                    '回饋內容': feedback_content
+                                    '回饋內容': feedback_content,
+                                    '資料來源': data_source
                                 })
                             
                             # 創建DataFrame並顯示表格
@@ -627,9 +635,10 @@ def show_individual_analysis():
                             for i, row in feedback_df.iterrows():
                                 date_str = row['日期']
                                 feedback_text = str(row['回饋內容']).strip()
+                                data_source = row.get('資料來源', '未知來源')
                                 
                                 html_content += '<div class="feedback-item">'
-                                html_content += f'<div class="feedback-date">📅 {date_str}</div>'
+                                html_content += f'<div class="feedback-date">📅 {date_str} | 📊 {data_source}</div>'
                                 
                                 if feedback_text and feedback_text != 'nan':
                                     # 處理回饋內容，保持原始格式
@@ -657,7 +666,22 @@ def show_individual_analysis():
                             total_feedback = len(feedback_data)
                             st.write(f"**回饋統計：**")
                             st.write(f"• 總回饋次數: {total_feedback}")
-                            st.write(f"• 回饋率: {(total_feedback/len(epa_data)*100):.1f}%")
+                            
+                            # 計算各資料來源的回饋統計
+                            if '資料來源' in feedback_data.columns:
+                                source_feedback_counts = feedback_data['資料來源'].value_counts()
+                                st.write("• 各來源回饋次數:")
+                                for source, count in source_feedback_counts.items():
+                                    st.write(f"  - {source}: {count} 次")
+                            
+                            # 計算回饋率（使用完整的過濾資料作為分母）
+                            total_records = len(filtered_df[
+                                (filtered_df['學員'] == selected_student) & 
+                                (filtered_df['EPA項目'] == epa_item)
+                            ])
+                            if total_records > 0:
+                                feedback_rate = (total_feedback/total_records)*100
+                                st.write(f"• 回饋率: {feedback_rate:.1f}%")
                         else:
                             st.info("暫無教師回饋")
                     
