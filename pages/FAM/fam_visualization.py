@@ -1546,41 +1546,45 @@ class FAMVisualization:
             # 創建DataFrame
             student_epa_df = pd.DataFrame(student_epa_data)
             
-            # 創建小提琴圖
-            fig = px.violin(
-                student_epa_df,
-                x='住院醫師',
-                y='EPA分數',
-                title="各住院醫師EPA分數分布小提琴圖",
-                box=True,  # 顯示箱線圖
-                points="all",  # 顯示所有數據點
-                violinmode='group'
-            )
+            # 創建小提琴圖（使用與個別住院醫師分析相同的go.Violin方法）
+            fig = go.Figure()
+            
+            # 為每個住院醫師添加小提琴圖
+            students = sorted(student_epa_df['住院醫師'].unique())
+            
+            for student in students:
+                student_data = student_epa_df[student_epa_df['住院醫師'] == student]
+                
+                if not student_data.empty:
+                    fig.add_trace(
+                        go.Violin(
+                            y=student_data['EPA分數'],
+                            name=student,
+                            box_visible=True,  # 顯示箱線圖
+                            meanline_visible=True,  # 顯示平均線
+                            points='all',  # 顯示所有數據點
+                            pointpos=0,  # 數據點位置
+                            jitter=0.3,  # 數據點散佈
+                            marker=dict(
+                                color='rgba(55,128,191,0.8)',
+                                line=dict(color='rgba(55,128,191,1)', width=1),
+                                size=4
+                            ),
+                            line=dict(color='rgba(55,128,191,1)', width=2),
+                            fillcolor='rgba(55,128,191,0.3)',
+                            opacity=0.8
+                        )
+                    )
             
             # 更新布局
             fig.update_layout(
+                title="各住院醫師EPA分數分布小提琴圖",
                 height=500,
                 xaxis_title="住院醫師",
                 yaxis_title="EPA分數",
                 yaxis=dict(range=[0, 5.2]),
                 showlegend=False,
                 violingroupgap=0.1
-            )
-            
-            # 自定義小提琴圖顏色（與個別住院醫師分析格式一致）
-            fig.update_traces(
-                marker_color='rgba(55,128,191,0.8)',
-                marker_line_color='rgba(55,128,191,1)',
-                marker_line_width=1,
-                marker_size=4,
-                line_color='rgba(55,128,191,1)',
-                line_width=2,
-                fillcolor='rgba(55,128,191,0.3)',
-                opacity=0.8,
-                box_visible=True,
-                meanline_visible=True,
-                pointpos=0,  # 數據點位置設為0（小提琴中央）
-                jitter=0.3   # 數據點散佈程度
             )
             
             # 旋轉X軸標籤以避免重疊
