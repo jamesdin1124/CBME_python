@@ -442,74 +442,111 @@ def show_individual_analysis():
             st.subheader("📊 EPA項目趨勢分析")
             st.info("💡 左邊顯示EPA項目信賴程度變化趨勢，右邊顯示相關教師回饋")
             
+            # 資料來源過濾選項（用於趨勢分析）
+            if '資料來源' in filtered_df.columns:
+                trend_data_sources = ['全部'] + list(filtered_df['資料來源'].unique())
+                selected_trend_source = st.selectbox(
+                    "趨勢分析資料來源", 
+                    trend_data_sources, 
+                    key="trend_analysis_source",
+                    help="選擇要顯示在趨勢分析中的資料來源"
+                )
+                
+                # 根據選擇過濾趨勢分析資料
+                if selected_trend_source != '全部':
+                    trend_df = filtered_df[filtered_df['資料來源'] == selected_trend_source]
+                else:
+                    trend_df = filtered_df
+            else:
+                trend_df = filtered_df
+                selected_trend_source = '全部'
+            
             # 獲取所有EPA項目
-            epa_items = processor.get_epa_items(df)
+            epa_items = processor.get_epa_items(trend_df)
             
             if epa_items:
                 # 為每個EPA項目創建左右布局
                 for epa_item in epa_items:
-                    epa_data = student_data[student_data['EPA項目'] == epa_item]
+                    # 使用過濾後的趨勢分析資料
+                    epa_data = trend_df[trend_df['學員'] == selected_student]
+                    epa_data = epa_data[epa_data['EPA項目'] == epa_item]
                     
                     if not epa_data.empty:
                         # 創建左右兩欄布局（1:1比例）
                         col_left, col_right = st.columns([1, 1])
                         
                         with col_left:
-                            # 計算該EPA項目的月度趨勢
-                            monthly_trend_data = processor.calculate_monthly_epa_trend(epa_data, epa_item)
-                            
-                            if monthly_trend_data is not None and not monthly_trend_data.empty:
-                                # 創建boxplot趨勢圖
-                                try:
-                                    # 優先使用簡化版趨勢圖（箱線圖）
-                                    simple_fig = visualizer.create_simple_monthly_trend_chart(
-                                        monthly_trend_data,
-                                        epa_item,
-                                        selected_student,
-                                        epa_data  # 傳入原始數據用於更好的boxplot
-                                    )
+                            # 創建增強版趨勢圖（支援多資料來源）
+                            try:
+                                # 優先使用增強版趨勢圖
+                                enhanced_fig = visualizer.create_enhanced_monthly_trend_chart(
+                                    epa_data,
+                                    epa_item,
+                                    selected_student
+                                )
+                                
+                                if enhanced_fig is not None:
+                                    st.plotly_chart(enhanced_fig, use_container_width=True, key=f"epa_enhanced_trend_{epa_item}")
+                                else:
+                                    # 備用：計算月度趨勢並使用簡化版趨勢圖
+                                    monthly_trend_data = processor.calculate_monthly_epa_trend(epa_data, epa_item)
                                     
-                                    if simple_fig is not None:
-                                        st.plotly_chart(simple_fig, use_container_width=True, key=f"epa_trend_{epa_item}")
-                                    else:
-                                        # 備用：嘗試完整版趨勢圖
-                                        trend_fig = visualizer.create_epa_monthly_trend_chart(
-                                            monthly_trend_data, 
-                                            epa_item, 
-                                            selected_student
+                                    if monthly_trend_data is not None and not monthly_trend_data.empty:
+                                        simple_fig = visualizer.create_simple_monthly_trend_chart(
+                                            monthly_trend_data,
+                                            epa_item,
+                                            selected_student,
+                                            epa_data
                                         )
                                         
-                                        if trend_fig is not None:
-                                            st.plotly_chart(trend_fig, use_container_width=True, key=f"epa_trend_full_{epa_item}")
+                                        if simple_fig is not None:
+                                            st.plotly_chart(simple_fig, use_container_width=True, key=f"epa_trend_{epa_item}")
+                                        else:
+                                            # 最後備用：完整版趨勢圖
+                                            trend_fig = visualizer.create_epa_monthly_trend_chart(
+                                                monthly_trend_data, 
+                                                epa_item, 
+                                                selected_student
+                                            )
+                                            
+                                            if trend_fig is not None:
+                                                st.plotly_chart(trend_fig, use_container_width=True, key=f"epa_trend_full_{epa_item}")
                             
-                                except Exception as e:
-                                    st.error(f"❌ {epa_item} 趨勢圖創建時發生異常: {str(e)}")
+                            except Exception as e:
+                                st.error(f"❌ {epa_item} 趨勢圖創建時發生異常: {str(e)}")
                                 
-                                # 顯示趨勢統計
-                                st.write(f"**{epa_item} 統計：**")
+                            # 顯示趨勢統計
+                            st.write(f"**{epa_item} 統計：**")
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("總評核次數", len(epa_data))
                                 
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    st.metric("總評核次數", len(epa_data))
-                                    st.metric("評核月數", len(monthly_trend_data))
-                                with col2:
-                                    # 計算整體平均信賴程度
-                                    if '信賴程度(教師評量)_數值' in epa_data.columns:
-                                        avg_score = epa_data['信賴程度(教師評量)_數值'].mean()
-                                        st.metric("平均信賴程度", f"{avg_score:.2f}")
-                                    else:
-                                        st.metric("平均信賴程度", "N/A")
+                                # 顯示資料來源統計
+                                if '資料來源' in epa_data.columns:
+                                    source_counts = epa_data['資料來源'].value_counts()
+                                    st.write("**資料來源分布：**")
+                                    for source, count in source_counts.items():
+                                        st.write(f"• {source}: {count} 次")
+                                else:
+                                    st.metric("評核月數", "N/A")
+                            
+                            with col2:
+                                # 計算整體平均信賴程度
+                                if '信賴程度(教師評量)_數值' in epa_data.columns:
+                                    avg_score = epa_data['信賴程度(教師評量)_數值'].mean()
+                                    st.metric("平均信賴程度", f"{avg_score:.2f}")
                                     
-                                    # 計算趨勢變化
-                                    if len(monthly_trend_data) >= 2:
-                                        first_score = monthly_trend_data.iloc[0]['平均信賴程度']
-                                        last_score = monthly_trend_data.iloc[-1]['平均信賴程度']
-                                        trend_change = last_score - first_score
-                                        st.metric("趨勢變化", f"{trend_change:+.2f}")
-                                    else:
-                                        st.metric("趨勢變化", "N/A")
-                            else:
-                                st.info(f"ℹ️ {epa_item} 尚未有足夠的月度評核記錄來呈現趨勢。")
+                                    # 顯示各資料來源的平均信賴程度
+                                    if '資料來源' in epa_data.columns:
+                                        st.write("**各來源平均信賴程度：**")
+                                        source_avg = epa_data.groupby('資料來源')['信賴程度(教師評量)_數值'].mean()
+                                        for source, avg in source_avg.items():
+                                            st.write(f"• {source}: {avg:.2f}")
+                                else:
+                                    st.metric("平均信賴程度", "N/A")
+                        else:
+                            st.info(f"ℹ️ {epa_item} 尚未有足夠的月度評核記錄來呈現趨勢。")
                         
                         with col_right:
                             # 顯示該EPA項目的教師回饋

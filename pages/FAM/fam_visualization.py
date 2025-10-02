@@ -821,6 +821,134 @@ class FAMVisualization:
             print(f"詳細錯誤信息: {traceback.format_exc()}")
             return None
     
+    def create_enhanced_monthly_trend_chart(self, epa_data, epa_item, student_name):
+        """創建增強版EPA項目信賴程度趨勢圖，支援多資料來源"""
+        try:
+            if epa_data is None or epa_data.empty:
+                return None
+            
+            import plotly.express as px
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+            import pandas as pd
+            import numpy as np
+            
+            # 準備數據
+            plot_records = []
+            
+            for _, row in epa_data.iterrows():
+                date = row['日期']
+                if pd.notna(date):
+                    try:
+                        date_obj = pd.to_datetime(date)
+                        month_str = f"{date_obj.year}年{date_obj.month:02d}月"
+                        
+                        # 獲取信賴程度數值
+                        if '信賴程度(教師評量)_數值' in row:
+                            score = row['信賴程度(教師評量)_數值']
+                        else:
+                            reliability = row['信賴程度(教師評量)']
+                            if pd.notna(reliability) and str(reliability).strip():
+                                score = self._convert_reliability_to_numeric(str(reliability).strip())
+                            else:
+                                score = None
+                        
+                        if pd.notna(score):
+                            # 獲取資料來源
+                            data_source = row.get('資料來源', '未知來源')
+                            
+                            plot_records.append({
+                                '月份': month_str,
+                                '信賴程度': float(score),
+                                '資料來源': data_source,
+                                '日期': date_obj,
+                                '原始日期': date
+                            })
+                    except:
+                        continue
+            
+            if not plot_records:
+                return None
+            
+            # 轉換為DataFrame
+            df_plot = pd.DataFrame(plot_records)
+            df_plot = df_plot.sort_values('日期')
+            
+            # 創建圖表
+            fig = go.Figure()
+            
+            # 獲取所有資料來源
+            data_sources = df_plot['資料來源'].unique()
+            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+            
+            for i, source in enumerate(data_sources):
+                source_data = df_plot[df_plot['資料來源'] == source]
+                color = colors[i % len(colors)]
+                
+                # 添加散點
+                fig.add_trace(go.Scatter(
+                    x=source_data['月份'],
+                    y=source_data['信賴程度'],
+                    mode='markers',
+                    name=f'{source}',
+                    marker=dict(
+                        color=color,
+                        size=8,
+                        symbol='circle'
+                    ),
+                    hovertemplate=f'<b>{source}</b><br>' +
+                                 '月份: %{x}<br>' +
+                                 '信賴程度: %{y}<br>' +
+                                 '<extra></extra>'
+                ))
+                
+                # 如果有足夠的數據點，添加趨勢線
+                if len(source_data) >= 2:
+                    # 計算月度平均值
+                    monthly_avg = source_data.groupby('月份')['信賴程度'].mean().reset_index()
+                    monthly_avg = monthly_avg.sort_values('月份')
+                    
+                    fig.add_trace(go.Scatter(
+                        x=monthly_avg['月份'],
+                        y=monthly_avg['信賴程度'],
+                        mode='lines+markers',
+                        name=f'{source} 趨勢',
+                        line=dict(color=color, width=2, dash='solid'),
+                        marker=dict(size=6),
+                        opacity=0.7,
+                        hovertemplate=f'<b>{source} 趨勢</b><br>' +
+                                     '月份: %{x}<br>' +
+                                     '平均信賴程度: %{y:.2f}<br>' +
+                                     '<extra></extra>'
+                    ))
+            
+            # 更新布局
+            fig.update_layout(
+                title=f'{student_name} - {epa_item} 信賴程度趨勢分析',
+                xaxis_title='月份',
+                yaxis_title='信賴程度',
+                yaxis=dict(range=[0, 5.5], tickmode='linear', tick0=0, dtick=1),
+                height=400,
+                showlegend=True,
+                hovermode='closest'
+            )
+            
+            # 添加水平參考線
+            for level in [1, 2, 3, 4, 5]:
+                fig.add_hline(
+                    y=level,
+                    line_dash="dash",
+                    line_color="gray",
+                    opacity=0.3,
+                    annotation_text=f"等級 {level}" if level in [1, 5] else None
+                )
+            
+            return fig
+            
+        except Exception as e:
+            print(f"創建增強版趨勢圖時發生錯誤: {e}")
+            return None
+    
     def create_simple_monthly_trend_chart(self, monthly_trend_data, epa_item, student_name, epa_data=None):
         """創建EPA項目信賴程度箱線圖（Boxplot）"""
         try:
