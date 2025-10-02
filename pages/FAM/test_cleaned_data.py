@@ -41,13 +41,19 @@ def test_cleaned_data():
         df['病歷號碼_標準化'] = df['病歷號碼'].astype(str).str.replace('.0', '')
         
         # 創建合併鍵
-        key_columns = ['日期', 'EPA項目', '病歷號碼_標準化', '個案姓名', '診斷']
+        key_columns = ['日期', 'EPA項目', '病歷號碼_標準化', '個案姓名', '診斷', '觀察場域']
         df['merge_key'] = df[key_columns].astype(str).agg('|'.join, axis=1)
         
         # 找出重複
         key_duplicates = df.duplicated(subset=['merge_key'], keep=False)
         key_dup_count = key_duplicates.sum()
         print(f"關鍵欄位重複記錄: {key_dup_count} 筆")
+        
+        # 調試：顯示所有記錄的合併鍵
+        if key_dup_count > 0:
+            print(f"調試：所有記錄的合併鍵:")
+            for i, (_, row) in enumerate(df.iterrows()):
+                print(f"  {i+1}. {row['merge_key']} | 來源: {row.get('資料來源', 'N/A')}")
         
         if key_dup_count == 0:
             print("✅ 沒有基於關鍵欄位的重複記錄")

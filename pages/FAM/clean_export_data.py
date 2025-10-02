@@ -45,14 +45,14 @@ class ExportDataCleaner:
         
         # 2. 基於關鍵欄位的重複（除了資料來源）
         print("\n2. 基於關鍵欄位的重複記錄:")
-        key_columns = ['日期', 'EPA項目', '病歷號碼', '個案姓名', '診斷']
+        key_columns = ['日期', 'EPA項目', '病歷號碼', '個案姓名', '診斷', '觀察場域']
         
         # 標準化病歷號碼（移除.0後綴）
         df_temp = self.df.copy()
         df_temp['病歷號碼_標準化'] = df_temp['病歷號碼'].astype(str).str.replace('.0', '')
         
         # 創建合併鍵
-        df_temp['merge_key'] = df_temp[['日期', 'EPA項目', '病歷號碼_標準化', '個案姓名', '診斷']].astype(str).agg('|'.join, axis=1)
+        df_temp['merge_key'] = df_temp[['日期', 'EPA項目', '病歷號碼_標準化', '個案姓名', '診斷', '觀察場域']].astype(str).agg('|'.join, axis=1)
         
         # 找出重複
         key_duplicates = df_temp.duplicated(subset=['merge_key'], keep=False)
@@ -100,7 +100,7 @@ class ExportDataCleaner:
         self.df['病歷號碼_標準化'] = self.df['病歷號碼'].astype(str).str.replace('.0', '')
         
         # 創建合併鍵
-        self.df['merge_key'] = self.df[['日期', 'EPA項目', '病歷號碼_標準化', '個案姓名', '診斷']].astype(str).agg('|'.join, axis=1)
+        self.df['merge_key'] = self.df[['日期', 'EPA項目', '病歷號碼_標準化', '個案姓名', '診斷', '觀察場域']].astype(str).agg('|'.join, axis=1)
         
         # 找出重複記錄
         key_duplicates = self.df.duplicated(subset=['merge_key'], keep=False)

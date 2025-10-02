@@ -226,7 +226,7 @@ class EmwayDataIntegration:
                 return emway_df
             
             # 定義用於比較的關鍵欄位
-            key_columns = ['學員', 'EPA項目', '日期', '病歷號碼', '個案姓名']
+            key_columns = ['學員', 'EPA項目', '日期', '病歷號碼', '個案姓名', '觀察場域']
             
             # 確保所有關鍵欄位都存在
             available_key_columns = [col for col in key_columns if col in current_df.columns and col in emway_df.columns]
