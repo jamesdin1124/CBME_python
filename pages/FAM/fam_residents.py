@@ -235,8 +235,8 @@ def show_data_overview():
     
     # 創建每個住院醫師EPA分數的boxplot和折線圖（上下獨立呈現）
     
-    # 小提琴圖顯示分數分布
-    st.write("**📊 EPA分數分布小提琴圖**")
+    # 月度趨勢圖顯示分數分布
+    st.write("**📊 EPA分數月度趨勢圖**")
     fig = visualizer.create_student_epa_scores_boxplot(df)
     if fig:
         st.plotly_chart(fig, use_container_width=True, key="student_epa_scores_boxplot")
