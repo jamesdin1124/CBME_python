@@ -1510,21 +1510,100 @@ class FAMVisualization:
         return reliability_mapping.get(reliability_text, None)
     
     def create_student_epa_scores_boxplot(self, df):
-        """創建每個住院醫師每月平均EPA分數的點線圖"""
+        """創建每個住院醫師整體EPA分數的小提琴圖"""
         try:
+            import plotly.express as px
+            import pandas as pd
+            import numpy as np
+            
+            # 準備每個住院醫師的EPA分數數據
+            student_epa_data = []
+            
+            # 獲取所有住院醫師
+            students = df['學員'].unique()
+            
+            for student in students:
+                if pd.notna(student) and str(student).strip() != '' and str(student).strip() != 'nan' and str(student).strip() != '學員':
+                    student_df = df[df['學員'] == student]
+                    
+                    # 計算該住院醫師的所有EPA分數
+                    if '信賴程度(教師評量)' in student_df.columns:
+                        for _, row in student_df.iterrows():
+                            reliability_text = row['信賴程度(教師評量)']
+                            if pd.notna(reliability_text) and str(reliability_text).strip():
+                                # 轉換為數值
+                                numeric_value = self._convert_reliability_to_numeric(str(reliability_text).strip())
+                                if numeric_value is not None:
+                                    student_epa_data.append({
+                                        '住院醫師': str(student).strip(),
+                                        'EPA分數': numeric_value,
+                                        'EPA項目': row.get('EPA項目', 'N/A')
+                                    })
+            
+            if not student_epa_data:
+                return None
+            
+            # 創建DataFrame
+            student_epa_df = pd.DataFrame(student_epa_data)
+            
+            # 創建小提琴圖
+            fig = px.violin(
+                student_epa_df,
+                x='住院醫師',
+                y='EPA分數',
+                title="各住院醫師EPA分數分布小提琴圖",
+                box=True,  # 顯示箱線圖
+                points="all",  # 顯示所有數據點
+                violinmode='group'
+            )
+            
+            # 更新布局
+            fig.update_layout(
+                height=500,
+                xaxis_title="住院醫師",
+                yaxis_title="EPA分數",
+                yaxis=dict(range=[0, 5.2]),
+                showlegend=False,
+                violingroupgap=0.1
+            )
+            
+            # 自定義小提琴圖顏色（與個別住院醫師分析格式一致）
+            fig.update_traces(
+                marker_color='rgba(55,128,191,0.8)',
+                marker_line_color='rgba(55,128,191,1)',
+                marker_line_width=1,
+                marker_size=4,
+                line_color='rgba(55,128,191,1)',
+                line_width=2,
+                fillcolor='rgba(55,128,191,0.3)',
+                opacity=0.8,
+                box_visible=True,
+                meanline_visible=True,
+                pointpos=0,  # 數據點位置設為0（小提琴中央）
+                jitter=0.3   # 數據點散佈程度
+            )
+            
+            # 旋轉X軸標籤以避免重疊
+            fig.update_xaxes(tickangle=45)
+            
+            return fig
+            
+        except Exception as e:
+            print(f"創建住院醫師EPA分數boxplot時發生錯誤: {e}")
+            import traceback
+            print(f"詳細錯誤: {traceback.format_exc()}")
+            return None
+    
+    def create_student_epa_scores_line_chart(self, df):
+        """創建每個住院醫師EPA分數隨時間變化的折線圖（每月平均）"""
+        try:
+            import plotly.express as px
             import plotly.graph_objects as go
             import pandas as pd
             import numpy as np
             
-            # 檢查必要的欄位
-            required_columns = ['學員', '信賴程度(教師評量)', '日期']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                print(f"缺少必要欄位: {missing_columns}")
-                return None
-            
-            # 準備數據 - 計算每個住院醫師每個月的平均EPA分數
-            monthly_avg_data = []
+            # 準備每個住院醫師的EPA分數月度數據
+            monthly_data = []
             
             # 獲取所有住院醫師
             students = df['學員'].unique()
@@ -1533,61 +1612,58 @@ class FAMVisualization:
                 if pd.notna(student) and str(student).strip() != '' and str(student).strip() != 'nan' and str(student).strip() != '學員':
                     student_df = df[df['學員'] == student].copy()
                     
-                    if student_df.empty:
-                        continue
-                    
                     # 確保日期欄位是datetime格式
-                    student_df['日期'] = pd.to_datetime(student_df['日期'], errors='coerce')
-                    student_df = student_df.dropna(subset=['日期'])
-                    
-                    if student_df.empty:
-                        continue
-                    
-                    # 添加年月欄位
-                    student_df['年月'] = student_df['日期'].dt.to_period('M')
-                    
-                    # 計算每個月的平均EPA分數
-                    monthly_stats = []
-                    for period in student_df['年月'].unique():
-                        period_df = student_df[student_df['年月'] == period]
+                    if '日期' in student_df.columns:
+                        student_df['日期'] = pd.to_datetime(student_df['日期'], errors='coerce')
+                        student_df = student_df.dropna(subset=['日期'])
                         
-                        # 轉換信賴程度為數值並計算平均
-                        epa_scores = []
-                        for _, row in period_df.iterrows():
-                            reliability_text = row['信賴程度(教師評量)']
-                            if pd.notna(reliability_text) and str(reliability_text).strip():
-                                numeric_value = self._convert_reliability_to_numeric(str(reliability_text).strip())
-                                if numeric_value is not None:
-                                    epa_scores.append(numeric_value)
-                        
-                        if epa_scores:
-                            monthly_stats.append({
-                                '年月': str(period),
-                                '平均EPA分數': np.mean(epa_scores),
-                                '記錄數': len(epa_scores),
-                                '標準差': np.std(epa_scores) if len(epa_scores) > 1 else 0
-                            })
-                    
-                    # 添加數據到列表
-                    for stats in monthly_stats:
-                        monthly_avg_data.append({
-                            '住院醫師': str(student).strip(),
-                            '年月': stats['年月'],
-                            '平均EPA分數': round(stats['平均EPA分數'], 2),
-                            '記錄數': stats['記錄數'],
-                            '標準差': round(stats['標準差'], 2)
-                        })
+                        if not student_df.empty:
+                            # 添加年月欄位
+                            student_df['年月'] = student_df['日期'].dt.to_period('M')
+                            
+                            # 計算每個月的平均EPA分數
+                            monthly_stats = []
+                            for period in student_df['年月'].unique():
+                                period_df = student_df[student_df['年月'] == period]
+                                
+                                # 轉換信賴程度為數值並計算平均
+                                epa_scores = []
+                                for _, row in period_df.iterrows():
+                                    reliability_text = row['信賴程度(教師評量)']
+                                    if pd.notna(reliability_text) and str(reliability_text).strip():
+                                        # 轉換為數值
+                                        numeric_value = self._convert_reliability_to_numeric(str(reliability_text).strip())
+                                        if numeric_value is not None:
+                                            epa_scores.append(numeric_value)
+                                
+                                if epa_scores:
+                                    monthly_stats.append({
+                                        '年月': str(period),
+                                        '平均EPA分數': np.mean(epa_scores),
+                                        '記錄數': len(epa_scores),
+                                        '標準差': np.std(epa_scores) if len(epa_scores) > 1 else 0
+                                    })
+                            
+                            # 添加數據到列表
+                            for stats in monthly_stats:
+                                monthly_data.append({
+                                    '住院醫師': str(student).strip(),
+                                    '年月': stats['年月'],
+                                    '平均EPA分數': round(stats['平均EPA分數'], 2),
+                                    '記錄數': stats['記錄數'],
+                                    '標準差': round(stats['標準差'], 2)
+                                })
             
-            if not monthly_avg_data:
+            if not monthly_data:
                 print("沒有有效的月度EPA分數數據")
                 return None
             
             # 創建DataFrame
-            monthly_df = pd.DataFrame(monthly_avg_data)
+            line_df = pd.DataFrame(monthly_data)
             
             # 獲取所有住院醫師和年月
-            students = sorted(monthly_df['住院醫師'].unique())
-            months = sorted(monthly_df['年月'].unique())
+            students = sorted(line_df['住院醫師'].unique())
+            months = sorted(line_df['年月'].unique())
             
             # 創建圖表
             fig = go.Figure()
@@ -1596,7 +1672,7 @@ class FAMVisualization:
             colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
             
             for i, student in enumerate(students):
-                student_data = monthly_df[monthly_df['住院醫師'] == student].sort_values('年月')
+                student_data = line_df[line_df['住院醫師'] == student].sort_values('年月')
                 
                 if not student_data.empty:
                     color = colors[i % len(colors)]
@@ -1647,148 +1723,6 @@ class FAMVisualization:
                     line_color="gray",
                     opacity=0.3
                 )
-            
-            # 旋轉X軸標籤以避免重疊
-            fig.update_xaxes(tickangle=45)
-            
-            return fig
-            
-        except Exception as e:
-            print(f"創建住院醫師EPA分數月度趨勢圖時發生錯誤: {e}")
-            import traceback
-            print(f"詳細錯誤: {traceback.format_exc()}")
-            return None
-    
-    def create_student_epa_scores_line_chart(self, df):
-        """創建每個住院醫師EPA分數隨時間變化的折線圖"""
-        try:
-            import plotly.express as px
-            import plotly.graph_objects as go
-            import pandas as pd
-            import numpy as np
-            
-            # 準備每個住院醫師的EPA分數時間序列數據
-            line_data = []
-            
-            # 獲取所有住院醫師
-            students = df['學員'].unique()
-            
-            for student in students:
-                if pd.notna(student) and str(student).strip() != '' and str(student).strip() != 'nan' and str(student).strip() != '學員':
-                    student_df = df[df['學員'] == student]
-                    
-                    # 按日期排序
-                    if '日期' in student_df.columns:
-                        student_df = student_df.sort_values('日期')
-                        
-                        # 計算每個日期的平均EPA分數
-                        date_scores = {}
-                        for _, row in student_df.iterrows():
-                            date = row['日期']
-                            if pd.notna(date):
-                                # 轉換為日期字符串
-                                if hasattr(date, 'strftime'):
-                                    date_str = date.strftime('%Y-%m-%d')
-                                else:
-                                    date_str = str(date)
-                                
-                                # 獲取EPA分數
-                                if '信賴程度(教師評量)_數值' in row and pd.notna(row['信賴程度(教師評量)_數值']):
-                                    score = row['信賴程度(教師評量)_數值']
-                                else:
-                                    reliability_text = row.get('信賴程度(教師評量)', '')
-                                    if pd.notna(reliability_text) and str(reliability_text).strip():
-                                        score = self._convert_reliability_to_numeric(str(reliability_text).strip())
-                                    else:
-                                        score = None
-                                
-                                if score is not None:
-                                    if date_str not in date_scores:
-                                        date_scores[date_str] = []
-                                    date_scores[date_str].append(score)
-                        
-                        # 計算每個日期的平均分數
-                        for date_str, scores in date_scores.items():
-                            if scores:
-                                avg_score = sum(scores) / len(scores)
-                                line_data.append({
-                                    '日期': date_str,
-                                    'EPA分數': avg_score,
-                                    '住院醫師': str(student).strip()
-                                })
-            
-            if not line_data:
-                return None
-            
-            # 創建DataFrame
-            line_df = pd.DataFrame(line_data)
-            
-            # 轉換日期為datetime類型
-            line_df['日期'] = pd.to_datetime(line_df['日期'])
-            line_df = line_df.sort_values('日期')
-            
-            # 創建折線圖
-            fig = go.Figure()
-            
-            # 為每個住院醫師添加一條線
-            students = line_df['住院醫師'].unique()
-            # 使用更鮮明、對比度更高的顏色
-            colors = [
-                '#FF0000',  # 紅色 - 鮮明
-                '#0000FF',  # 藍色 - 鮮明
-                '#00AA00',  # 綠色 - 鮮明
-                '#AA00AA',  # 紫色 - 鮮明
-                '#FF8800',  # 橙色 - 鮮明
-                '#0066CC',  # 深藍色 - 鮮明
-                '#CC6600',  # 深橙色 - 鮮明
-                '#990099',  # 深紫色 - 鮮明
-                '#009900',  # 深綠色 - 鮮明
-                '#CC0000'   # 深紅色 - 鮮明
-            ]
-            
-            for i, student in enumerate(students):
-                student_data = line_df[line_df['住院醫師'] == student]
-                color = colors[i % len(colors)]
-                
-                fig.add_trace(go.Scatter(
-                    x=student_data['日期'],
-                    y=student_data['EPA分數'],
-                    mode='lines+markers',
-                    name=student,
-                    line=dict(color=color, width=3),  # 增加線條寬度
-                    marker=dict(
-                        size=8,  # 增加標記大小
-                        color=color,
-                        line=dict(width=2, color='white')  # 添加白色邊框增加對比度
-                    ),
-                    hovertemplate=f'<b>{student}</b><br>' +
-                                 '日期: %{x}<br>' +
-                                 'EPA分數: %{y:.2f}<extra></extra>'
-                ))
-            
-            # 更新布局
-            fig.update_layout(
-                title="各住院醫師EPA分數隨時間變化趨勢",
-                xaxis_title="日期",
-                yaxis_title="EPA分數",
-                yaxis=dict(range=[0, 5.2]),
-                height=500,
-                showlegend=True,
-                legend=dict(
-                    orientation="v",
-                    yanchor="top",
-                    y=1,
-                    xanchor="left",
-                    x=1.02
-                ),
-                hovermode='x unified'
-            )
-            
-            # 設置X軸格式
-            fig.update_xaxes(
-                tickformat='%Y-%m-%d',
-                tickangle=45
-            )
             
             return fig
             
