@@ -565,9 +565,16 @@ def show_individual_analysis():
                         feedback_data = feedback_data[feedback_data['教師給學員回饋'].notna() & (feedback_data['教師給學員回饋'] != '')]
                         
                         if not feedback_data.empty:
+                            # 按時間排序教師回饋（最新在前）
+                            feedback_data_copy = feedback_data.copy()
+                            if '日期' in feedback_data_copy.columns:
+                                feedback_data_copy['日期'] = pd.to_datetime(feedback_data_copy['日期'], errors='coerce')
+                                # 按日期降序排列（最新在前），無效日期放在最後
+                                feedback_data_copy = feedback_data_copy.sort_values('日期', ascending=False)
+                            
                             # 準備表格數據
                             table_data = []
-                            for idx, (_, row) in enumerate(feedback_data.iterrows(), 1):
+                            for idx, (_, row) in enumerate(feedback_data_copy.iterrows(), 1):
                                 # 格式化日期
                                 date_str = "N/A"
                                 if '日期' in row and pd.notna(row['日期']):
