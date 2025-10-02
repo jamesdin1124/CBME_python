@@ -1360,7 +1360,7 @@ class FAMVisualization:
         return fig
     
     def create_reliability_boxplot(self, student_data, student_name):
-        """創建信賴程度分布箱線圖"""
+        """創建信賴程度分布小提琴圖"""
         try:
             import plotly.express as px
             import plotly.graph_objects as go
@@ -1389,27 +1389,32 @@ class FAMVisualization:
             # 創建DataFrame
             reliability_df = pd.DataFrame(reliability_data)
             
-            # 創建子圖：左側箱線圖，右側分布統計
+            # 創建子圖：左側小提琴圖，右側分布統計
             fig = make_subplots(
                 rows=1, cols=2,
-                subplot_titles=('信賴程度分布箱線圖', '信賴程度統計'),
-                specs=[[{"type": "box"}, {"type": "table"}]],
+                subplot_titles=('信賴程度分布小提琴圖', '信賴程度統計'),
+                specs=[[{"type": "violin"}, {"type": "table"}]],
                 horizontal_spacing=0.1
             )
             
-            # 添加箱線圖
+            # 添加小提琴圖
             fig.add_trace(
-                go.Box(
+                go.Violin(
                     y=reliability_df['信賴程度數值'],
                     name='信賴程度',
-                    boxpoints='all',  # 顯示所有數據點
-                    jitter=0.3,
-                    pointpos=-1.8,
+                    box_visible=True,  # 顯示箱線圖
+                    meanline_visible=True,  # 顯示平均線
+                    points='all',  # 顯示所有數據點
+                    pointpos=0,  # 數據點位置
+                    jitter=0.3,  # 數據點散佈
                     marker=dict(
                         color='rgba(55,128,191,0.8)',
-                        line=dict(color='rgba(55,128,191,1)', width=1)
+                        line=dict(color='rgba(55,128,191,1)', width=1),
+                        size=4
                     ),
-                    line=dict(color='rgba(55,128,191,1)', width=2)
+                    line=dict(color='rgba(55,128,191,1)', width=2),
+                    fillcolor='rgba(55,128,191,0.3)',
+                    opacity=0.8
                 ),
                 row=1, col=1
             )
@@ -1505,7 +1510,7 @@ class FAMVisualization:
         return reliability_mapping.get(reliability_text, None)
     
     def create_student_epa_scores_boxplot(self, df):
-        """創建每個住院醫師整體EPA分數的boxplot"""
+        """創建每個住院醫師整體EPA分數的小提琴圖"""
         try:
             import plotly.express as px
             import pandas as pd
@@ -1541,14 +1546,15 @@ class FAMVisualization:
             # 創建DataFrame
             student_epa_df = pd.DataFrame(student_epa_data)
             
-            # 創建boxplot
-            fig = px.box(
+            # 創建小提琴圖
+            fig = px.violin(
                 student_epa_df,
                 x='住院醫師',
                 y='EPA分數',
-                title="各住院醫師EPA分數分布箱線圖",
+                title="各住院醫師EPA分數分布小提琴圖",
+                box=True,  # 顯示箱線圖
                 points="all",  # 顯示所有數據點
-                notched=False  # 關閉置信區間
+                violinmode='group'
             )
             
             # 更新布局
@@ -1558,16 +1564,21 @@ class FAMVisualization:
                 yaxis_title="EPA分數",
                 yaxis=dict(range=[0, 5.2]),
                 showlegend=False,
-                boxmode='group'
+                violingroupgap=0.1
             )
             
-            # 自定義箱線圖顏色
+            # 自定義小提琴圖顏色
             fig.update_traces(
                 marker_color='rgba(55,128,191,0.8)',
                 marker_line_color='rgba(55,128,191,1)',
                 marker_line_width=1,
+                marker_size=4,
                 line_color='rgba(55,128,191,1)',
-                line_width=2
+                line_width=2,
+                fillcolor='rgba(55,128,191,0.3)',
+                opacity=0.8,
+                box_visible=True,
+                meanline_visible=True
             )
             
             # 旋轉X軸標籤以避免重疊
