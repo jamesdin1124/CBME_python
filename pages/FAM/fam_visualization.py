@@ -888,10 +888,13 @@ class FAMVisualization:
             fig.add_trace(go.Scatter(
                 x=monthly_stats['月份'],
                 y=monthly_stats['mean'],
-                mode='lines+markers',
+                mode='lines+markers+text',
                 name='平均值',
                 line=dict(color='#2E86AB', width=3, shape='spline'),
                 marker=dict(size=8, color='#2E86AB'),
+                text=[f"n={count}" for count in monthly_stats['count']],
+                textposition="top center",
+                textfont=dict(size=10, color='#2E86AB'),
                 hovertemplate='<b>平均值</b><br>' +
                              '月份: %{x}<br>' +
                              '平均信賴程度: %{y:.2f}<br>' +
@@ -983,8 +986,7 @@ class FAMVisualization:
                     y=level,
                     line_dash="dash",
                     line_color="gray",
-                    opacity=0.3,
-                    annotation_text=f"等級 {level}" if level in [1, 5] else None
+                    opacity=0.3
                 )
             
             return fig
