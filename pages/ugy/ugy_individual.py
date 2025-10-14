@@ -422,14 +422,14 @@ def show_ugy_student_analysis():
     """顯示 UGY 個別學生分析的主要函數"""
     # 檢查是否有處理後的資料
     if 'processed_df' not in st.session_state:
-        st.warning("請先在「學生總覽」頁面載入資料")
+        st.warning("請先在「學生總覽」頁面按「重新載入 Google Sheet 資料」按鈕載入資料")
         return
     
     # 從 session_state 取得資料
     df = st.session_state.get('processed_df')
     
     if df is None or df.empty:
-        st.warning("沒有可用的資料進行分析，請先在「學生總覽」頁面載入資料")
+        st.warning("沒有可用的資料進行分析，請先在「學生總覽」頁面按「重新載入 Google Sheet 資料」按鈕載入資料")
         return
     
     # 顯示個別學生分析

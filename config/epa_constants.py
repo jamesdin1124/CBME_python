@@ -31,6 +31,6 @@ EPA_LEVEL_MAPPING = {
     'Level3c': 3.6, 'Level 3c': 3.6,
     'Level 3&4': 3.5, 'Level3&4': 3.5, 'Leve 3&4': 3.5, 'Lvel 3&4': 3.5,
     'Level IV': 4, ' Level IV': 4, 'Level4': 4, 'Level 4': 4,
-    'Level4&5': 4.5, 'Level 4&5': 4.5,
+    'Level4&5': 4.5, 'Level 4&5': 4.5, 'Leve 4&5': 4.5,
     'Level 5': 5, 'Level V': 5, ' Level V': 5, 'Level5': 5
 } 

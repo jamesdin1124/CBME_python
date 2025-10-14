@@ -629,7 +629,7 @@ def show_ugy_student_overview():
     st.title("UGY EPA分析")
 
     # 檢查是否需要重新載入/處理資料
-    if 'processed_df' not in st.session_state or st.button("重新載入 Google Sheet 資料"):
+    if st.button("重新載入 Google Sheet 資料"):
         # 執行資料載入與處理流程
         raw_df, sheet_titles = load_sheet_data(show_info=False)
         
@@ -724,17 +724,22 @@ def show_ugy_student_overview():
             proceeded_EPA_df = None
             if 'processed_df' in st.session_state:
                 del st.session_state['processed_df']
-    else:
+    
+    # 檢查是否有已處理的資料可以顯示
+    if 'processed_df' in st.session_state:
         # 從 session_state 恢復資料到全域變數
         retrieved_df = st.session_state.get('processed_df')
         if retrieved_df is not None and not retrieved_df.empty:
             proceeded_EPA_df = retrieved_df
-            show_diagnostic("從快取載入處理後的資料", "info")
+            show_diagnostic("顯示已載入的資料", "info")
         else:
             proceeded_EPA_df = None
             if 'processed_df' in st.session_state: # 如果 key 存在但值無效
-                 st.info("快取的資料無效或為空，請嘗試重新載入。")
+                 st.info("快取的資料無效或為空，請按上方按鈕重新載入。")
                  del st.session_state['processed_df']
+    else:
+        proceeded_EPA_df = None
+        st.info("請按上方「重新載入 Google Sheet 資料」按鈕開始載入資料")
 
     # 後續顯示邏輯都基於 proceeded_EPA_df
     if proceeded_EPA_df is not None and not proceeded_EPA_df.empty:

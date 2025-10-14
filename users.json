@@ -13,9 +13,11 @@
     },
     "NDMC": {
         "password": "6dc8415d7fdd761d8d81f07f570ee2ac4d28a5dfb42eab2439738e7cd4429660",
-        "role": "admin",
+        "role": "resident",
         "name": "NDMC",
-        "department": "管理部"
+        "department": "一般醫學部",
+        "extension": "9999",
+        "email": "ndmc@hospital.com"
     },
     "test_teacher_ped": {
         "password": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
@@ -80,5 +82,13 @@
         "department": "小兒部",
         "extension": "5432",
         "email": "teacher.ped@hospital.com"
+    },
+    "ANE": {
+        "password": "68e1f9b785d9fd8ed8ca54774b424de762323298337125df92cff3749efb744f",
+        "role": "teacher",
+        "name": "ANE",
+        "department": "麻醉部",
+        "extension": "8888",
+        "email": "ane@hospital.com"
     }
 }

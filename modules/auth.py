@@ -48,7 +48,7 @@ PERMISSIONS = {
         'can_view_department_data': False,  # 不能看到其他科資料
         'can_view_ugy_data': True,          # 可以看到所有UGY資料
         'can_view_pgy_data': False,         # 不能看到PGY資料
-        'can_view_resident_data': True     # 可以看到自己的住院醫師資料
+        'can_view_resident_data': False    # 修改：住院醫師不能看到住院醫師資料（除非特別授權）
     },
     'student': {
         'can_view_all': False,          # UGY不能看到全部資料

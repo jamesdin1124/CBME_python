@@ -260,7 +260,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
             },
             'PC2': {
                 '名稱': '麻醉計劃與執行',
-                '學員自評': '2. Patient care 2 (PC2). 麻醉計劃與執行(學員自評) [單選]',
+                '學員自評': '2. Patient care 2 (PC2). 麻醉計劃與執行(學員自評)[單選]',
                 '教師評核': '2. Patient care 2 (PC2). 麻醉計劃與執行(教師評核) [單選]',
                 '教師複評': '2. Patient care 2 (PC2). 麻醉計劃與執行(教師評核) [單選].1'
             },
@@ -1036,4 +1036,5 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                  help="✓: 完成, ✗: 未完成, ?: 未知或不適用"
             )
         }
-    ) 
+    )
+

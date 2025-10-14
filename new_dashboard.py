@@ -17,7 +17,7 @@ import sys  # 匯入 sys
 from io import BytesIO
 from pages.pgy.pgy_students import show_analysis_section
 from pages.residents.residents import show_resident_analysis_section
-from pages.residents.anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
+from pages.ANE.anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
 from pages.teachers.teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
 from pages.ugy.ugy_peers import show_UGY_peer_analysis_section
 from pages.ugy.ugy_overview import show_ugy_student_overview
@@ -660,7 +660,7 @@ def main():
         "精神部", 
         "家醫部", 
         "急診醫學部", 
-        "麻醉科", 
+        "麻醉部", 
         "放射部", 
         "病理部", 
         "復健部", 
@@ -761,7 +761,7 @@ def main():
         tab_names.append("UGY")
         tab_names.append("PGY")
         tab_names.append("住院醫師")
-        tab_names.append("老師評分分析")
+        # tab_names.append("老師評分分析")  # 暫時隱藏
     elif check_permission(st.session_state.role, 'can_view_ugy_data'):
         # 主治醫師和住院醫師可以看到UGY資料
         tab_names.append("UGY")
@@ -772,8 +772,8 @@ def main():
         if check_permission(st.session_state.role, 'can_view_resident_data'):
             tab_names.append("住院醫師")
         
-        if check_permission(st.session_state.role, 'can_view_analytics'):
-            tab_names.append("老師評分分析")
+        # if check_permission(st.session_state.role, 'can_view_analytics'):
+        #     tab_names.append("老師評分分析")  # 暫時隱藏
     elif st.session_state.role == 'student':
         # UGY只能看到自己的資料
         tab_names.append("我的評核資料")
@@ -963,7 +963,7 @@ def main():
                                     # 根據權限過濾住院醫師資料
                                     filtered_r_data = filter_data_by_permission(r_data, st.session_state.role, user_department, 'resident')
                                     if not filtered_r_data.empty:
-                                        if selected_dept == "麻醉科":
+                                        if selected_dept == "麻醉部":
                                             show_ANE_R_EPA_peer_analysis_section(filtered_r_data)
                                         else:
                                             show_resident_analysis_section(filtered_r_data)
@@ -974,23 +974,23 @@ def main():
                             else:
                                 st.warning("請先載入資料")
                 
-                elif tab_name == "老師評分分析":
-                    if check_permission(st.session_state.role, 'can_view_analytics'):
-                        # 添加分析模式選擇
-                        analysis_mode = st.radio(
-                            "選擇分析模式",
-                            ["基本教師分析", "教師評分模式分析", "教師比較分析"],
-                            horizontal=True
-                        )
-                        
-                        if analysis_mode == "基本教師分析":
-                            show_teacher_analysis_section()
-                        elif analysis_mode == "教師評分模式分析":
-                            from pages.teachers.teacher_scoring_analysis import show_teacher_scoring_analysis
-                            show_teacher_scoring_analysis()
-                        elif analysis_mode == "教師比較分析":
-                            from pages.teachers.teacher_scoring_analysis import show_teacher_comparison
-                            show_teacher_comparison()
+                # elif tab_name == "老師評分分析":  # 暫時隱藏
+                #     if check_permission(st.session_state.role, 'can_view_analytics'):
+                #         # 添加分析模式選擇
+                #         analysis_mode = st.radio(
+                #             "選擇分析模式",
+                #             ["基本教師分析", "教師評分模式分析", "教師比較分析"],
+                #             horizontal=True
+                #         )
+                #         
+                #         if analysis_mode == "基本教師分析":
+                #             show_teacher_analysis_section()
+                #         elif analysis_mode == "教師評分模式分析":
+                #             from pages.teachers.teacher_scoring_analysis import show_teacher_scoring_analysis
+                #             show_teacher_scoring_analysis()
+                #         elif analysis_mode == "教師比較分析":
+                #             from pages.teachers.teacher_scoring_analysis import show_teacher_comparison
+                #             show_teacher_comparison()
 
 if __name__ == "__main__":
     main()
