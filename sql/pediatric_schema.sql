@@ -72,6 +72,12 @@ CREATE TABLE IF NOT EXISTS pediatric_users (
     is_active BOOLEAN DEFAULT TRUE,
     last_login TIMESTAMPTZ,
 
+    -- 科部（全科別通用）
+    department TEXT,
+
+    -- 密碼雜湊（供未來全面遷移登入用）
+    password_hash TEXT,
+
     -- 與本地 auth 同步
     synced_from_local_auth BOOLEAN DEFAULT FALSE,
     local_auth_username TEXT
@@ -135,3 +141,12 @@ CREATE TABLE IF NOT EXISTS pediatric_migration_log (
 -- ALTER TABLE pediatric_evaluations ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE pediatric_users ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE pediatric_threshold_settings ENABLE ROW LEVEL SECURITY;
+
+-- =============================================
+-- 欄位擴充（若表已存在，執行 ALTER 新增欄位）
+-- =============================================
+-- 若你的 pediatric_users 表已建立但缺少 department / password_hash，
+-- 請在 Supabase SQL Editor 執行以下兩行：
+--
+-- ALTER TABLE pediatric_users ADD COLUMN IF NOT EXISTS department TEXT;
+-- ALTER TABLE pediatric_users ADD COLUMN IF NOT EXISTS password_hash TEXT;

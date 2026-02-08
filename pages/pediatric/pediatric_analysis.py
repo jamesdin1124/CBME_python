@@ -317,6 +317,10 @@ def _load_from_supabase():
         if '熟練程度' in df.columns:
             df['熟練程度_數值'] = pd.to_numeric(df['熟練程度'], errors='coerce')
 
+        # 從可信賴程度推導熟練度
+        if '可信賴程度_數值' in df.columns:
+            df['熟練程度(自動判定)'] = df['可信賴程度_數值'].apply(derive_proficiency_from_reliability)
+
         st.success(f"✅ 已從 Supabase 載入 {len(df)} 筆資料")
         return df, ['Supabase']
 
@@ -375,9 +379,13 @@ def process_pediatric_data(df):
         if '可信賴程度' in processed_df.columns:
             processed_df['可信賴程度_數值'] = processed_df['可信賴程度'].apply(convert_reliability_to_numeric)
         
-        # 處理熟練程度
+        # 處理熟練程度（向後相容舊資料）
         if '熟練程度' in processed_df.columns:
             processed_df['熟練程度_數值'] = processed_df['熟練程度'].apply(convert_proficiency_to_numeric)
+
+        # 從可信賴程度推導熟練度（統一判定標準）
+        if '可信賴程度_數值' in processed_df.columns:
+            processed_df['熟練程度(自動判定)'] = processed_df['可信賴程度_數值'].apply(derive_proficiency_from_reliability)
         
         # 處理 EPA 可信賴程度（沿用兒科 convert_reliability_to_numeric 對照表）
         if 'EPA可信賴程度' in processed_df.columns:
@@ -468,8 +476,18 @@ def convert_reliability_to_numeric(reliability_text):
 
     return reliability_mapping.get(reliability_text, None)
 
+def derive_proficiency_from_reliability(reliability_score):
+    """
+    從可信賴程度分數推導熟練度標籤。
+    >= 3.5 → 熟練 / < 3.5 → 不熟練
+    """
+    if pd.isna(reliability_score):
+        return None
+    return '熟練' if float(reliability_score) >= 3.5 else '不熟練'
+
+
 def convert_proficiency_to_numeric(proficiency_text):
-    """將熟練程度轉換為數值"""
+    """[Deprecated] 將熟練程度轉換為數值 — 僅供向後相容舊資料"""
     if pd.isna(proficiency_text) or proficiency_text == '':
         return None
     
@@ -1283,7 +1301,7 @@ def show_individual_analysis():
     # ═══ Section D：詳細記錄（expander 收合）═══
     with st.expander("📋 操作技術詳細記錄", expanded=False):
         if not technical_data.empty:
-            display_cols = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '熟練程度', '操作技術教師回饋']
+            display_cols = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '熟練程度(自動判定)', '操作技術教師回饋']
             avail = [c for c in display_cols if c in technical_data.columns]
             if avail:
                 st.dataframe(technical_data[avail].sort_values('評核日期', ascending=False), use_container_width=True)
@@ -1864,7 +1882,7 @@ def show_skill_details(resident_data, resident_name):
     
     if not skill_records.empty:
         # 選擇要顯示的欄位
-        display_columns = ['評核日期', '評核教師', '評核技術項目', '熟練程度', '操作技術教師回饋']
+        display_columns = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '熟練程度(自動判定)', '操作技術教師回饋']
         
         # 確保所有欄位都存在
         available_columns = [col for col in display_columns if col in skill_records.columns]

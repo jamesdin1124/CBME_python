@@ -276,3 +276,51 @@ class SupabaseConnection:
             }).execute()
         except Exception as e:
             print(f"記錄遷移 log 失敗: {str(e)}")
+
+    # =============================================
+    # 全科別帳號管理方法
+    # =============================================
+
+    def fetch_all_users(self, active_only=True):
+        """
+        查詢所有使用者（不限 user_type）
+
+        Args:
+            active_only (bool): 是否僅查詢啟用中的帳號
+
+        Returns:
+            list[dict]: 使用者列表
+        """
+        try:
+            query = self.client.table('pediatric_users').select('*')
+            if active_only:
+                query = query.eq('is_active', True)
+            query = query.order('department').order('full_name')
+            result = query.execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"查詢所有使用者失敗: {str(e)}")
+            return []
+
+    def batch_upsert_users(self, records):
+        """
+        批次新增/更新使用者（供 CSV 匯入使用）
+
+        Args:
+            records (list[dict]): 使用者資料列表，每筆需含 username, full_name, user_type
+
+        Returns:
+            tuple[int, list[str]]: (成功筆數, 錯誤訊息列表)
+        """
+        success_count = 0
+        errors = []
+        for rec in records:
+            try:
+                rec['updated_at'] = datetime.now().isoformat()
+                self.client.table('pediatric_users').upsert(
+                    rec, on_conflict='username'
+                ).execute()
+                success_count += 1
+            except Exception as e:
+                errors.append(f"{rec.get('username', '?')}: {str(e)}")
+        return success_count, errors

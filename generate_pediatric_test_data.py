@@ -50,8 +50,8 @@ RELIABILITY_LEVELS = {
     '學員可對其他資淺的學員進行監督與教學': 5.0
 }
 
-# 熟練程度選項
-PROFICIENCY_LEVELS = ['熟練', '基本熟練', '部分熟練', '初學', '不熟練']
+# [Deprecated] 熟練程度改為從可信賴程度自動推導（>= 3.5 熟練 / < 3.5 不熟練）
+PROFICIENCY_THRESHOLD = 3.5
 
 def generate_test_data():
     """生成完整的測試資料集"""
@@ -87,7 +87,9 @@ def generate_test_data():
                 else:
                     reliability = random.choice(list(RELIABILITY_LEVELS.keys())[0:5])   # 1.5-3.3
 
-                proficiency = random.choice(PROFICIENCY_LEVELS)
+                # 熟練度從可信賴程度推導
+                reliability_score = RELIABILITY_LEVELS[reliability]
+                proficiency = '熟練' if reliability_score >= PROFICIENCY_THRESHOLD else '不熟練'
                 teacher = random.choice(TEACHERS)
 
                 record = {

@@ -123,6 +123,68 @@ def create_user(username, password, role, name, student_id=None, department=None
     save_users(users)
     return True, "使用者建立成功"
 
+def create_user_dual_write(username, password_plaintext, role, name, department,
+                           email=None, extension=None, resident_level=None,
+                           enrollment_year=None, student_id=None):
+    """
+    建立新使用者：同時寫入 users.json + Supabase pediatric_users。
+
+    Args:
+        username: 帳號
+        password_plaintext: 明文密碼（函數內會做 SHA-256 雜湊）
+        role: 'admin' | 'teacher' | 'resident' | 'student'
+        name: 姓名
+        department: 科部
+        email, extension: 選填
+        resident_level: 'R1'|'R2'|'R3'（住院醫師專用）
+        enrollment_year: 入學年度（住院醫師專用）
+        student_id: 學號（UGY 專用）
+
+    Returns:
+        tuple[bool, str]: (是否成功, 訊息)
+    """
+    password_hashed = hash_password(password_plaintext)
+
+    # 1. 寫入 users.json
+    success, msg = create_user(
+        username, password_hashed, role, name,
+        student_id=student_id,
+        department=department,
+        extension=extension,
+        email=email,
+    )
+    if not success:
+        return False, msg
+
+    # 2. 寫入 Supabase（best-effort，失敗不阻塞本地帳號建立）
+    try:
+        from modules.supabase_connection import SupabaseConnection
+        conn = SupabaseConnection()
+        user_type_map = {'admin': 'admin', 'teacher': 'teacher',
+                         'resident': 'resident', 'student': 'resident'}
+        supabase_data = {
+            'username': username,
+            'full_name': name,
+            'user_type': user_type_map.get(role, 'resident'),
+            'department': department,
+            'password_hash': password_hashed,
+            'email': email,
+            'is_active': True,
+            'synced_from_local_auth': True,
+            'local_auth_username': username,
+        }
+        if resident_level:
+            supabase_data['resident_level'] = resident_level
+        if enrollment_year:
+            supabase_data['enrollment_year'] = enrollment_year
+        conn.upsert_pediatric_user(supabase_data)
+    except Exception as e:
+        # Supabase 寫入失敗不影響本地帳號
+        print(f"Supabase 同步失敗（帳號已建立在 users.json）: {str(e)}")
+
+    return True, "使用者建立成功（已同步至 Supabase）"
+
+
 def delete_user(username):
     """刪除使用者"""
     users = load_users()

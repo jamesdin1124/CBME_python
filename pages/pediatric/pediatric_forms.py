@@ -53,11 +53,9 @@ MEETING_SCORE_MAP = {
     '2 稍差': 2, '1 不符合期待': 1,
 }
 
-# 熟練程度 5 分制
-PROFICIENCY_OPTIONS = {
-    '熟練': 5, '基本熟練': 4, '部分熟練': 3,
-    '初學': 2, '不熟練': 1,
-}
+# [Deprecated] 熟練程度改為從可信賴程度自動推導（>= 3.5 熟練 / < 3.5 不熟練）
+# PROFICIENCY_OPTIONS = {'熟練': 5, '基本熟練': 4, '部分熟練': 3, '初學': 2, '不熟練': 1}
+PROFICIENCY_THRESHOLD = 3.5  # >= 此分數判定為「熟練」
 
 
 # ─── 工具函數 ───
@@ -144,19 +142,19 @@ def show_technical_skill_form(supabase_conn, current_user):
             patient_id = st.text_input("病歷號（選填）")
             sedation = st.text_input("鎮靜藥物（選填）")
         with col_b:
-            # 9 級可信賴程度
+            # 9 級可信賴程度（EPA 統一量表）
             reliability_label = st.selectbox(
                 "可信賴程度",
                 options=list(RELIABILITY_OPTIONS.keys()),
                 index=2,  # 預設「教師在旁必要時協助」
                 help="依觀察到的獨立執行程度選擇"
             )
-            # 熟練程度
-            proficiency_label = st.selectbox(
-                "熟練程度",
-                options=list(PROFICIENCY_OPTIONS.keys()),
-                index=2,  # 預設「部分熟練」
-            )
+            # 熟練度自動推導
+            _rel_score = RELIABILITY_OPTIONS[reliability_label]
+            if _rel_score >= PROFICIENCY_THRESHOLD:
+                st.success(f"📊 可信賴分數 **{_rel_score}** — 熟練")
+            else:
+                st.warning(f"📊 可信賴分數 **{_rel_score}** — 不熟練")
 
         feedback = st.text_area("操作技術教師回饋", placeholder="請描述住院醫師的操作表現...")
 
@@ -177,7 +175,7 @@ def show_technical_skill_form(supabase_conn, current_user):
                 'technical_skill_item': technical_skill,
                 'sedation_medication': sedation or None,
                 'reliability_level': RELIABILITY_OPTIONS[reliability_label],
-                'proficiency_level': PROFICIENCY_OPTIONS[proficiency_label],
+                'proficiency_level': 5 if RELIABILITY_OPTIONS[reliability_label] >= PROFICIENCY_THRESHOLD else 2,
                 'technical_feedback': feedback or None,
                 'submitted_by': current_user,
             }

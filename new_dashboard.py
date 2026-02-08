@@ -637,7 +637,7 @@ def main():
                 st.error(f"讀取或分析資料時發生錯誤：{str(e)}")
         return
     
-    # 顯示登出按鈕
+    # 顯示登出按鈕與管理入口
     with st.sidebar:
         if st.button("登出"):
             st.session_state.logged_in = False
@@ -646,8 +646,26 @@ def main():
             st.session_state.user_name = None
             st.session_state.user_department = None
             st.session_state.student_id = None
+            st.session_state.pop('show_account_management', None)
             st.rerun()
-    
+
+        # 管理員專屬：帳號管理入口
+        if st.session_state.get('role') == 'admin':
+            st.markdown("---")
+            if st.button("👥 帳號管理"):
+                st.session_state['show_account_management'] = True
+                st.rerun()
+            if st.session_state.get('show_account_management'):
+                if st.button("↩️ 返回主頁"):
+                    st.session_state['show_account_management'] = False
+                    st.rerun()
+
+    # 帳號管理頁面（admin 專用）
+    if st.session_state.get('show_account_management') and st.session_state.get('role') == 'admin':
+        from pages.admin.account_management import show_account_management
+        show_account_management()
+        return
+
     st.title("學生評核系統")
     
     # 定義科別列表
