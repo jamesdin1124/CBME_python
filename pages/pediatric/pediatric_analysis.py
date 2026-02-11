@@ -124,7 +124,7 @@ def show_pediatric_evaluation_section():
     st.title("🏥 小兒部住院醫師評核系統")
     st.markdown("---")
 
-    # 顯示表單連結 + 資料來源 + 測試模式切換
+    # 顯示表單連結 + 資料來源 + 科別過濾
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         # 資料來源選擇
@@ -142,52 +142,95 @@ def show_pediatric_evaluation_section():
         if data_source == 'google_sheets':
             st.info("📋 [開啟 Google 表單](https://docs.google.com/spreadsheets/d/1n4kc2d3Z-x9SvIDApPCCz2HSDO0wSrrk9Y5jReMhr-M/edit?usp=sharing)")
     with col3:
-        pass  # 保留空間
+        # 科別選擇器（僅在 Supabase 模式下顯示）
+        if data_source == 'supabase':
+            from modules.auth import check_permission
+            user_role = st.session_state.get('role', 'resident')
+            user_dept = st.session_state.get('user_department')
+
+            # 決定可用科別
+            if check_permission(user_role, 'can_view_all'):
+                available_depts = ["內科部", "外科部", "婦產部", "小兒部", "家醫部", "麻醉部"]
+            elif user_role in ['department_admin', 'teacher']:
+                available_depts = [user_dept] if user_dept else []
+            else:
+                available_depts = []
+
+            if available_depts and len(available_depts) > 1:
+                selected_department = st.selectbox(
+                    "科別過濾",
+                    options=available_depts,
+                    key="pediatric_dept_filter",
+                    help="選擇要查看的科別資料"
+                )
+                st.session_state['selected_department'] = selected_department
+            elif available_depts:
+                st.session_state['selected_department'] = available_depts[0]
+            else:
+                st.session_state['selected_department'] = user_dept
 
     # 判斷是否為教師/管理員（可使用表單與帳號管理）
     from modules.auth import check_permission
     user_role = st.session_state.get('role', 'resident')
     can_submit_forms = check_permission(user_role, 'can_upload_files')
     can_manage_users = check_permission(user_role, 'can_manage_users')
+    is_resident = (user_role == 'resident')
 
-    # 動態建立 tabs
-    tab_labels = ["🏆 CCC 總覽", "📋 個別深入分析", "📊 資料概覽", "⚙️ 資料管理"]
-    if can_submit_forms:
-        tab_labels.append("✏️ 評核表單")
-    if can_manage_users:
-        tab_labels.append("👥 帳號管理")
+    # 動態建立 tabs（住院醫師只顯示「個別深入分析」和「我的表單」）
+    if is_resident:
+        tab_labels = ["📋 個別深入分析", "📝 我的表單"]
+        tabs = st.tabs(tab_labels)
 
-    tabs = st.tabs(tab_labels)
+        with tabs[0]:
+            show_individual_analysis()
 
-    with tabs[0]:
-        show_ccc_overview()
-
-    with tabs[1]:
-        show_individual_analysis()
-
-    with tabs[2]:
-        show_data_overview()
-
-    with tabs[3]:
-        show_data_management()
-
-    # Tab 5：評核表單（教師/管理員限定）
-    if can_submit_forms and len(tabs) > 4:
-        with tabs[4]:
+        with tabs[1]:
             conn = _get_supabase_conn()
             if conn:
-                from pages.pediatric.pediatric_forms import show_evaluation_forms_tab
+                from pages.pediatric.pediatric_resident_forms import show_resident_forms_tab
                 current_user = st.session_state.get('user_name', st.session_state.get('username', '未知'))
-                show_evaluation_forms_tab(conn, current_user)
+                show_resident_forms_tab(conn, current_user)
             else:
                 st.error("❌ 無法連線 Supabase，請檢查 `.env` 中的 `SUPABASE_URL` 和 `SUPABASE_KEY` 設定。")
-                st.info("評核表單需要 Supabase 資料庫連線才能使用。")
+    else:
+        # 非住院醫師（教師/管理員）：完整 tabs
+        tab_labels = ["🏆 CCC 總覽", "📋 個別深入分析", "📊 資料概覽", "⚙️ 資料管理"]
+        if can_submit_forms:
+            tab_labels.append("✏️ 評核表單")
+        if can_manage_users:
+            tab_labels.append("👥 帳號管理")
 
-    # Tab 6：帳號管理（管理員限定）
-    if can_manage_users:
-        tab_idx = 5 if can_submit_forms else 4
-        if len(tabs) > tab_idx:
-            with tabs[tab_idx]:
+        tabs = st.tabs(tab_labels)
+
+        with tabs[0]:
+            show_ccc_overview()
+
+        with tabs[1]:
+            show_individual_analysis()
+
+        with tabs[2]:
+            show_data_overview()
+
+        with tabs[3]:
+            show_data_management()
+
+        # 評核表單（教師/管理員限定）
+        next_idx = 4
+        if can_submit_forms and len(tabs) > next_idx:
+            with tabs[next_idx]:
+                conn = _get_supabase_conn()
+                if conn:
+                    from pages.pediatric.pediatric_forms import show_evaluation_forms_tab
+                    current_user = st.session_state.get('user_name', st.session_state.get('username', '未知'))
+                    show_evaluation_forms_tab(conn, current_user)
+                else:
+                    st.error("❌ 無法連線 Supabase，請檢查 `.env` 中的 `SUPABASE_URL` 和 `SUPABASE_KEY` 設定。")
+                    st.info("評核表單需要 Supabase 資料庫連線才能使用。")
+            next_idx += 1
+
+        # 帳號管理（管理員限定）
+        if can_manage_users and len(tabs) > next_idx:
+            with tabs[next_idx]:
                 conn = _get_supabase_conn()
                 if conn:
                     from pages.pediatric.pediatric_user_management import show_pediatric_user_management
@@ -195,10 +238,13 @@ def show_pediatric_evaluation_section():
                 else:
                     st.error("❌ 無法連線 Supabase，請檢查 `.env` 設定。")
 
-def load_pediatric_data():
+def load_pediatric_data(department=None):
     """
     載入小兒部評核資料（混合資料來源）。
     優先順序：測試資料 > Supabase > Google Sheets
+
+    Args:
+        department (str, optional): 科別過濾，僅在 Supabase 模式下生效
     """
     try:
         data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
@@ -217,7 +263,7 @@ def load_pediatric_data():
 
         # ── Supabase 模式 ──
         elif data_source == 'supabase':
-            df, sheet_titles = _load_from_supabase()
+            df, sheet_titles = _load_from_supabase(department=department)
             if df is None or df.empty:
                 st.warning("⚠️ Supabase 無資料或連線失敗，嘗試回退到 Google Sheets...")
                 df, sheet_titles = _load_from_google_sheets()
@@ -247,17 +293,21 @@ def _load_from_google_sheets():
     return df, sheet_titles
 
 
-def _load_from_supabase():
+def _load_from_supabase(department=None):
     """
     從 Supabase 載入資料並轉換為與 Google Sheets 相容的 DataFrame 格式。
     確保後續 process_pediatric_data() 能正常運作。
+
+    Args:
+        department (str, optional): 科別過濾
     """
     conn = _get_supabase_conn()
     if not conn:
         return None, None
 
     try:
-        records = conn.fetch_pediatric_evaluations()
+        filters = {'department': department} if department else None
+        records = conn.fetch_pediatric_evaluations(filters=filters)
         if not records:
             return None, None
 
@@ -305,6 +355,7 @@ def _load_from_supabase():
             '是否具開創、建設性的想法': '是否具開創、建設性的想法_數值',
             '回答提問是否具邏輯、有條有理': '回答提問是否具邏輯、有條有理_數值',
         }
+
         for src, dst in score_cols_map.items():
             if src in df.columns:
                 df[dst] = pd.to_numeric(df[src], errors='coerce')
@@ -401,7 +452,15 @@ def convert_score_to_numeric(score_text):
     """將評分文字轉換為數值"""
     if pd.isna(score_text) or score_text == '':
         return None
-    
+
+    # 如果已經是數字（例如從 Supabase 載入的整數），直接返回
+    try:
+        num_value = float(score_text)
+        if 1 <= num_value <= 5:
+            return num_value
+    except (ValueError, TypeError):
+        pass
+
     score_text = str(score_text).strip()
     
     # 定義評分對應（含表單「5 卓越～1 不符合期待」）
@@ -704,7 +763,12 @@ def show_ccc_overview():
     """Tab 1：CCC 總覽頁面主函數"""
     st.subheader("🏆 CCC 會議 — 小兒部住院醫師訓練進度總覽")
 
-    df, _ = load_pediatric_data()
+    # 獲取選擇的科別（僅在 Supabase 模式下生效）
+    selected_dept = st.session_state.get('selected_department')
+    data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
+    department_filter = selected_dept if data_source == 'supabase' else None
+
+    df, _ = load_pediatric_data(department=department_filter)
     if df is None or df.empty:
         st.warning("無法載入資料，請檢查 Google 表單連接")
         return
@@ -712,22 +776,28 @@ def show_ccc_overview():
     # 緩存資料至 session_state
     st.session_state['pediatric_data'] = df
 
-    # ── 計算所有住院醫師的狀態 ──
-    residents = sorted(df['受評核人員'].unique()) if '受評核人員' in df.columns else []
-    if not residents:
-        st.warning("資料中沒有找到受評核人員")
-        return
+    # ── 根據使用者角色過濾住院醫師列表 ──
+    user_role = st.session_state.get('role', 'resident')
+    user_name = st.session_state.get('user_name')
+
+    if user_role == 'resident':
+        # 住院醫師只能看自己的資料
+        residents = [user_name] if user_name in df['受評核人員'].unique() else []
+        if not residents:
+            st.warning(f"找不到 {user_name} 的評核資料")
+            return
+    else:
+        # 其他角色（admin, department_admin, teacher）可以看所有人
+        residents = sorted(df['受評核人員'].unique()) if '受評核人員' in df.columns else []
+        if not residents:
+            st.warning("資料中沒有找到受評核人員")
+            return
 
     all_status = {}  # {姓名: status_dict}
     for name in residents:
         res_df = df[df['受評核人員'] == name]
         all_status[name] = calculate_resident_status(res_df, df)
         all_status[name]['level'] = _get_resident_level(df, name)
-
-    # ── Section A：警報橫帶 ──
-    show_alert_banner(all_status)
-
-    st.divider()
 
     # ── Section B：摘要卡片 ──
     show_resident_cards(all_status, df)
@@ -746,6 +816,13 @@ def show_ccc_overview():
 
     # ── Section E：EPA 整體趨勢（所有住院醫師）──
     show_overall_epa_trend(df)
+
+    st.divider()
+
+    # ── Section F：研究進度總覽（若有 Supabase 連線）──
+    conn = _get_supabase_conn()
+    if conn:
+        show_research_progress_overview(conn, residents)
 
 
 def show_alert_banner(all_status):
@@ -784,9 +861,9 @@ def show_resident_cards(all_status, df):
 
         with col:
             with st.container(border=True):
-                # 標題行：姓名 + 級職 + 狀態標記
+                # 標題行：姓名 + 級職
                 st.markdown(
-                    f"**{name}** &nbsp; {info['level']} &nbsp; {_status_emoji(info['overall'])} {_status_label(info['overall'])}",
+                    f"**{name}** &nbsp; {info['level']}",
                     unsafe_allow_html=True
                 )
                 st.divider()
@@ -805,6 +882,21 @@ def show_resident_cards(all_status, df):
                     mtg_val = info['meeting']['avg_score']
                     st.metric("會議報告均分 (1-5分)", f"{mtg_val:.1f}" if mtg_val is not None else "—",
                               help="五維度評分平均值")
+
+                # 研究進度簡要顯示（若有 Supabase 連線）
+                conn = _get_supabase_conn()
+                if conn:
+                    try:
+                        research_records = conn.fetch_research_progress(filters={'resident_name': name})
+                        if research_records:
+                            st.divider()
+                            st.caption(f"📚 研究進度：{len(research_records)} 項")
+                            # 顯示最新一筆
+                            latest = research_records[0]
+                            status_emoji = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
+                            st.caption(f"{status_emoji.get(latest['current_status'], '📝')} {latest['research_title']} — {latest['current_status']}")
+                    except Exception:
+                        pass  # 靜默失敗，不影響主頁面
 
 
 def show_comparison_bar_chart(all_status):
@@ -1000,9 +1092,14 @@ def show_overall_epa_trend(df):
 def show_data_overview():
     """顯示資料概覽"""
     st.subheader("📊 小兒部住院醫師評核資料概覽")
-    
+
+    # 獲取選擇的科別（僅在 Supabase 模式下生效）
+    selected_dept = st.session_state.get('selected_department')
+    data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
+    department_filter = selected_dept if data_source == 'supabase' else None
+
     # 載入資料
-    df, sheet_titles = load_pediatric_data()
+    df, sheet_titles = load_pediatric_data(department=department_filter)
     
     if df is not None and not df.empty:
         # 基本統計資訊
@@ -1040,11 +1137,22 @@ def show_individual_analysis():
     """個別深入分析（Tab 2）：三欄並排儀表盤 → 技能分組進度 → 會議報告回饋 → 詳細記錄"""
     st.subheader("📋 個別住院醫師深入分析")
 
+    # 獲取選擇的科別（僅在 Supabase 模式下生效）
+    selected_dept = st.session_state.get('selected_department')
+    data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
+    department_filter = selected_dept if data_source == 'supabase' else None
+
+
+
+    st.markdown("---")
+
     # 讀取資料（優先從 session_state，避免重複 API 調用）
     if 'pediatric_data' in st.session_state and st.session_state['pediatric_data'] is not None:
         df = st.session_state['pediatric_data']
+        st.info("📦 使用快取資料")
     else:
-        df, _ = load_pediatric_data()
+        df, _ = load_pediatric_data(department=department_filter)
+        st.success("🔄 從 Supabase 重新載入資料")
         if df is not None:
             st.session_state['pediatric_data'] = df
 
@@ -1058,14 +1166,28 @@ def show_individual_analysis():
 
     residents = sorted(df['受評核人員'].unique())
 
+    # ── 根據使用者角色決定可選擇的住院醫師 ──
+    user_role = st.session_state.get('role', 'resident')
+    user_name = st.session_state.get('user_name')
+
+    if user_role == 'resident':
+        # 住院醫師只能選擇自己
+        available_residents = [user_name] if user_name in residents else []
+        if not available_residents:
+            st.warning(f"找不到 {user_name} 的評核資料")
+            return
+    else:
+        # 其他角色可以選擇所有人
+        available_residents = residents
+
     # 從 CCC 總覽卡片點進時的預設值
     default_resident = st.session_state.pop('selected_resident_from_overview', None)
-    if default_resident and default_resident in residents:
-        default_index = residents.index(default_resident)
+    if default_resident and default_resident in available_residents:
+        default_index = available_residents.index(default_resident)
     else:
         default_index = 0
 
-    selected_resident = st.selectbox("選擇受評核人員", residents, index=default_index)
+    selected_resident = st.selectbox("選擇受評核人員", available_residents, index=default_index)
 
     if not selected_resident:
         return
@@ -1083,8 +1205,8 @@ def show_individual_analysis():
         if '評核日期' in resident_data.columns:
             st.metric("評核期間", f"{resident_data['評核日期'].min()} ~ {resident_data['評核日期'].max()}")
     with col4:
-        status = calculate_resident_status(resident_data, df)
-        st.metric("整體狀態", f"{_status_emoji(status['overall'])} {_status_label(status['overall'])}")
+        unique_teachers = len(resident_data['評核教師'].unique()) if '評核教師' in resident_data.columns else 0
+        st.metric("評核教師數", unique_teachers)
 
     # 預先分離三類資料
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
@@ -1167,13 +1289,9 @@ def show_individual_analysis():
             total_skills = len(skill_counts)
             rate = completed_skills / total_skills
             st.progress(min(rate, 1.0), text=f"已完成 {completed_skills} / {total_skills} 項")
-            # 列出未完成項目
             unfinished = [name for name, d in skill_counts.items() if d['completed'] < d['required']]
             if unfinished:
-                st.markdown("**⚠️ 未達標項目：**")
-                for item in unfinished:
-                    d = skill_counts[item]
-                    st.markdown(f"&nbsp;&nbsp;🔶 {item}　({d['completed']}/{d['required']})", unsafe_allow_html=True)
+                st.caption(f"⚠️ 尚有 {len(unfinished)} 項未達標，詳見下方「操作技術」區塊")
             else:
                 st.success("所有技能均已達標")
         else:
@@ -1182,6 +1300,7 @@ def show_individual_analysis():
     # ── 右欄：會議報告雷達圖 ──
     with col_mtg:
         st.markdown("**會議報告 評分**")
+
         radar_text_cols = [
             ('內容是否充分',           '內容充分'),
             ('辯證資料的能力',         '辯證資料'),
@@ -1250,91 +1369,138 @@ def show_individual_analysis():
         else:
             st.info("無會議報告評核記錄")
 
-    # ═══ Section B：技能分組進度 ═══
+    # ═══ Section 2：技能分類進度（左右兩欄）═══
     st.markdown("### 技能分類進度")
-    if skill_counts:
-        show_grouped_skill_progress(skill_counts)
-    else:
-        # skill_counts 可能在 col_tech 裡計算過但此處無法訪問，重新計算
-        _sk = calculate_skill_counts(technical_data) if not technical_data.empty else {}
-        if _sk:
-            show_grouped_skill_progress(_sk)
+    col_left, col_right = st.columns([1.2, 0.8])
+
+    with col_left:
+        st.markdown("**各類別技能進度**")
+        if skill_counts:
+            show_grouped_skill_progress(skill_counts, technical_data)
         else:
-            st.info("無操作技術評核記錄")
+            _sk = calculate_skill_counts(technical_data) if not technical_data.empty else {}
+            if _sk:
+                show_grouped_skill_progress(_sk, technical_data)
+            else:
+                st.info("無操作技術評核記錄")
 
-    # ═══ Section C：會議報告質性回饋（直接展開，限最近 5 筆）═══
-    st.markdown("### 會議報告質性回饋")
-    feedback_col = '會議報告教師回饋'
-    if not meeting_data.empty and feedback_col in meeting_data.columns:
-        feedback_rows = meeting_data[meeting_data[feedback_col].notna() & (meeting_data[feedback_col].astype(str).str.strip() != '')]
-        if '評核日期' in feedback_rows.columns:
-            feedback_rows = feedback_rows.sort_values('評核日期', ascending=False)
-
-        if not feedback_rows.empty:
-            # 最近 5 筆直接展開
-            display_rows = feedback_rows.head(5)
-            for _, row in display_rows.iterrows():
-                with st.container(border=True):
-                    d = row.get('評核日期', '')
-                    if hasattr(d, 'strftime'):
-                        d = d.strftime('%Y-%m-%d')
-                    teacher = row.get('評核教師', '')
-                    st.caption(f"日期：{d}　|　評核教師：{teacher}")
-                    st.write(str(row.get(feedback_col, '')))
-
-            # 超過 5 筆的放入 expander
-            if len(feedback_rows) > 5:
-                with st.expander(f"查看全部回饋（共 {len(feedback_rows)} 筆）"):
-                    for _, row in feedback_rows.iloc[5:].iterrows():
-                        with st.container(border=True):
-                            d = row.get('評核日期', '')
-                            if hasattr(d, 'strftime'):
-                                d = d.strftime('%Y-%m-%d')
-                            teacher = row.get('評核教師', '')
-                            st.caption(f"日期：{d}　|　評核教師：{teacher}")
-                            st.write(str(row.get(feedback_col, '')))
-        else:
-            st.info("該住院醫師目前沒有會議報告教師回饋記錄")
-    else:
-        st.info("無會議報告教師回饋資料")
-
-    # ═══ Section D：詳細記錄（expander 收合）═══
-    with st.expander("📋 操作技術詳細記錄", expanded=False):
+    with col_right:
+        st.markdown("**詳細記錄**")
         if not technical_data.empty:
-            display_cols = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '熟練程度(自動判定)', '操作技術教師回饋']
+            display_cols = ['評核日期', '評核教師', '評核技術項目',
+                           '可信賴程度', '操作技術教師回饋']
             avail = [c for c in display_cols if c in technical_data.columns]
             if avail:
-                st.dataframe(technical_data[avail].sort_values('評核日期', ascending=False), use_container_width=True)
+                with st.container(border=True, height=500):
+                    st.dataframe(
+                        technical_data[avail].sort_values('評核日期', ascending=False),
+                        use_container_width=True,
+                        hide_index=True
+                    )
         else:
             st.info("無操作技術評核記錄")
 
-    with st.expander("📋 會議報告詳細記錄", expanded=False):
+    # ═══ Section 3：會議報告分析（左右兩欄）═══
+    st.markdown("### 會議報告分析")
+    col_left, col_right = st.columns([1.2, 0.8])
+
+    with col_left:
+        st.markdown("**各維度評分分析**")
+        # 查詢同儕資料
+        resident_level = _get_resident_level(df, selected_resident)
+        all_meeting = df[df['評核項目'].astype(str).str.contains('會議報告', na=False)].copy() if '評核項目' in df.columns else pd.DataFrame()
+        peer_meeting = all_meeting[
+            (all_meeting['受評核人員'] != selected_resident) &
+            (all_meeting['評核時級職'].astype(str) == str(resident_level))
+        ] if not all_meeting.empty and '受評核人員' in all_meeting.columns and '評核時級職' in all_meeting.columns else pd.DataFrame()
+
+        show_meeting_radar_large(meeting_data, peer_meeting, selected_resident, resident_level)
+
+    with col_right:
+        st.markdown("**詳細記錄與回饋**")
+
+        # 質性回饋（最新 3 筆直接展開）
+        feedback_col = '會議報告教師回饋'
+        if not meeting_data.empty and feedback_col in meeting_data.columns:
+            feedback_rows = meeting_data[meeting_data[feedback_col].notna() &
+                                        (meeting_data[feedback_col].astype(str).str.strip() != '')]
+            if '評核日期' in feedback_rows.columns:
+                feedback_rows = feedback_rows.sort_values('評核日期', ascending=False)
+
+            if not feedback_rows.empty:
+                st.caption("**最新教師回饋**")
+                for _, row in feedback_rows.head(3).iterrows():
+                    with st.container(border=True):
+                        d = row.get('評核日期', '')
+                        if hasattr(d, 'strftime'):
+                            d = d.strftime('%Y-%m-%d')
+                        teacher = row.get('評核教師', '')
+                        st.caption(f"{d} | {teacher}")
+                        st.write(str(row.get(feedback_col, '')))
+
+                # 全部回饋（expander）
+                if len(feedback_rows) > 3:
+                    with st.expander(f"查看全部回饋（共 {len(feedback_rows)} 筆）"):
+                        for _, row in feedback_rows.iloc[3:].iterrows():
+                            with st.container(border=True):
+                                d = row.get('評核日期', '')
+                                if hasattr(d, 'strftime'):
+                                    d = d.strftime('%Y-%m-%d')
+                                teacher = row.get('評核教師', '')
+                                st.caption(f"{d} | {teacher}")
+                                st.write(str(row.get(feedback_col, '')))
+
+        # 詳細記錄表格
+        st.caption("**完整評核記錄**")
         if not meeting_data.empty:
             display_cols = ['評核日期', '評核教師', '會議名稱',
-                            '內容是否充分', '辯證資料的能力', '口條、呈現方式是否清晰',
-                            '是否具開創、建設性的想法', '回答提問是否具邏輯、有條有理',
-                            '會議報告教師回饋', '病歷號']
+                           '內容是否充分', '辯證資料的能力', '口條、呈現方式是否清晰',
+                           '是否具開創、建設性的想法', '回答提問是否具邏輯、有條有理',
+                           '會議報告教師回饋', '病歷號']
             avail = [c for c in display_cols if c in meeting_data.columns]
             if avail:
-                st.dataframe(meeting_data[avail].sort_values('評核日期', ascending=False), use_container_width=True)
+                with st.container(border=True, height=300):
+                    st.dataframe(
+                        meeting_data[avail].sort_values('評核日期', ascending=False),
+                        use_container_width=True,
+                        hide_index=True
+                    )
         else:
             st.info("無會議報告評核記錄")
 
-    with st.expander("📋 EPA 詳細記錄", expanded=False):
-        if not epa_data.empty:
-            display_cols = ['評核日期', '評核教師', 'EPA項目', 'EPA可信賴程度', 'EPA質性回饋']
+    # ═══ Section 4：EPA 趨勢分析（左右兩欄）═══
+    st.markdown("### EPA 趨勢分析")
+
+    if not epa_data.empty and 'EPA項目' in epa_data.columns and '評核日期' in epa_data.columns:
+        col_left, col_right = st.columns([1.2, 0.8])
+
+        with col_left:
+            st.markdown("**信賴程度月度趨勢**")
+            st.caption("各 EPA 項目每月平均可信賴程度變化")
+            show_epa_trend_chart(epa_data, selected_resident)
+
+        with col_right:
+            st.markdown("**詳細記錄**")
+            display_cols = ['評核日期', '評核教師', 'EPA項目',
+                           'EPA可信賴程度', 'EPA質性回饋']
             avail = [c for c in display_cols if c in epa_data.columns]
             if avail:
-                st.dataframe(epa_data[avail].sort_values('評核日期', ascending=False), use_container_width=True)
-        else:
-            st.info("無 EPA 評核記錄")
+                with st.container(border=True, height=500):
+                    st.dataframe(
+                        epa_data[avail].sort_values('評核日期', ascending=False),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+            else:
+                st.info("無 EPA 詳細記錄")
+    else:
+        st.info("無 EPA 評核記錄")
 
-    # ═══ Section E：EPA 信賴程度趨勢圖（時間序列）═══
-    if not epa_data.empty and 'EPA項目' in epa_data.columns and '評核日期' in epa_data.columns:
-        st.markdown("### EPA 信賴程度趨勢分析")
-        st.caption("各 EPA 項目每月平均可信賴程度變化")
-
-        show_epa_trend_chart(epa_data, selected_resident)
+    # ═══ Section 5：研究進度（若有 Supabase 連線）═══
+    conn = _get_supabase_conn()
+    if conn:
+        st.markdown("### 📚 研究進度")
+        show_resident_research_progress(conn, selected_resident)
 
 
 def show_epa_trend_chart(epa_data, resident_name):
@@ -1389,6 +1555,87 @@ def show_epa_trend_chart(epa_data, resident_name):
         legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5)
     )
     st.plotly_chart(fig, use_container_width=True, key=f"epa_trend_{resident_name}")
+
+
+def show_meeting_radar_large(meeting_data, peer_meeting, resident_name, resident_level):
+    """
+    放大版會議報告雷達圖（用於左右兩欄版面的左欄）
+
+    Args:
+        meeting_data: 該住院醫師的會議報告資料
+        peer_meeting: 同級職同儕的會議報告資料
+        resident_name: 住院醫師姓名
+        resident_level: 住院醫師級職
+    """
+    radar_text_cols = [
+        ('內容是否充分',           '內容充分'),
+        ('辯證資料的能力',         '辯證資料'),
+        ('口條、呈現方式是否清晰', '口條清晰'),
+        ('是否具開創、建設性的想法','開創想法'),
+        ('回答提問是否具邏輯、有條有理','邏輯回答'),
+    ]
+
+    labels_radar = []
+    means_self = []
+    means_peer = []
+
+    for text_col, short_label in radar_text_cols:
+        num_col = f'{text_col}_數值'
+        if num_col in meeting_data.columns:
+            m_self = meeting_data[num_col].dropna().mean()
+            means_self.append(float(m_self) if pd.notna(m_self) else 0)
+            if not peer_meeting.empty and num_col in peer_meeting.columns:
+                m_peer = peer_meeting[num_col].dropna().mean()
+                means_peer.append(float(m_peer) if pd.notna(m_peer) else 0)
+            else:
+                means_peer.append(0)
+            labels_radar.append(short_label)
+        elif text_col in meeting_data.columns:
+            s_self = meeting_data[text_col].apply(convert_score_to_numeric).dropna()
+            means_self.append(float(s_self.mean()) if len(s_self) > 0 else 0)
+            if not peer_meeting.empty and text_col in peer_meeting.columns:
+                s_peer = peer_meeting[text_col].apply(convert_score_to_numeric).dropna()
+                means_peer.append(float(s_peer.mean()) if len(s_peer) > 0 else 0)
+            else:
+                means_peer.append(0)
+            labels_radar.append(short_label)
+
+    if labels_radar:
+        labels_closed = labels_radar + [labels_radar[0]]
+        means_self_closed = means_self + [means_self[0]]
+
+        fig_mtg = go.Figure()
+
+        # 同儕平均（灰色）
+        if means_peer and any(m > 0 for m in means_peer):
+            means_peer_closed = means_peer + [means_peer[0]]
+            fig_mtg.add_trace(go.Scatterpolar(
+                r=means_peer_closed, theta=labels_closed,
+                fill='toself', name=f'同儕平均（{resident_level}）',
+                line=dict(color='rgba(128,128,128,1)', width=2),
+                fillcolor='rgba(128,128,128,0.12)'
+            ))
+
+        # 個人（藍色）
+        fig_mtg.add_trace(go.Scatterpolar(
+            r=means_self_closed, theta=labels_closed,
+            fill='toself', name=resident_name,
+            line=dict(color='rgba(65,105,225,1)', width=3),
+            fillcolor='rgba(65,105,225,0.25)'
+        ))
+
+        fig_mtg.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
+            height=450,  # 比儀表板版本更高
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.12, xanchor="center", x=0.5),
+            margin=dict(l=30, r=30, t=30, b=50)
+        )
+
+        st.plotly_chart(fig_mtg, use_container_width=True,
+                       key=f"mtg_radar_large_{resident_name}")
+    else:
+        st.info("無會議報告評核記錄")
 
 
 def show_statistical_analysis():
@@ -1614,7 +1861,12 @@ def show_data_management():
         st.markdown("### 📥 資料匯入")
         if st.button("重新載入Google表單資料", type="primary"):
             with st.spinner("正在載入資料..."):
-                df, sheet_titles = load_pediatric_data()
+                # 獲取選擇的科別（僅在 Supabase 模式下生效）
+                selected_dept = st.session_state.get('selected_department')
+                data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
+                department_filter = selected_dept if data_source == 'supabase' else None
+
+                df, sheet_titles = load_pediatric_data(department=department_filter)
                 if df is not None:
                     st.info("資料載入成功！")
                     st.session_state['pediatric_data'] = df
@@ -1683,9 +1935,14 @@ def show_data_management():
 def show_skill_tracking():
     """顯示技能追蹤功能"""
     st.subheader("🎯 小兒科住院醫師技能追蹤")
-    
+
+    # 獲取選擇的科別（僅在 Supabase 模式下生效）
+    selected_dept = st.session_state.get('selected_department')
+    data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
+    department_filter = selected_dept if data_source == 'supabase' else None
+
     # 載入資料
-    df, _ = load_pediatric_data()
+    df, _ = load_pediatric_data(department=department_filter)
     
     if df is not None and not df.empty:
         # 選擇受評核人員
@@ -1846,31 +2103,112 @@ def show_skill_progress(skill_counts, resident_name):
         # 添加分隔線
         st.markdown("---")
 
-def show_grouped_skill_progress(skill_counts):
-    """技能分組進度條：按三組呈現，每項 progress + ✓/⚠️ 標記"""
+def show_grouped_skill_progress(skill_counts, technical_data=None):
+    """技能分組堆疊長條圖：依可信賴程度分數著色（紅<2 / 黃2~<4 / 綠4~5），按三組呈現"""
+    import plotly.graph_objects as go
+
+    # 從 technical_data 統計每項技能的分數分佈
+    def _score_distribution(skill_name):
+        """回傳 (red_count, yellow_count, green_count, no_score_count)"""
+        red = yellow = green = no_score = 0
+        if technical_data is None or technical_data.empty:
+            return red, yellow, green, no_score
+        if '評核技術項目' not in technical_data.columns:
+            return red, yellow, green, no_score
+
+        for idx, item in technical_data['評核技術項目'].dropna().items():
+            if skill_name in str(item):
+                score = None
+                if '可信賴程度_數值' in technical_data.columns:
+                    score = technical_data.loc[idx, '可信賴程度_數值']
+                if pd.notna(score):
+                    if score < 2:
+                        red += 1
+                    elif score < 4:
+                        yellow += 1
+                    else:
+                        green += 1
+                else:
+                    no_score += 1
+        return red, yellow, green, no_score
+
     for group_name, group_skills in SKILL_GROUPS.items():
         st.markdown(f"**{group_name}**")
+
+        skills_list = []
+        red_vals = []
+        yellow_vals = []
+        green_vals = []
+        required_vals = []
+
         for skill in group_skills:
             data = skill_counts.get(skill)
-            if data is None:
-                # 該技能在 skill_counts 裡沒出現，代表 0 次
-                completed = 0
-                required  = PEDIATRIC_SKILL_REQUIREMENTS.get(skill, {}).get('minimum', 1)
-            else:
-                completed = data['completed']
-                required  = data['required']
+            required = data['required'] if data else PEDIATRIC_SKILL_REQUIREMENTS.get(skill, {}).get('minimum', 1)
 
-            progress_val = min(completed / required, 1.0) if required > 0 else 1.0
-            done = completed >= required
+            r, y, g, ns = _score_distribution(skill)
+            total = r + y + g + ns
 
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.progress(progress_val, text=f"{skill}　{completed}/{required}")
-            with col2:
-                if done:
-                    st.markdown("✅", unsafe_allow_html=False)
-                else:
-                    st.markdown(f"⚠️ 還需 {required - completed} 次", unsafe_allow_html=False)
+            skills_list.append(skill)
+            red_vals.append(r)
+            yellow_vals.append(y)
+            green_vals.append(g)
+            required_vals.append(required)
+
+        # 反轉使第一項在最上方
+        skills_list = skills_list[::-1]
+        red_vals = red_vals[::-1]
+        yellow_vals = yellow_vals[::-1]
+        green_vals = green_vals[::-1]
+        required_vals = required_vals[::-1]
+
+        # 產生標籤文字（技能名稱 + 完成/需求）
+        text_labels = []
+        for i, skill in enumerate(skills_list):
+            total = red_vals[i] + yellow_vals[i] + green_vals[i]
+            req = required_vals[i]
+            done = "✅" if total >= req else f"還需{req - total}次"
+            text_labels.append(f"{skill}  ({total}/{req}) {done}")
+
+        fig = go.Figure()
+
+        # 紅色：< 2 分
+        fig.add_trace(go.Bar(
+            y=text_labels, x=red_vals, name='< 2 分',
+            orientation='h',
+            marker_color='#e74c3c',
+            hovertemplate='%{y}<br><2分: %{x}次<extra></extra>'
+        ))
+        # 黃色：2~<4 分
+        fig.add_trace(go.Bar(
+            y=text_labels, x=yellow_vals, name='2~<4 分',
+            orientation='h',
+            marker_color='#f39c12',
+            hovertemplate='%{y}<br>2~<4分: %{x}次<extra></extra>'
+        ))
+        # 綠色：4~5 分
+        fig.add_trace(go.Bar(
+            y=text_labels, x=green_vals, name='4~5 分',
+            orientation='h',
+            marker_color='#27ae60',
+            hovertemplate='%{y}<br>4~5分: %{x}次<extra></extra>'
+        ))
+
+        # X 軸上限
+        max_total = max((r + y + g for r, y, g in zip(red_vals, yellow_vals, green_vals)), default=0)
+        max_req = max(required_vals) if required_vals else 1
+        x_max = max(max_total, max_req) + 1
+
+        fig.update_layout(
+            barmode='stack',
+            height=max(len(skills_list) * 45, 150),
+            margin=dict(l=10, r=10, t=5, b=5),
+            xaxis=dict(title='評核次數', dtick=1, range=[0, x_max]),
+            yaxis=dict(automargin=True),
+            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
+            showlegend=True,
+        )
+
+        st.plotly_chart(fig, use_container_width=True, key=f"skill_bar_{group_name}")
         st.divider()
 
 def show_skill_details(resident_data, resident_name):
@@ -1882,7 +2220,7 @@ def show_skill_details(resident_data, resident_name):
     
     if not skill_records.empty:
         # 選擇要顯示的欄位
-        display_columns = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '熟練程度(自動判定)', '操作技術教師回饋']
+        display_columns = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '操作技術教師回饋']
         
         # 確保所有欄位都存在
         available_columns = [col for col in display_columns if col in skill_records.columns]
@@ -2139,6 +2477,226 @@ def create_individual_radar_chart(resident_data, resident_name, full_df):
         
     except Exception as e:
         st.error(f"創建雷達圖時發生錯誤：{str(e)}")
+
+
+def show_resident_research_progress(conn, resident_name):
+    """
+    顯示個別住院醫師的研究進度（個人分析頁面）
+    """
+    try:
+        research_records = conn.fetch_research_progress(filters={'resident_name': resident_name})
+
+        if not research_records:
+            st.info(f"**{resident_name}** 尚未登記研究進度")
+            return
+
+        # 統計
+        status_counts = {}
+        for rec in research_records:
+            status = rec.get('current_status', '構思中')
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+        # 第一排：統計卡片
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("💡 構思中", status_counts.get('構思中', 0))
+        with col2:
+            st.metric("✍️ 撰寫中", status_counts.get('撰寫中', 0))
+        with col3:
+            st.metric("📤 投稿中", status_counts.get('投稿中', 0))
+        with col4:
+            st.metric("✅ 接受", status_counts.get('接受', 0))
+
+        # 第二排：研究清單（表格）
+        display_data = []
+        for rec in research_records:
+            status_emoji = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
+            display_data.append({
+                '研究名稱': rec.get('research_title', ''),
+                '類型': rec.get('research_type', ''),
+                '指導老師': rec.get('supervisor_name', '—'),
+                '進度': f"{status_emoji.get(rec.get('current_status', ''), '📝')} {rec.get('current_status', '')}",
+                '更新時間': rec.get('updated_at', '')[:10] if rec.get('updated_at') else ''
+            })
+
+        if display_data:
+            df = pd.DataFrame(display_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            # 詳細檢視（可展開）
+            with st.expander("📝 詳細進度說明", expanded=False):
+                for i, rec in enumerate(research_records):
+                    st.markdown(f"**{i+1}. {rec.get('research_title', '')}**")
+                    st.caption(f"類型：{rec.get('research_type', '')} ｜ 指導老師：{rec.get('supervisor_name', '—')}")
+                    if rec.get('progress_notes'):
+                        st.text_area("進度說明", rec['progress_notes'], height=80, key=f"progress_{i}", disabled=True)
+                    if rec.get('challenges'):
+                        st.text_area("遭遇困難", rec['challenges'], height=60, key=f"challenges_{i}", disabled=True)
+                    if rec.get('next_steps'):
+                        st.text_area("下一步計畫", rec['next_steps'], height=60, key=f"next_{i}", disabled=True)
+                    st.divider()
+
+    except Exception as e:
+        st.warning(f"載入研究進度時發生錯誤：{str(e)}")
+
+
+def show_resident_learning_reflections(conn, resident_name):
+    """
+    顯示個別住院醫師的學習反思記錄（個人分析頁面）
+    """
+    try:
+        # 只載入非私人記錄（若要顯示本人的私人記錄，需判斷當前使用者）
+        reflections = conn.fetch_learning_reflections(
+            filters={'resident_name': resident_name, 'include_private': False}
+        )
+
+        if not reflections:
+            st.info(f"**{resident_name}** 尚未記錄學習反思")
+            return
+
+        # 統計
+        type_counts = {}
+        for rec in reflections:
+            rtype = rec.get('reflection_type', '其他')
+            type_counts[rtype] = type_counts.get(rtype, 0) + 1
+
+        # 第一排：類型統計
+        st.caption(f"共 **{len(reflections)}** 筆反思記錄")
+        cols = st.columns(min(5, len(type_counts)))
+        for i, (rtype, count) in enumerate(type_counts.items()):
+            with cols[i % len(cols)]:
+                st.metric(rtype, count)
+
+        st.markdown("---")
+
+        # 第二排：反思清單（最新 10 筆）
+        st.caption("最新 10 筆反思記錄")
+        recent = reflections[:10]
+
+        display_data = []
+        for rec in recent:
+            display_data.append({
+                '日期': rec.get('reflection_date', ''),
+                '標題': rec.get('reflection_title', ''),
+                '類型': rec.get('reflection_type', ''),
+                '相關 EPA': rec.get('related_epa', '—'),
+                '相關技能': rec.get('related_skill', '—'),
+            })
+
+        if display_data:
+            df = pd.DataFrame(display_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            # 詳細檢視（Gibbs 反思循環內容）
+            with st.expander("📖 詳細反思內容", expanded=False):
+                for i, rec in enumerate(recent):
+                    st.markdown(f"### {i+1}. {rec.get('reflection_title', '')}")
+                    st.caption(f"日期：{rec.get('reflection_date', '')} ｜ 類型：{rec.get('reflection_type', '')}")
+
+                    if rec.get('situation_description'):
+                        st.markdown("**1️⃣ 情境描述**")
+                        st.write(rec['situation_description'])
+                    if rec.get('thoughts_and_feelings'):
+                        st.markdown("**2️⃣ 想法與感受**")
+                        st.write(rec['thoughts_and_feelings'])
+                    if rec.get('evaluation'):
+                        st.markdown("**3️⃣ 評估與分析**")
+                        st.write(rec['evaluation'])
+                    if rec.get('action_plan'):
+                        st.markdown("**4️⃣ 行動計畫**")
+                        st.write(rec['action_plan'])
+                    if rec.get('learning_outcomes'):
+                        st.markdown("**5️⃣ 學習成果**")
+                        st.write(rec['learning_outcomes'])
+
+                    if rec.get('tags'):
+                        st.caption(f"🏷️ 標籤：{', '.join(rec['tags'])}")
+
+                    st.divider()
+
+    except Exception as e:
+        st.warning(f"載入學習反思時發生錯誤：{str(e)}")
+
+
+def show_research_progress_overview(conn, residents):
+    """
+    研究進度總覽區塊（CCC 總覽頁面）
+    顯示所有住院醫師的研究進度統計
+    """
+    st.subheader("📚 住院醫師研究進度總覽")
+
+    try:
+        # 載入所有研究進度
+        all_research = conn.fetch_research_progress()
+        if not all_research:
+            st.info("目前尚無住院醫師登記研究進度")
+            return
+
+        # 統計各狀態數量
+        status_counts = {'構思中': 0, '撰寫中': 0, '投稿中': 0, '接受': 0}
+        resident_research_count = {r: 0 for r in residents}
+
+        for rec in all_research:
+            status = rec.get('current_status', '構思中')
+            if status in status_counts:
+                status_counts[status] += 1
+
+            res_name = rec.get('resident_name', '')
+            if res_name in resident_research_count:
+                resident_research_count[res_name] += 1
+
+        # 第一排：狀態統計卡片
+        st.markdown("#### 📊 研究狀態分布")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("💡 構思中", status_counts['構思中'])
+        with col2:
+            st.metric("✍️ 撰寫中", status_counts['撰寫中'])
+        with col3:
+            st.metric("📤 投稿中", status_counts['投稿中'])
+        with col4:
+            st.metric("✅ 接受", status_counts['接受'])
+
+        st.markdown("---")
+
+        # 第二排：住院醫師研究清單（以表格呈現）
+        st.markdown("#### 📋 各住院醫師研究清單")
+
+        # 整理資料供顯示
+        display_data = []
+        for rec in all_research:
+            status_emoji = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
+            display_data.append({
+                '住院醫師': rec.get('resident_name', ''),
+                '級職': rec.get('resident_level', ''),
+                '研究名稱': rec.get('research_title', ''),
+                '類型': rec.get('research_type', ''),
+                '指導老師': rec.get('supervisor_name', '—'),
+                '進度': f"{status_emoji.get(rec.get('current_status', ''), '📝')} {rec.get('current_status', '')}",
+                '更新時間': rec.get('updated_at', '')[:10] if rec.get('updated_at') else ''
+            })
+
+        if display_data:
+            df = pd.DataFrame(display_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+        # 第三排：研究進度分布圖（圓餅圖）
+        with st.expander("📈 研究進度分布圖", expanded=False):
+            fig = go.Figure(data=[go.Pie(
+                labels=list(status_counts.keys()),
+                values=list(status_counts.values()),
+                marker=dict(colors=['#FFF3CD', '#D1ECF1', '#D4EDDA', '#C3E6CB']),
+                hole=0.3
+            )])
+            fig.update_layout(
+                title="研究進度狀態分布",
+                height=350
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        st.warning(f"載入研究進度總覽時發生錯誤：{str(e)}")
+
 
 if __name__ == "__main__":
     show_pediatric_evaluation_section()

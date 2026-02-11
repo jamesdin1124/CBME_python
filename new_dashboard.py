@@ -25,6 +25,8 @@ from pages.ugy.ugy_individual import show_ugy_student_analysis
 from pages.ugy.ugy_teacher_analysis import show_ugy_teacher_analysis
 from config.epa_constants import EPA_LEVEL_MAPPING
 from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page, filter_data_by_permission, get_user_department
+from modules.supabase_connection import SupabaseConnection
+from modules.supabase_connection import SupabaseConnection
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -35,6 +37,21 @@ from supabase import create_client
 
 # 載入環境變數
 load_dotenv()
+
+# Supabase 連線實例（全域變數，避免重複建立）
+_supabase_conn = None
+
+def get_supabase_connection():
+    """獲取 Supabase 連線實例"""
+    global _supabase_conn
+    if _supabase_conn is not None:
+        return _supabase_conn
+    try:
+        _supabase_conn = SupabaseConnection()
+        return _supabase_conn
+    except Exception as e:
+        st.error(f"無法連線 Supabase：{str(e)}")
+        return None
 
 def get_openai_client():
     """獲取 OpenAI 客戶端實例並提供更詳細的錯誤訊息，使用自訂 httpx 客戶端"""
@@ -382,259 +399,153 @@ def main():
     # 檢查是否已登入
     if not st.session_state.logged_in:
         # 建立選項卡讓用戶選擇登入或註冊
-        login_tab, register_tab, test_form_tab, test_result_tab = st.tabs(["登入", "申請帳號", "測試表單", "測試結果"])
-        
+        login_tab, register_tab = st.tabs(["登入", "申請帳號"])
+
         with login_tab:
             if show_login_page():
                 st.rerun()
-        
+
         with register_tab:
-            if show_registration_page():
-                st.success("帳號申請成功！請等待管理員審核後即可登入。")
-                # 不需要立即重新運行，讓用戶看到成功訊息
-                
-        with test_form_tab:
-            st.header("測試表單填寫")
-            
-            # 其他評語（表單外）
-            st.subheader("其他評語")
-            comments = st.text_area("請輸入評語", height=100, key="input_comments")
-            
-            # 文字修正按鈕（表單外）
-            if comments:
-                if st.button("修正文字", key="correct_button"):
-                    corrected_comments = correct_text_with_gpt(comments)
-                    st.session_state.corrected_comments = corrected_comments
-                    st.text_area("修正後的評語", corrected_comments, height=100, key="corrected_text")
-                    comments = corrected_comments
-            
-            st.markdown("---")  # 分隔線
-            
-            # 使用表單容器
-            with st.form("test_form", clear_on_submit=False):
-                st.subheader("基本資訊")
-                col1, col2 = st.columns(2)
-                with col1:
-                    name = st.selectbox(
-                        "姓名",
-                        ["丁OO"]
+            st.header("📝 申請帳號")
+            st.info("填寫以下資料提交申請，管理員審核通過後即可登入使用。")
+
+            with st.form("application_form"):
+                # ── 第一列：真實姓名 ──
+                full_name = st.text_input("真實姓名 *", placeholder="請輸入真實姓名")
+
+                # ── 第二列：帳號 ──
+                desired_username = st.text_input("帳號 *", placeholder="請輸入希望使用的帳號（英文或數字）")
+
+                # ── 第三、四列：密碼 ──
+                col_pw1, col_pw2 = st.columns(2)
+                with col_pw1:
+                    desired_password = st.text_input("密碼 *", type="password", placeholder="請輸入密碼")
+                with col_pw2:
+                    confirm_password = st.text_input("再次輸入密碼 *", type="password", placeholder="請再次輸入密碼")
+
+                # ── 第五、六列：Email + 電話 ──
+                col_contact1, col_contact2 = st.columns(2)
+                with col_contact1:
+                    email = st.text_input("Email *", placeholder="example@hospital.com")
+                with col_contact2:
+                    phone = st.text_input("聯絡電話（公務機）", placeholder="分機號碼或公務手機")
+
+                # ── 第七、八列：科別 + 身份 ──
+                col_dept, col_role = st.columns(2)
+                with col_dept:
+                    department = st.selectbox(
+                        "科別 *",
+                        options=["", "內科部", "外科部", "婦產部", "小兒部", "家醫部", "麻醉部"],
+                        help="請選擇您所屬的科別"
                     )
-                with col2:
-                    batch = st.selectbox(
-                        "梯次",
-                        ["2025/02", "2025/03", "2025/04"]
+                with col_role:
+                    user_type = st.selectbox(
+                        "身份 *",
+                        options=["", "department_admin", "teacher", "resident", "pgy", "student"],
+                        format_func=lambda x: {
+                            "": "請選擇",
+                            "department_admin": "科別管理員",
+                            "teacher": "主治醫師",
+                            "resident": "住院醫師",
+                            "pgy": "PGY",
+                            "student": "UGY"
+                        }.get(x)
                     )
-                
-                # EPA 評分項目
-                st.subheader("EPA 評分")
-                epa_scores = {}
-                for i in range(1, 6):  # 假設有 5 個 EPA 項目
-                    epa_scores[f"EPA_{i}"] = st.slider(
-                        f"EPA {i} 評分",
-                        min_value=1,
-                        max_value=5,
-                        value=3,
-                        help="1: 需要監督, 2: 需要指導, 3: 需要提示, 4: 獨立完成, 5: 可指導他人"
-                    )
-                
-                # 顯示最終評語
-                st.subheader("最終評語")
-                final_comments = st.text_area("確認評語", comments, height=100, key="final_comments", disabled=True)
-                
-                # 提交按鈕
-                submitted = st.form_submit_button("提交表單")
-                
-                if submitted:
-                    # 建立資料字典
-                    form_data = {
-                        "姓名": name,
-                        "梯次": batch,
-                        "EPA_1": epa_scores["EPA_1"],
-                        "EPA_2": epa_scores["EPA_2"],
-                        "EPA_3": epa_scores["EPA_3"],
-                        "EPA_4": epa_scores["EPA_4"],
-                        "EPA_5": epa_scores["EPA_5"],
-                        "評語": comments,
-                        "提交時間": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    
-                    # 將資料轉換為 DataFrame
-                    df = pd.DataFrame([form_data])
-                    
-                    # 檢查檔案是否存在
-                    try:
-                        # 如果檔案存在，讀取並附加新資料
-                        existing_df = pd.read_csv("test_form_data.csv")
-                        df = pd.concat([existing_df, df], ignore_index=True)
-                    except FileNotFoundError:
-                        # 如果檔案不存在，直接使用新資料
-                        pass
-                    
-                    # 儲存到 CSV 檔案
-                    df.to_csv("test_form_data.csv", index=False, encoding='utf-8-sig')
-                    
-                    # 儲存到 SQLite 資料庫
-                    if init_test_form_db():
-                        if save_to_sqlite(form_data):
-                            st.success("資料已成功儲存到本機資料庫！")
-                        else:
-                            st.warning("資料已儲存到 CSV，但資料庫儲存失敗")
+
+                # ── 住院醫師附加欄位 ──
+                resident_level = None
+                supervisor_name = None
+                if user_type == "resident":
+                    col_lv, col_sv = st.columns(2)
+                    with col_lv:
+                        resident_level = st.selectbox("級職 *", options=["R1", "R2", "R3"])
+                    with col_sv:
+                        supervisor_name = st.text_input("指導醫師", placeholder="指導您的主治醫師姓名")
+
+                submit = st.form_submit_button("提交申請", use_container_width=True)
+
+                if submit:
+                    import hashlib
+                    # 驗證必填欄位
+                    if not full_name or not desired_username or not desired_password or not email or not user_type:
+                        st.error("請填寫所有必填欄位（標記 * 者）")
+                    elif not department and user_type not in ['pgy', 'student']:
+                        st.error("請選擇科別")
+                    elif desired_password != confirm_password:
+                        st.error("兩次輸入的密碼不一致，請重新輸入")
+                    elif len(desired_password) < 4:
+                        st.error("密碼長度至少 4 個字元")
+                    elif user_type == "resident" and not resident_level:
+                        st.error("住院醫師請選擇級職")
                     else:
-                        st.warning("資料已儲存到 CSV，但資料庫初始化失敗")
-                    
-                    # 顯示成功訊息
-                    st.success("表單提交成功！")
-                    # 顯示提交的資料
-                    st.write("提交的資料：")
-                    st.write(f"姓名：{name}")
-                    st.write(f"梯次：{batch}")
-                    st.write("EPA 評分：", epa_scores)
-                    st.write("評語：", comments)
-        
-        with test_result_tab:
-            st.header("測試結果分析")
-            
-            try:
-                # 讀取 CSV 檔案
-                df = pd.read_csv("test_form_data.csv")
-                
-                # 顯示原始資料
-                st.subheader("原始資料")
-                st.dataframe(df)
-                
-                # EPA 評分統計
-                st.subheader("EPA 評分統計")
-                epa_columns = [f"EPA_{i}" for i in range(1, 6)]
-                epa_stats = df[epa_columns].describe()
-                st.dataframe(epa_stats)
-                
-                # EPA 平均分數雷達圖
-                st.subheader("EPA 平均分數雷達圖")
-                epa_means = df[epa_columns].mean()
-                
-                fig = go.Figure()
-                fig.add_trace(go.Scatterpolar(
-                    r=epa_means.values,
-                    theta=[f"EPA {i}" for i in range(1, 6)],
-                    fill='toself',
-                    name='平均分數',
-                    hovertemplate='EPA: %{theta}<br>平均分數: %{r:.2f}<extra></extra>'
-                ))
-                
-                fig.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True,
-                            range=[0, 5],
-                            ticktext=['1', '2', '3', '4', '5'],
-                            tickvals=[1, 2, 3, 4, 5]
-                        )
-                    ),
-                    showlegend=False,
-                    title="EPA 平均分數雷達圖",
-                    height=500
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # EPA 評分趨勢圖
-                st.subheader("EPA 評分趨勢（按梯次）")
-                
-                # 按照梯次分組計算平均分數
-                epa_trend = df.groupby('梯次')[epa_columns].mean().reset_index()
-                
-                fig = go.Figure()
-                
-                colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # 自定義顏色
-                
-                for i, epa in enumerate(epa_columns):
-                    fig.add_trace(go.Scatter(
-                        x=epa_trend['梯次'],
-                        y=epa_trend[epa],
-                        mode='lines+markers',
-                        name=f'EPA {i+1}',
-                        line=dict(width=3, color=colors[i]),
-                        marker=dict(size=10, symbol='circle', color=colors[i]),
-                        hovertemplate='梯次: %{x}<br>平均分數: %{y:.2f}<extra></extra>'
-                    ))
-                
-                fig.update_layout(
-                    title=dict(
-                        text="EPA 評分趨勢（按梯次）",
-                        font=dict(size=24)
-                    ),
-                    xaxis=dict(
-                        title="梯次",
-                        categoryorder='array',
-                        categoryarray=['2025/02', '2025/03', '2025/04'],
-                        tickfont=dict(size=14),
-                        gridcolor='lightgrey'
-                    ),
-                    yaxis=dict(
-                        title="平均分數",
-                        range=[1, 5],
-                        tickmode='linear',
-                        tick0=1,
-                        dtick=1,
-                        tickfont=dict(size=14),
-                        gridcolor='lightgrey'
-                    ),
-                    hovermode="x unified",
-                    showlegend=True,
-                    legend=dict(
-                        font=dict(size=12),
-                        yanchor="top",
-                        y=0.99,
-                        xanchor="right",
-                        x=0.99
-                    ),
-                    height=600,
-                    plot_bgcolor='white',
-                    paper_bgcolor='white',
-                    margin=dict(t=100)
-                )
-                
-                # 添加網格線
-                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
-                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # EPA 評分分布圖
-                st.subheader("EPA 評分分布")
-                fig = make_subplots(rows=2, cols=3, subplot_titles=[f"{epa} 分布" for epa in epa_columns])
-                
-                for i, epa in enumerate(epa_columns):
-                    row = (i // 3) + 1
-                    col = (i % 3) + 1
-                    
-                    fig.add_trace(
-                        go.Histogram(
-                            x=df[epa],
-                            nbinsx=5,
-                            name=epa,
-                            hovertemplate='評分: %{x}<br>次數: %{y}<extra></extra>'
-                        ),
-                        row=row, col=col
-                    )
-                
-                fig.update_layout(
-                    height=800,
-                    showlegend=False,
-                    title_text="EPA 評分分布"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # 評語分析
-                st.subheader("評語分析")
-                if not df['評語'].empty:
-                    st.write("最近 5 筆評語：")
-                    for comment in df['評語'].tail(5):
-                        st.write(f"- {comment}")
-                
-            except FileNotFoundError:
-                st.warning("尚未有測試資料，請先填寫表單。")
-            except Exception as e:
-                st.error(f"讀取或分析資料時發生錯誤：{str(e)}")
+                        # 連線 Supabase
+                        conn = get_supabase_connection()
+                        if not conn:
+                            st.error("無法連線資料庫，請聯繫系統管理員")
+                        else:
+                            # 檢查帳號是否已存在
+                            try:
+                                existing_user = conn.get_client().table('pediatric_users').select('id').eq('username', desired_username).execute()
+                                if existing_user.data:
+                                    st.error(f"帳號 「{desired_username}」 已被使用，請更換其他帳號")
+                                    st.stop()
+                            except Exception:
+                                pass  # 查詢失敗時不阻擋，交由管理員後續處理
+
+                            # 檢查是否已有相同 Email 的待審核申請
+                            existing = conn.fetch_user_applications({'email': email, 'status': 'pending'})
+                            if existing:
+                                st.warning("此 Email 已有待審核的申請，請勿重複提交")
+                            else:
+                                # 密碼 hash
+                                password_hash = hashlib.sha256(desired_password.encode()).hexdigest()
+
+                                # 建立申請資料
+                                app_data = {
+                                    'full_name': full_name,
+                                    'desired_username': desired_username,
+                                    'password_hash': password_hash,
+                                    'email': email,
+                                    'phone': phone if phone else None,
+                                    'user_type': user_type,
+                                    'department': department if department else None,
+                                    'resident_level': resident_level,
+                                    'supervisor_name': supervisor_name if supervisor_name else None,
+                                }
+
+                                result = conn.insert_user_application(app_data)
+                                if result:
+                                    st.success("✅ 申請已提交！管理員審核通過後即可使用您設定的帳號密碼登入。")
+                                    st.balloons()
+                                else:
+                                    st.error("提交失敗，請稍後再試或聯繫系統管理員")
+
+            # 顯示申請狀態（若使用者輸入 Email）
+            st.markdown("---")
+            st.subheader("查詢申請狀態")
+            query_email = st.text_input("輸入申請時填寫的 Email", key="query_email")
+            if st.button("查詢", key="query_btn"):
+                if query_email:
+                    conn = get_supabase_connection()
+                    if conn:
+                        apps = conn.fetch_user_applications({'email': query_email})
+                        if apps:
+                            st.write(f"找到 {len(apps)} 筆申請記錄：")
+                            for app in apps:
+                                status_emoji = {"pending": "⏳", "approved": "✅", "rejected": "❌"}.get(app['status'], "❓")
+                                status_text = {"pending": "待審核", "approved": "已核准", "rejected": "已拒絕"}.get(app['status'])
+
+                                with st.container(border=True):
+                                    st.write(f"{status_emoji} **狀態**：{status_text}")
+                                    st.caption(f"申請時間：{app['created_at'][:10]}")
+                                    if app['status'] == 'rejected' and app.get('review_notes'):
+                                        st.warning(f"拒絕原因：{app['review_notes']}")
+                                    if app['status'] == 'approved':
+                                        st.info("帳號已建立，請檢查 Email 或聯繫管理員取得帳號資訊")
+                        else:
+                            st.info("查無此 Email 的申請記錄")
+        return
+
         return
     
     # 顯示登出按鈕與管理入口
@@ -646,24 +557,28 @@ def main():
             st.session_state.user_name = None
             st.session_state.user_department = None
             st.session_state.student_id = None
-            st.session_state.pop('show_account_management', None)
             st.rerun()
 
-        # 管理員專屬：帳號管理入口
-        if st.session_state.get('role') == 'admin':
+        # 管理員和科別管理員專屬：管理功能入口
+        if st.session_state.get('role') in ['admin', 'department_admin']:
             st.markdown("---")
-            if st.button("👥 帳號管理"):
-                st.session_state['show_account_management'] = True
+            st.markdown("### 管理功能")
+
+            # 帳號申請審核
+            if st.button("📋 帳號申請審核"):
+                st.session_state['show_application_review'] = True
                 st.rerun()
-            if st.session_state.get('show_account_management'):
+
+            # 返回主頁按鈕
+            if st.session_state.get('show_application_review'):
                 if st.button("↩️ 返回主頁"):
-                    st.session_state['show_account_management'] = False
+                    st.session_state.pop('show_application_review', None)
                     st.rerun()
 
-    # 帳號管理頁面（admin 專用）
-    if st.session_state.get('show_account_management') and st.session_state.get('role') == 'admin':
-        from pages.admin.account_management import show_account_management
-        show_account_management()
+    # 帳號申請審核頁面（admin 和 department_admin 專用）
+    if st.session_state.get('show_application_review') and st.session_state.get('role') in ['admin', 'department_admin']:
+        from pages.admin.user_application_review import show_user_application_review
+        show_user_application_review()
         return
 
     st.title("學生評核系統")
