@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小兒部住院醫師評核表單</title>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .form-container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .submit-btn {
+            background-color: #3498db;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .submit-btn:hover {
+            background-color: #2980b9;
+        }
+        .required {
+            color: red;
+        }
+        .section {
+            background-color: #ecf0f1;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h1>🏥 小兒部住院醫師評核表單</h1>
+        
+        <form id="pediatricForm">
+            <!-- 基本資訊 -->
+            <div class="section">
+                <h3>基本資訊</h3>
+                
+                <div class="form-group">
+                    <label for="evaluator_teacher">評核教師 <span class="required">*</span></label>
+                    <input type="text" id="evaluator_teacher" name="evaluator_teacher" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="evaluation_date">評核日期 <span class="required">*</span></label>
+                    <input type="date" id="evaluation_date" name="evaluation_date" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="evaluated_person">受評核人員 <span class="required">*</span></label>
+                    <input type="text" id="evaluated_person" name="evaluated_person" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="evaluation_level">評核時級職 <span class="required">*</span></label>
+                    <select id="evaluation_level" name="evaluation_level" required>
+                        <option value="">請選擇</option>
+                        <option value="R1">R1</option>
+                        <option value="R2">R2</option>
+                        <option value="R3">R3</option>
+                        <option value="R4">R4</option>
+                        <option value="R5">R5</option>
+                        <option value="Fellow">Fellow</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="evaluation_item">評核項目 <span class="required">*</span></label>
+                    <select id="evaluation_item" name="evaluation_item" required>
+                        <option value="">請選擇</option>
+                        <option value="操作技術">操作技術</option>
+                        <option value="病例討論">病例討論</option>
+                        <option value="晨會報告">晨會報告</option>
+                        <option value="教學門診">教學門診</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="meeting_name">會議名稱</label>
+                    <input type="text" id="meeting_name" name="meeting_name">
+                </div>
+            </div>
+            
+            <!-- 評核內容 -->
+            <div class="section">
+                <h3>評核內容</h3>
+                
+                <div class="form-group">
+                    <label>內容是否充分 <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" id="content_1" name="content_sufficient" value="非常同意" required>
+                            <label for="content_1">非常同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="content_2" name="content_sufficient" value="同意" required>
+                            <label for="content_2">同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="content_3" name="content_sufficient" value="普通" required>
+                            <label for="content_3">普通</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="content_4" name="content_sufficient" value="不同意" required>
+                            <label for="content_4">不同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="content_5" name="content_sufficient" value="非常不同意" required>
+                            <label for="content_5">非常不同意</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>辯證資料的能力 <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" id="data_1" name="data_analysis_ability" value="優秀" required>
+                            <label for="data_1">優秀</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="data_2" name="data_analysis_ability" value="良好" required>
+                            <label for="data_2">良好</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="data_3" name="data_analysis_ability" value="普通" required>
+                            <label for="data_3">普通</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="data_4" name="data_analysis_ability" value="待改進" required>
+                            <label for="data_4">待改進</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="data_5" name="data_analysis_ability" value="需加強" required>
+                            <label for="data_5">需加強</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>口條、呈現方式是否清晰 <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" id="presentation_1" name="presentation_clarity" value="非常同意" required>
+                            <label for="presentation_1">非常同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="presentation_2" name="presentation_clarity" value="同意" required>
+                            <label for="presentation_2">同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="presentation_3" name="presentation_clarity" value="普通" required>
+                            <label for="presentation_3">普通</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="presentation_4" name="presentation_clarity" value="不同意" required>
+                            <label for="presentation_4">不同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="presentation_5" name="presentation_clarity" value="非常不同意" required>
+                            <label for="presentation_5">非常不同意</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>是否具開創、建設性的想法 <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" id="innovative_1" name="innovative_ideas" value="優秀" required>
+                            <label for="innovative_1">優秀</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="innovative_2" name="innovative_ideas" value="良好" required>
+                            <label for="innovative_2">良好</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="innovative_3" name="innovative_ideas" value="普通" required>
+                            <label for="innovative_3">普通</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="innovative_4" name="innovative_ideas" value="待改進" required>
+                            <label for="innovative_4">待改進</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="innovative_5" name="innovative_ideas" value="需加強" required>
+                            <label for="innovative_5">需加強</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>回答提問是否具邏輯、有條有理 <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" id="logical_1" name="logical_response" value="非常同意" required>
+                            <label for="logical_1">非常同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="logical_2" name="logical_response" value="同意" required>
+                            <label for="logical_2">同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="logical_3" name="logical_response" value="普通" required>
+                            <label for="logical_3">普通</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="logical_4" name="logical_response" value="不同意" required>
+                            <label for="logical_4">不同意</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="logical_5" name="logical_response" value="非常不同意" required>
+                            <label for="logical_5">非常不同意</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="teacher_feedback">會議報告教師回饋</label>
+                    <textarea id="teacher_feedback" name="teacher_feedback" placeholder="請提供具體的回饋意見..."></textarea>
+                </div>
+            </div>
+            
+            <!-- 技術評核 -->
+            <div class="section">
+                <h3>技術評核</h3>
+                
+                <div class="form-group">
+                    <label for="patient_id">病歷號 <span class="required">*</span></label>
+                    <input type="text" id="patient_id" name="patient_id" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="technical_evaluation_item">評核技術項目 <span class="required">*</span></label>
+                    <select id="technical_evaluation_item" name="technical_evaluation_item" required>
+                        <option value="">請選擇技能項目</option>
+                        <option value="插氣管內管（訓練期間最少3次）">插氣管內管（訓練期間最少3次）</option>
+                        <option value="插臍(動靜脈)導管（訓練期間最少1次）">插臍(動靜脈)導管（訓練期間最少1次）</option>
+                        <option value="腰椎穿刺（PGY2/R1 訓練期間最少3次）">腰椎穿刺（PGY2/R1 訓練期間最少3次）</option>
+                        <option value="插中心靜脈導管(CVC)（訓練期間最少3次）">插中心靜脈導管(CVC)（訓練期間最少3次）</option>
+                        <option value="肋膜液或是腹水抽取（訓練期間最少1次）">肋膜液或是腹水抽取（訓練期間最少1次）</option>
+                        <option value="插胸管（訓練期間最少2次）">插胸管（訓練期間最少2次）</option>
+                        <option value="放置動脈導管（訓練期間最少2次）">放置動脈導管（訓練期間最少2次）</option>
+                        <option value="經皮式中央靜脈導管(PICC)（訓練期間最少3次）">經皮式中央靜脈導管(PICC)（訓練期間最少3次）</option>
+                        <option value="腦部超音波（訓練期間最少5次）">腦部超音波（訓練期間最少5次）</option>
+                        <option value="心臟超音波（訓練期間最少5次）">心臟超音波（訓練期間最少5次）</option>
+                        <option value="腹部超音波（訓練期間最少5次）">腹部超音波（訓練期間最少5次）</option>
+                        <option value="腎臟超音波（訓練期間最少5次）">腎臟超音波（訓練期間最少5次）</option>
+                        <option value="病歷書寫（訓練期間最少10次）">病歷書寫（訓練期間最少10次）</option>
+                        <option value="NRP（訓練期間最少10次）">NRP（訓練期間最少10次）</option>
+                        <option value="其他">其他</option>
+                    </select>
+                    <input type="text" id="other_technical_item" name="other_technical_item" 
+                           placeholder="如選擇其他，請填寫具體項目" style="margin-top: 10px; display: none;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="sedation_medication">鎮靜藥物</label>
+                    <select id="sedation_medication" name="sedation_medication">
+                        <option value="">請選擇</option>
+                        <option value="不需使用">不需使用</option>
+                        <option value="需要">需要</option>
+                        <option value="已使用">已使用</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reliability_level">可信賴程度 <span class="required">*</span></label>
+                    <select id="reliability_level" name="reliability_level" required>
+                        <option value="">請選擇</option>
+                        <option value="1 需要指導">1 需要指導</option>
+                        <option value="2 部分獨立">2 部分獨立</option>
+                        <option value="3 協助下完成">3 協助下完成</option>
+                        <option value="4 獨立完成">4 獨立完成</option>
+                        <option value="5 完全獨立">5 完全獨立</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="technical_teacher_feedback">操作技術教師回饋</label>
+                    <textarea id="technical_teacher_feedback" name="technical_teacher_feedback" 
+                              placeholder="請提供技術操作相關的回饋意見..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="proficiency_level">熟練程度 <span class="required">*</span></label>
+                    <select id="proficiency_level" name="proficiency_level" required>
+                        <option value="">請選擇</option>
+                        <option value="不熟練">不熟練</option>
+                        <option value="初學">初學</option>
+                        <option value="部分熟練">部分熟練</option>
+                        <option value="基本熟練">基本熟練</option>
+                        <option value="熟練">熟練</option>
+                        <option value="一兩次內完成">一兩次內完成</option>
+                        <option value="協助下完成">協助下完成</option>
+                        <option value="需指導完成">需指導完成</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn">提交評核</button>
+        </form>
+    </div>
+    
+    <script>
+        // 設定預設日期為今天
+        document.getElementById('evaluation_date').valueAsDate = new Date();
+        
+        // 處理技術項目選擇
+        document.getElementById('technical_evaluation_item').addEventListener('change', function() {
+            const otherInput = document.getElementById('other_technical_item');
+            if (this.value === '其他') {
+                otherInput.style.display = 'block';
+                otherInput.required = true;
+            } else {
+                otherInput.style.display = 'none';
+                otherInput.required = false;
+                otherInput.value = '';
+            }
+        });
+        
+        // 表單提交處理
+        document.getElementById('pediatricForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // 收集表單資料
+            const formData = new FormData(this);
+            const data = {};
+            
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            
+            // 處理技術項目
+            if (data.technical_evaluation_item === '其他' && data.other_technical_item) {
+                data.technical_evaluation_item = data.other_technical_item;
+            }
+            delete data.other_technical_item;
+            
+            // 添加時間戳記
+            data.timestamp = new Date().toLocaleString('zh-TW');
+            
+            // 顯示提交的資料（實際應用中應該發送到伺服器）
+            alert('表單提交成功！\n\n資料將被記錄到Google Sheets中。\n\n實際應用中，這裡會將資料發送到後端處理。');
+            
+            console.log('提交的資料:', data);
+            
+            // 重置表單
+            this.reset();
+            document.getElementById('evaluation_date').valueAsDate = new Date();
+        });
+    </script>
+</body>
+</html>

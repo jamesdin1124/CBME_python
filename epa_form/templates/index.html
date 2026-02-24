@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPA 表單</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .form-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+        }
+        .feedback-section {
+            margin-top: 2rem;
+        }
+        .voice-controls {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">EPA 表單</h1>
+        <form id="epaForm">
+            <!-- 基本資料區塊 -->
+            <div class="form-section">
+                <h3>基本資料</h3>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="hierarchy" class="form-label">層級</label>
+                        <select class="form-select" id="hierarchy" required>
+                            <option value="">請選擇</option>
+                            <option value="PGY1">PGY1</option>
+                            <option value="PGY2">PGY2</option>
+                            <option value="R1">R1</option>
+                            <option value="R2">R2</option>
+                            <option value="R3">R3</option>
+                            <option value="R4">R4</option>
+                            <option value="R5">R5</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="student_id" class="form-label">學號</label>
+                        <input type="text" class="form-control" id="student_id" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="student_name" class="form-label">姓名</label>
+                        <input type="text" class="form-control" id="student_name" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="location" class="form-label">地點</label>
+                        <input type="text" class="form-control" id="location" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 臨床情境區塊 -->
+            <div class="form-section">
+                <h3>臨床情境</h3>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="patient_id" class="form-label">病患 ID</label>
+                        <input type="text" class="form-control" id="patient_id" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="clinical_scenario" class="form-label">臨床情境</label>
+                        <select class="form-select" id="clinical_scenario" required>
+                            <option value="">請選擇</option>
+                            <option value="門診">門診</option>
+                            <option value="急診">急診</option>
+                            <option value="住院">住院</option>
+                            <option value="手術室">手術室</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EPA 評分區塊 -->
+            <div class="form-section">
+                <h3>EPA 評分</h3>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="student_epa_level" class="form-label">學員 EPA 等級</label>
+                        <select class="form-select" id="student_epa_level" required>
+                            <option value="">請選擇</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="patient_difficulty" class="form-label">病患難度</label>
+                        <select class="form-select" id="patient_difficulty" required>
+                            <option value="">請選擇</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="teacher_epa_level" class="form-label">教師 EPA 等級</label>
+                        <select class="form-select" id="teacher_epa_level" required>
+                            <option value="">請選擇</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 回饋區塊 -->
+            <div class="form-section feedback-section">
+                <h3>回饋</h3>
+                <div class="mb-3">
+                    <label for="feedback" class="form-label">回饋內容</label>
+                    <textarea class="form-control" id="feedback" rows="5" required></textarea>
+                    <div class="voice-controls">
+                        <button type="button" class="btn btn-primary" id="startRecording">開始錄音</button>
+                        <button type="button" class="btn btn-danger" id="stopRecording" disabled>停止錄音</button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-success">提交表單</button>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let recognition;
+        const startButton = document.getElementById('startRecording');
+        const stopButton = document.getElementById('stopRecording');
+        const feedbackTextarea = document.getElementById('feedback');
+
+        // 初始化語音識別
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'zh-TW';
+
+                recognition.onstart = () => {
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                    console.log('開始錄音...');
+                };
+
+                recognition.onend = () => {
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                    console.log('停止錄音');
+                };
+
+                recognition.onresult = (event) => {
+                    let finalTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript;
+                        }
+                    }
+                    
+                    if (finalTranscript) {
+                        enhanceText(finalTranscript);
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('語音識別錯誤：', event.error);
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                };
+            } else {
+                alert('您的瀏覽器不支援語音識別功能');
+                startButton.disabled = true;
+                stopButton.disabled = true;
+            }
+        }
+
+        // 開始錄音
+        startButton.addEventListener('click', () => {
+            if (!recognition) {
+                initSpeechRecognition();
+            }
+            recognition.start();
+        });
+
+        // 停止錄音
+        stopButton.addEventListener('click', () => {
+            if (recognition) {
+                recognition.stop();
+            }
+        });
+
+        // 使用 OpenAI 增強文字
+        async function enhanceText(text) {
+            try {
+                const response = await fetch('/enhance_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                const data = await response.json();
+                if (data.status === 'success') {
+                    feedbackTextarea.value = data.text;
+                } else {
+                    alert('文字增強失敗：' + data.message);
+                }
+            } catch (error) {
+                console.error('文字增強錯誤：', error);
+                alert('處理文字時發生錯誤。');
+            }
+        }
+
+        // 表單提交
+        document.getElementById('epaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                hierarchy: document.getElementById('hierarchy').value,
+                student_id: document.getElementById('student_id').value,
+                student_name: document.getElementById('student_name').value,
+                location: document.getElementById('location').value,
+                patient_id: document.getElementById('patient_id').value,
+                clinical_scenario: document.getElementById('clinical_scenario').value,
+                student_epa_level: document.getElementById('student_epa_level').value,
+                patient_difficulty: document.getElementById('patient_difficulty').value,
+                teacher_epa_level: document.getElementById('teacher_epa_level').value,
+                feedback: document.getElementById('feedback').value
+            };
+
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (error) {
+                    console.error('解析回應時發生錯誤：', error);
+                    throw new Error('伺服器回應格式錯誤');
+                }
+
+                if (data.status === 'success') {
+                    alert('表單提交成功！');
+                    document.getElementById('epaForm').reset();
+                } else {
+                    alert('提交失敗：' + (data.message || '未知錯誤'));
+                }
+            } catch (error) {
+                console.error('提交錯誤：', error);
+                alert('提交表單時發生錯誤：' + error.message);
+            }
+        });
+    </script>
+</body>
+</html> 

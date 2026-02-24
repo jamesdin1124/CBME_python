@@ -1,0 +1,176 @@
+檔案名稱
+臨床訓練計畫
+組別
+階段/子階段
+訓練階段科部
+訓練階段期間
+學員
+表單簽核流程
+表單派送日期
+應完成日期
+受訓年度
+評核日期
+學員姓名
+1.Patient Care 1(PC1). 麻醉前病人評估、診斷與前置作業 (學員自評)[單選]
+學員建議(未達到之項目說明)：
+1.Patient Care 1(PC1). 麻醉前病人評估、診斷與前置作業 (教師評核)[單選]
+教師回饋(未達到之項目說明)：
+1.Patient Care 1(PC1). 麻醉前病人評估、診斷與前置作業 (教師評核)[單選].1
+教師回饋(未達到之項目說明)：.1
+13.System-based Practice 2 (SBP2). 病人安全及照護品質提升(學員自評) [單選]
+學員建議(未達到之項目說明)：.1
+13.System-based Practice 2 (SBP2). 病人安全及照護品質提升(教師評核) [單選]
+教師回饋(未達到之項目說明)：.2
+13.System-based Practice 2 (SBP2). 病人安全及照護品質提升(教師評核) [單選].1
+教師回饋(未達到之項目說明)：.3
+23. Interpersonal communication skill 1 (ICS1). 與病患及家屬溝通(學員自評) [單選]
+學員建議(未達到之項目說明)：.2
+23. Interpersonal communication skill 1 (ICS1). 與病患及家屬溝通(教師評核) [單選]
+教師回饋(未達到之項目說明)：.4
+23. Interpersonal communication skill 1 (ICS1). 與病患及家屬溝通(教師評核) [單選].1
+教師回饋(未達到之項目說明)：.5
+24. Interpersonal communication skill 2 (ICS2). 與其他專業人員溝通(學員自評) [單選]
+學員建議(未達到之項目說明)：.3
+24. Interpersonal communication skill 2 (ICS2). 與其他專業人員溝通(教師評核) [單選]
+教師回饋(未達到之項目說明)：.6
+24. Interpersonal communication skill 2 (ICS2). 與其他專業人員溝通(教師評核) [單選].1
+教師回饋(未達到之項目說明)：.7
+EPA 1A 評分(學員自評) [單選]
+學員意見反應
+EPA 1A 評分(教師評核) [單選]
+教師意見回饋
+EPA 1A 評分(教師評核) [單選].1
+教師意見回饋.1
+簽名
+簽名.1
+簽名.2
+開始日期
+結束日期
+訓練天數
+EPA 1B 評分(學員自評) [單選]
+EPA 1B 評分(教師評核) [單選]
+EPA 1B 評分(教師評核) [單選].1
+2. Patient care 2 (PC2). 麻醉計劃與執行(學員自評) [單選]
+2. Patient care 2 (PC2). 麻醉計劃與執行(教師評核) [單選]
+2. Patient care 2 (PC2). 麻醉計劃與執行(教師評核) [單選].1
+5. Patient care 5 (PC5).危機處理 (學員自評)[單選]
+5. Patient care 5 (PC5).危機處理 (教師評核)[單選]
+5. Patient care 5 (PC5).危機處理 (教師評核)[單選].1
+6. Patient care 6 (PC6).手術室外重症病人之檢傷與處理(學員自評) [單選]
+6. Patient care 6 (PC6).手術室外重症病人之檢傷與處理(教師評核) [單選]
+6. Patient care 6 (PC6).手術室外重症病人之檢傷與處理(教師評核 [單選]
+9. Patient care 9 (PC9).技術技能：監測設備的使用和判讀(學員自評) [單選]
+9. Patient care 9 (PC9).技術技能：監測設備的使用和判讀(教師評核) [單選]
+9. Patient care 9 (PC9).技術技能：監測設備的使用和判讀(教師評核) [單選].1
+12. System based practice (SBP1). 實際病人照護與醫療照護體系結合(學員自評) [單選]
+學員建議(未達到之項目說明)：.4
+12. System based practice (SBP1). 實際病人照護與醫療照護體系結合(教師評核) [單選]
+教師回饋(未達到之項目說明)：.8
+12. System based practice (SBP1). 實際病人照護與醫療照護體系結合(教師評核) [單選].1
+教師回饋(未達到之項目說明)：.9
+18. Professionalism 1(PROF1). 對病人，家人及社會的責任(學員自評) [單選]
+學員建議(未達到之項目說明)：.5
+18. Professionalism 1(PROF1). 對病人，家人及社會的責任(教師評核) [單選]
+教師回饋(未達到之項目說明)：.10
+18. Professionalism 1(PROF1). 對病人，家人及社會的責任(教師評核) [單選].1
+教師回饋(未達到之項目說明)：.11
+25. Interpersonal communication skill (ICS3).團隊及領導技巧 (學員自評)[單選]
+學員建議(未達到之項目說明)：.6
+25. Interpersonal communication skill (ICS3).團隊及領導技巧 (教師評核)[單選]
+教師回饋(未達到之項目說明)：.12
+25. Interpersonal communication skill (ICS3).團隊及領導技巧 (教師評核)[單選].1
+教師回饋(未達到之項目說明)：.13
+EPA 2A 評分(學員自評) [單選]
+EPA 2A 評分(教師評核) [單選]
+EPA 2A 評分(教師評核) [單選].1
+EPA 2B 評分(學員自評) [單選]
+EPA 2B 評分(教師評核) [單選]
+EPA 2B 評分(教師評核) [單選].1
+3. Patient care 3 (PC3). 手術中的疼痛處理(學員自評) [單選]
+3. Patient care 3 (PC3). 手術中的疼痛處理(教師評核) [單選]
+3. Patient care 3 (PC3). 手術中的疼痛處理(教師評核) [單選].1
+7. Patient care 7 (PC7).急性、慢性以及癌症相關疼痛的照會和處置(學員自評) [單選]
+7. Patient care 7 (PC7).急性、慢性以及癌症相關疼痛的照會和處置(教師評核) [單選]
+7. Patient care 7 (PC7).急性、慢性以及癌症相關疼痛的照會和處置(教師評核) [單選].1
+10. Patient care 10 (PC10).技術技能：區域麻醉 (學員自評)[單選]
+10. Patient care 10 (PC10).技術技能：區域麻醉(教師評核) [單選]
+10. Patient care 10 (PC10).技術技能：區域麻醉(教師評核) [單選].1
+19. Professionalism 2(PROF2). 誠實，廉正和倫理的行為(學員自評) [單選]
+19. Professionalism 2(PROF2). 誠實，廉正和倫理的行為(教師評核) [單選]
+19. Professionalism 2(PROF2). 誠實，廉正和倫理的行為(教師評核) [單選].1
+24. Interpersonal communication skill 2(ICS2).與其他專業人員溝通(學員自評) [單選]
+學員建議(未達到之項目說明)：.7
+24. Interpersonal communication skill 2(ICS2).與其他專業人員溝通(教師評核) [單選]
+教師回饋(未達到之項目說明)：.14
+24. Interpersonal communication skill 2(ICS2).與其他專業人員溝通(教師評核) [單選].1
+教師回饋(未達到之項目說明)：.15
+EPA 3A 評分(學員自評)[單選]
+EPA 3A 評分(教師評核)[單選]
+EPA 3A 評分(教師評核)[單選].1
+EPA 3B 評分(學員自評)[單選]
+EPA 3B 評分(教師評核)[單選]
+EPA 3B 評分(教師評核)[單選].1
+1.Patient Care 1(PC1). 麻醉前病人評估、診斷與前置作業(學員自評) [單選]
+1.Patient Care 1(PC1). 麻醉前病人評估、診斷與前置作業(教師評核) [單選]
+1.Patient Care 1(PC1). 麻醉前病人評估、診斷與前置作業(教師評核) [單選].1
+2. Patient care 2 (PC2). 麻醉計劃與執行(學員自評)[單選]
+8. Patient care 8(PC8).技術技能：呼吸道處置(學員自評) [單選]
+8. Patient care 8(PC8).技術技能：呼吸道處置(教師評核) [單選]
+8. Patient care 8(PC8).技術技能：呼吸道處置(教師評核) [單選].1
+17. Practice based learning and improving 4 (PBLI4). 對病人、家屬、學生、大眾和其他醫事人員的教育(學員自評) [單選]
+17. Practice based learning and improving 4 (PBLI4). 對病人、家屬、學生、大眾和其他醫事人員的教育 (教師評核)[單選]
+17. Practice based learning and improving 4 (PBLI4). 對病人、家屬、學生、大眾和其他醫事人員的教育 (教師評核)[單選].1
+20. Professionalism 3(PROF 3). 對醫療機構，科部以及同事的委身(學員自評) [單選]
+20. Professionalism 3(PROF 3). 對醫療機構，科部以及同事的委身(教師評核) [單選]
+20. Professionalism 3(PROF 3). 對醫療機構，科部以及同事的委身(教師評核) [單選].1
+23. Interpersonal communication skill 1 (ICS1). 與病患及家屬溝通 (學員自評)[單選]
+23. Interpersonal communication skill 1 (ICS1). 與病患及家屬溝通 (教師評核)[單選]
+23. Interpersonal communication skill 1 (ICS1). 與病患及家屬溝通 (教師評核)[單選].1
+EPA 4A 評分(學員自評) [單選]
+EPA 4A 評分(教師評核) [單選]
+EPA 4A 評分(教師評核) [單選].1
+EPA 4B 評分(學員自評) [單選]
+EPA 4B 評分(教師評核) [單選]
+EPA 4B 評分(教師評核) [單選].1
+1.Patient Care 4(PC4). 圍術期併發症的處理(學員自評) [單選]
+1.Patient Care 4(PC4). 圍術期併發症的處理(教師評核) [單選]
+1.Patient Care 4(PC4). 圍術期併發症的處理(教師評核) [單選].1
+14. Practice based learning and improving 1 (PBLI1).將品質改進及病人安全納入個人工作之中(學員自評) [單選]
+14. Practice based learning and improving 1 (PBLI1).將品質改進及病人安全納入個人工作之中(教師評核) [單選]
+14. Practice based learning and improving 1 (PBLI1).將品質改進及病人安全納入個人工作之中(教師評核) [單選].1
+15. Practice based learning and improving 2 (PBLI2).實踐分析找出需要改進的地方(學員自評) [單選]
+15. Practice based learning and improving 2 (PBLI2).實踐分析找出需要改進的地方(教師評核) [單選]
+15. Practice based learning and improving 2 (PBLI2).實踐分析找出需要改進的地方(教師評核) [單選].1
+EPA 5A 評分(學員自評) [單選]
+EPA 5A 評分(教師評核) [單選]
+EPA 5A 評分(教師評核) [單選].1
+EPA 5B 評分(學員自評) [單選]
+EPA 5B 評分(教師評核) [單選]
+EPA 5B 評分(教師評核) [單選].1
+13.System-based Practice 2 (SBP2). 病人安全及照護品質提升 (學員自評)[單選]
+13.System-based Practice 2 (SBP2). 病人安全及照護品質提升 (教師評核)[單選]
+13.System-based Practice 2 (SBP2). 病人安全及照護品質提升 (教師評核)[單選].1
+15. Practice based learning and improving 2 (PBLI2).實踐分析找出需要改進的地方 (學員自評)[單選]
+15. Practice based learning and improving 2 (PBLI2).實踐分析找出需要改進的地方 (教師評核)[單選]
+15. Practice based learning and improving 2 (PBLI2).實踐分析找出需要改進的地方 (教師評核)[單選].1
+16. Practice based learning and improving 3 (PBLI3).自主學習 (學員自評)[單選]
+16. Practice based learning and improving 3 (PBLI3).自主學習 (教師評核)[單選]
+16. Practice based learning and improving 3 (PBLI3).自主學習 (教師評核)[單選].1
+21. Professionalism 4 (PROF4). 接受和提供回饋(學員自評) [單選]
+21. Professionalism 4 (PROF4). 接受和提供回饋(教師評核) [單選]
+21. Professionalism 4 (PROF4). 接受和提供回饋(教師評核) [單選].1
+22. Professionalism 5 (PROF5). 維護個人情緒，身體和精神健康的責任 (學員自評)[單選]
+22. Professionalism 5 (PROF5). 維護個人情緒，身體和精神健康的責任 (教師評核)[單選]
+22. Professionalism 5 (PROF5). 維護個人情緒，身體和精神健康的責任 (教師評核)[單選].1
+25. Interpersonal communication skill 3 (ICS3).團隊及領導技巧(學員自評) [單選]
+25. Interpersonal communication skill 3 (ICS3).團隊及領導技巧(教師評核) [單選]
+25. Interpersonal communication skill 3 (ICS3).團隊及領導技巧(教師評核) [單選].1
+11. Medical knowledge 1 (MK1).生物醫學、臨床、流行病學與社會行為科學的知識(學員自評) [單選]
+11. Medical knowledge 1 (MK1).生物醫學、臨床、流行病學與社會行為科學的知識(教師評核) [單選]
+11. Medical knowledge 1 (MK1).生物醫學、臨床、流行病學與社會行為科學的知識(教師評核) [單選].1
+EPA 6A 評分(學員自評) [單選]
+EPA 6A 評分(教師評核) [單選]
+EPA 6A 評分(教師評核) [單選].1
+EPA 6B 評分(學員自評) [單選]
+EPA 6B 評分(教師評核) [單選]
+EPA 6B 評分(教師評核) [單選].1

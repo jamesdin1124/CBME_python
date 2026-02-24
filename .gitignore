@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+.env
+# Streamlit
+.streamlit/ 
+.streamlit/secret.toml
+
+# Excel 檔案和資料夾
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+excel/
+Excel/
+data/excel/
+
+.env.*
+!.env.example
