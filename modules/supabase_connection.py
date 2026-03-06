@@ -115,6 +115,72 @@ class SupabaseConnection:
             print(f"新增兒科評核記錄失敗: {str(e)}")
             return None
 
+    # =============================================
+    # 通用評核方法（全科別）
+    # =============================================
+
+    def insert_evaluation(self, data):
+        """
+        通用新增一筆評核記錄（全科別共用）。
+        底層寫入同一張 pediatric_evaluations 表，
+        以 department 欄位區隔科別。
+
+        Args:
+            data (dict): 評核資料，必須包含：
+                - evaluation_type, evaluator_teacher, evaluation_date,
+                  evaluated_resident, department
+                依 evaluation_type 不同，需包含對應欄位。
+
+        Returns:
+            dict | None: 新增成功回傳記錄，失敗回傳 None
+        """
+        try:
+            result = self.client.table('pediatric_evaluations').insert(data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"新增評核記錄失敗: {str(e)}")
+            return None
+
+    def fetch_evaluations(self, department=None, filters=None):
+        """
+        通用查詢評核記錄（全科別共用）。
+
+        Args:
+            department (str, optional): 科別名稱（用於科別過濾）
+            filters (dict, optional): 額外過濾條件，支援的 key：
+                - evaluation_type, evaluated_resident,
+                  evaluator_teacher, date_from, date_to
+
+        Returns:
+            list[dict]: 評核記錄列表
+        """
+        try:
+            query = self.client.table('pediatric_evaluations') \
+                .select('*') \
+                .eq('is_deleted', False) \
+                .order('evaluation_date', desc=True)
+
+            if department:
+                query = query.eq('department', department)
+
+            if filters:
+                if filters.get('evaluation_type'):
+                    query = query.eq('evaluation_type', filters['evaluation_type'])
+                if filters.get('evaluated_resident'):
+                    query = query.eq('evaluated_resident', filters['evaluated_resident'])
+                if filters.get('evaluator_teacher'):
+                    query = query.eq('evaluator_teacher', filters['evaluator_teacher'])
+                if filters.get('date_from'):
+                    query = query.gte('evaluation_date', filters['date_from'])
+                if filters.get('date_to'):
+                    query = query.lte('evaluation_date', filters['date_to'])
+
+            result = query.execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"查詢評核記錄失敗: {str(e)}")
+            return []
+
     def insert_pediatric_evaluations_batch(self, records):
         """
         批次新增多筆兒科評核記錄（供遷移使用）

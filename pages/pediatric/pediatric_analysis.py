@@ -124,7 +124,9 @@ def show_pediatric_evaluation_section():
     st.title("🏥 小兒部住院醫師評核系統")
     st.markdown("---")
 
-    # 顯示表單連結 + 資料來源 + 科別過濾
+    # 顯示表單連結 + 資料來源（預設小兒部，不需科別過濾）
+    st.session_state['selected_department'] = '小兒部'
+
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         # 資料來源選擇
@@ -142,32 +144,13 @@ def show_pediatric_evaluation_section():
         if data_source == 'google_sheets':
             st.info("📋 [開啟 Google 表單](https://docs.google.com/spreadsheets/d/1n4kc2d3Z-x9SvIDApPCCz2HSDO0wSrrk9Y5jReMhr-M/edit?usp=sharing)")
     with col3:
-        # 科別選擇器（僅在 Supabase 模式下顯示）
-        if data_source == 'supabase':
-            from modules.auth import check_permission
-            user_role = st.session_state.get('role', 'resident')
-            user_dept = st.session_state.get('user_department')
-
-            # 決定可用科別
-            if check_permission(user_role, 'can_view_all'):
-                available_depts = ["內科部", "外科部", "婦產部", "小兒部", "家醫部", "麻醉部"]
-            elif user_role in ['department_admin', 'teacher']:
-                available_depts = [user_dept] if user_dept else []
-            else:
-                available_depts = []
-
-            if available_depts and len(available_depts) > 1:
-                selected_department = st.selectbox(
-                    "科別過濾",
-                    options=available_depts,
-                    key="pediatric_dept_filter",
-                    help="選擇要查看的科別資料"
-                )
-                st.session_state['selected_department'] = selected_department
-            elif available_depts:
-                st.session_state['selected_department'] = available_depts[0]
-            else:
-                st.session_state['selected_department'] = user_dept
+        include_demo = st.checkbox(
+            "包含展示資料",
+            value=True,
+            key="include_demo_data",
+            help="勾選後會載入展示用的範例資料（5位虛擬住院醫師、81筆評核紀錄）"
+        )
+        st.session_state['include_demo_data'] = include_demo
 
     # 判斷是否為教師/管理員（可使用表單與帳號管理）
     from modules.auth import check_permission
@@ -312,6 +295,13 @@ def _load_from_supabase(department=None):
             return None, None
 
         df = pd.DataFrame(records)
+
+        # 依「包含展示資料」勾選狀態過濾 demo 資料
+        if not st.session_state.get('include_demo_data', True):
+            if 'form_version' in df.columns:
+                df = df[df['form_version'] != 'demo']
+                if df.empty:
+                    return None, None
 
         # 將 Supabase 欄位名映射回中文欄位（與 Google Sheets 格式一致）
         col_map = {

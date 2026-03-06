@@ -489,6 +489,294 @@ class UnifiedRadarVisualization:
             ax.set_title("雷達圖創建錯誤")
             return fig
     
+    # ═══════════════════════════════════════════════════════
+    # Phase 4 新增：個人/群組/比較雷達圖（通用 API）
+    # ═══════════════════════════════════════════════════════
+
+    def create_individual_radar(self, student_scores: Dict[str, float],
+                                epa_labels: List[str],
+                                title: str = "個人能力雷達圖",
+                                student_name: str = None,
+                                scale: int = 5,
+                                height: int = 500) -> go.Figure:
+        """
+        建立個人能力雷達圖（依 EPA 項目顯示平均分數）。
+
+        Args:
+            student_scores: {EPA項目名稱: 平均分數} 字典
+            epa_labels: EPA 項目標籤列表（決定順序）
+            title: 圖表標題
+            student_name: 學員姓名
+            scale: 量表上限
+            height: 圖表高度
+
+        Returns:
+            go.Figure
+        """
+        try:
+            if not student_scores or not epa_labels:
+                return self._create_error_figure("無個人資料")
+
+            categories = list(epa_labels)
+            values = [student_scores.get(cat, 0) for cat in categories]
+
+            # 至少 3 軸
+            while len(categories) < 3:
+                categories.append(f"項目{len(categories)+1}")
+                values.append(0)
+
+            categories_closed = categories + [categories[0]]
+            values_closed = values + [values[0]]
+
+            fig = go.Figure()
+            _name = student_name or '個人'
+            fig.add_trace(go.Scatterpolar(
+                r=values_closed,
+                theta=categories_closed,
+                fill='toself',
+                name=_name,
+                fillcolor='rgba(99, 110, 250, 0.3)',
+                line=dict(color='#636EFA', width=2),
+            ))
+
+            fig.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, scale])),
+                title=title,
+                showlegend=True,
+                height=height,
+            )
+            return fig
+
+        except Exception as e:
+            return self._create_error_figure(f"建立個人雷達圖失敗: {str(e)}")
+
+    def create_group_radar(self, group_data: pd.DataFrame,
+                           epa_col: str, score_col: str,
+                           group_col: str = None,
+                           title: str = "群組 EPA 雷達圖",
+                           scale: int = 5,
+                           height: int = 500) -> go.Figure:
+        """
+        建立群組平均雷達圖（可多組疊加）。
+
+        Args:
+            group_data: 群組資料 DataFrame
+            epa_col: EPA 項目欄位名
+            score_col: 分數欄位名
+            group_col: 分組欄位（如 '階層'），None 則為單一群組
+            title: 圖表標題
+            scale: 量表上限
+            height: 圖表高度
+
+        Returns:
+            go.Figure
+        """
+        try:
+            if group_data is None or group_data.empty:
+                return self._create_error_figure("無群組資料")
+
+            df = group_data.dropna(subset=[score_col]).copy()
+            categories = sorted(df[epa_col].unique().tolist())
+
+            while len(categories) < 3:
+                categories.append(f"項目{len(categories)+1}")
+
+            categories_closed = categories + [categories[0]]
+            fig = go.Figure()
+
+            if group_col and group_col in df.columns:
+                groups = sorted(df[group_col].unique())
+            else:
+                df['_group'] = '全體'
+                group_col = '_group'
+                groups = ['全體']
+
+            color_list = [
+                'rgba(255, 100, 100, 0.7)', 'rgba(100, 100, 255, 0.7)',
+                'rgba(100, 200, 100, 0.7)', 'rgba(255, 200, 100, 0.7)',
+                'rgba(200, 100, 200, 0.7)', 'rgba(100, 200, 200, 0.7)',
+            ]
+
+            for i, grp in enumerate(groups):
+                grp_df = df[df[group_col] == grp]
+                vals = []
+                for cat in categories:
+                    cat_data = grp_df[grp_df[epa_col] == cat][score_col]
+                    vals.append(cat_data.mean() if not cat_data.empty else 0)
+
+                vals_closed = vals + [vals[0]]
+                color = self.default_colors.get(str(grp), color_list[i % len(color_list)])
+
+                fig.add_trace(go.Scatterpolar(
+                    r=vals_closed,
+                    theta=categories_closed,
+                    fill='toself',
+                    name=str(grp),
+                    fillcolor=color.replace('0.7', '0.25') if '0.7' in color else color,
+                    line=dict(color=color, width=2),
+                ))
+
+            fig.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, scale])),
+                title=title,
+                showlegend=True,
+                height=height,
+            )
+            return fig
+
+        except Exception as e:
+            return self._create_error_figure(f"建立群組雷達圖失敗: {str(e)}")
+
+    def create_individual_vs_group_radar(self, student_scores: Dict[str, float],
+                                         group_data: pd.DataFrame,
+                                         epa_col: str, score_col: str,
+                                         epa_labels: List[str] = None,
+                                         student_name: str = None,
+                                         group_label: str = '群組平均',
+                                         title: str = None,
+                                         scale: int = 5,
+                                         height: int = 500) -> go.Figure:
+        """
+        個人 vs 群組平均比較雷達圖（核心功能）。
+
+        個人以粗實線 + 填色顯示，群組平均以虛線顯示。
+
+        Args:
+            student_scores: {EPA項目: 分數} 字典
+            group_data: 群組資料 DataFrame
+            epa_col: EPA 項目欄位名
+            score_col: 分數欄位名
+            epa_labels: EPA 項目標籤列表
+            student_name: 學員姓名
+            group_label: 群組標籤
+            title: 圖表標題
+            scale: 量表上限
+            height: 圖表高度
+
+        Returns:
+            go.Figure
+        """
+        try:
+            _title = title or f"{student_name or '個人'} vs {group_label}"
+
+            # 決定 EPA 項目順序
+            if epa_labels:
+                categories = list(epa_labels)
+            elif group_data is not None and not group_data.empty:
+                categories = sorted(group_data[epa_col].unique().tolist())
+            elif student_scores:
+                categories = list(student_scores.keys())
+            else:
+                return self._create_error_figure("無資料")
+
+            while len(categories) < 3:
+                categories.append(f"項目{len(categories)+1}")
+
+            categories_closed = categories + [categories[0]]
+            fig = go.Figure()
+
+            # 群組平均（背景 — 虛線）
+            if group_data is not None and not group_data.empty:
+                grp_df = group_data.dropna(subset=[score_col])
+                group_vals = []
+                for cat in categories:
+                    cat_data = grp_df[grp_df[epa_col] == cat][score_col]
+                    group_vals.append(cat_data.mean() if not cat_data.empty else 0)
+
+                group_vals_closed = group_vals + [group_vals[0]]
+                fig.add_trace(go.Scatterpolar(
+                    r=group_vals_closed,
+                    theta=categories_closed,
+                    fill='toself',
+                    name=group_label,
+                    fillcolor='rgba(200, 200, 200, 0.15)',
+                    line=dict(color='rgba(150, 150, 150, 0.8)', width=2, dash='dash'),
+                ))
+
+            # 個人（前景 — 實線）
+            if student_scores:
+                student_vals = [student_scores.get(cat, 0) for cat in categories]
+                student_vals_closed = student_vals + [student_vals[0]]
+                fig.add_trace(go.Scatterpolar(
+                    r=student_vals_closed,
+                    theta=categories_closed,
+                    fill='toself',
+                    name=student_name or '個人',
+                    fillcolor='rgba(99, 110, 250, 0.3)',
+                    line=dict(color='#636EFA', width=3),
+                ))
+
+            fig.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, scale])),
+                title=_title,
+                showlegend=True,
+                height=height,
+            )
+            return fig
+
+        except Exception as e:
+            return self._create_error_figure(f"建立個人vs群組雷達圖失敗: {str(e)}")
+
+    def create_peer_comparison_radar(self, multi_student_scores: Dict[str, Dict[str, float]],
+                                     epa_labels: List[str],
+                                     title: str = "同儕比較雷達圖",
+                                     scale: int = 5,
+                                     height: int = 500) -> go.Figure:
+        """
+        多人同儕比較雷達圖。
+
+        Args:
+            multi_student_scores: {學員名稱: {EPA項目: 分數}} 巢狀字典
+            epa_labels: EPA 項目標籤列表
+            title: 圖表標題
+            scale: 量表上限
+            height: 圖表高度
+
+        Returns:
+            go.Figure
+        """
+        try:
+            if not multi_student_scores or not epa_labels:
+                return self._create_error_figure("無同儕資料")
+
+            categories = list(epa_labels)
+            while len(categories) < 3:
+                categories.append(f"項目{len(categories)+1}")
+
+            categories_closed = categories + [categories[0]]
+            fig = go.Figure()
+
+            color_list = [
+                '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+                '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52',
+            ]
+
+            for i, (name, scores) in enumerate(multi_student_scores.items()):
+                vals = [scores.get(cat, 0) for cat in categories]
+                vals_closed = vals + [vals[0]]
+                color = color_list[i % len(color_list)]
+
+                fig.add_trace(go.Scatterpolar(
+                    r=vals_closed,
+                    theta=categories_closed,
+                    fill='toself',
+                    name=str(name),
+                    fillcolor=f'rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.15)',
+                    line=dict(color=color, width=2),
+                    opacity=0.8,
+                ))
+
+            fig.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, scale])),
+                title=title,
+                showlegend=True,
+                height=height,
+            )
+            return fig
+
+        except Exception as e:
+            return self._create_error_figure(f"建立同儕比較雷達圖失敗: {str(e)}")
+
     def _create_error_figure(self, error_message: str) -> go.Figure:
         """創建錯誤圖表"""
         fig = go.Figure()

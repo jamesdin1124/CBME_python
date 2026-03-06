@@ -1,39 +1,41 @@
 import streamlit as st
 import httpx
-import sqlite3
 from datetime import datetime
 
 # 設定頁面配置為寬屏模式
 st.set_page_config(
-    layout="wide",  # 使用寬屏模式
+    layout="wide",
     page_title="學生評核系統",
-    initial_sidebar_state="expanded"  # 預設展開側邊欄
+    initial_sidebar_state="expanded",
 )
 
 import pandas as pd
 import os
 import re
-import sys  # 匯入 sys
 from io import BytesIO
 from pages.pgy.pgy_students import show_analysis_section
 from pages.residents.residents import show_resident_analysis_section
 from pages.ANE.anesthesia_residents import show_ANE_R_EPA_peer_analysis_section
-from pages.teachers.teacher_analysis import show_teacher_analysis_section, fetch_google_form_data
+from pages.teachers.teacher_analysis import show_teacher_analysis_section
 from pages.ugy.ugy_peers import show_UGY_peer_analysis_section
 from pages.ugy.ugy_overview import show_ugy_student_overview
 from pages.ugy.ugy_individual import show_ugy_student_analysis
 from pages.ugy.ugy_teacher_analysis import show_ugy_teacher_analysis
 from config.epa_constants import EPA_LEVEL_MAPPING
-from modules.auth import show_login_page, show_user_management, check_permission, USER_ROLES, show_registration_page, filter_data_by_permission, get_user_department
+from config.department_config import ALL_DEPARTMENTS
+from modules.auth import (
+    show_login_page, show_user_management, check_permission,
+    USER_ROLES, filter_data_by_permission,
+    get_user_department,
+)
 from modules.supabase_connection import SupabaseConnection
-from modules.supabase_connection import SupabaseConnection
+from modules.evaluation_forms import show_evaluation_form
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from openai import OpenAI
 from dotenv import load_dotenv
-import traceback # 匯入 traceback
-from supabase import create_client
+import traceback
 
 # 載入環境變數
 load_dotenv()
@@ -336,65 +338,6 @@ def correct_text_with_gpt(text):
         st.error(tb_str)
         return text
 
-def init_test_form_db():
-    """初始化測試表單資料庫"""
-    try:
-        conn = sqlite3.connect('test_form.db')
-        cursor = conn.cursor()
-        
-        # 建立測試表單資料表
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS test_form_submissions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            batch TEXT NOT NULL,
-            epa_1 INTEGER NOT NULL,
-            epa_2 INTEGER NOT NULL,
-            epa_3 INTEGER NOT NULL,
-            epa_4 INTEGER NOT NULL,
-            epa_5 INTEGER NOT NULL,
-            comments TEXT,
-            submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"初始化資料庫時發生錯誤：{str(e)}")
-        return False
-
-def save_to_sqlite(form_data):
-    """將表單資料儲存到 SQLite 資料庫"""
-    try:
-        conn = sqlite3.connect('test_form.db')
-        cursor = conn.cursor()
-        
-        # 插入資料
-        cursor.execute('''
-        INSERT INTO test_form_submissions 
-        (name, batch, epa_1, epa_2, epa_3, epa_4, epa_5, comments, submitted_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            form_data['姓名'],
-            form_data['梯次'],
-            form_data['EPA_1'],
-            form_data['EPA_2'],
-            form_data['EPA_3'],
-            form_data['EPA_4'],
-            form_data['EPA_5'],
-            form_data['評語'],
-            form_data['提交時間']
-        ))
-        
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"儲存資料到資料庫時發生錯誤：{str(e)}")
-        return False
-
 def main():
     # 檢查是否已登入
     if not st.session_state.logged_in:
@@ -575,35 +518,31 @@ def main():
                     st.session_state.pop('show_application_review', None)
                     st.rerun()
 
+        # 返回主頁按鈕（評核表單頁面）
+        if st.session_state.get('show_evaluation_form'):
+            if st.button("↩️ 返回主頁", key="sidebar_back_eval"):
+                st.session_state.pop('show_evaluation_form', None)
+                st.rerun()
+
     # 帳號申請審核頁面（admin 和 department_admin 專用）
     if st.session_state.get('show_application_review') and st.session_state.get('role') in ['admin', 'department_admin']:
         from pages.admin.user_application_review import show_user_application_review
         show_user_application_review()
         return
 
+    # 評核表單頁面（教師和管理員可用）
+    if st.session_state.get('show_evaluation_form') and st.session_state.get('role') in ['admin', 'department_admin', 'teacher']:
+        # 返回主頁按鈕
+        if st.button("↩️ 返回主頁", key="back_from_eval_form"):
+            st.session_state.pop('show_evaluation_form', None)
+            st.rerun()
+        show_evaluation_form()
+        return
+
     st.title("學生評核系統")
     
-    # 定義科別列表
-    departments = [
-        "小兒部", 
-        "內科部", 
-        "外科部", 
-        "婦產部", 
-        "神經科", 
-        "精神部", 
-        "家醫部", 
-        "急診醫學部", 
-        "麻醉部", 
-        "放射部", 
-        "病理部", 
-        "復健部", 
-        "皮膚部", 
-        "眼科", 
-        "耳鼻喉部", 
-        "泌尿部", 
-        "骨部", 
-        "其他科別"
-    ]
+    # 科別列表（從統一配置載入）
+    departments = ALL_DEPARTMENTS
     
     # 獲取使用者科別
     user_department = st.session_state.get('user_department', None)
@@ -611,8 +550,6 @@ def main():
     # 側邊欄設置
     with st.sidebar:
         st.header("資料來源選擇")
-        
-        st.header("科別選擇")
         
         # 科別選擇 - 根據權限限制可選擇的科別
         if check_permission(st.session_state.role, 'can_view_all'):
@@ -624,11 +561,16 @@ def main():
         else:
             # 其他角色只能選擇自己的科別（如果有的話）
             available_departments = [user_department] if user_department else departments
-        
-        selected_dept = st.selectbox(
-            "請選擇科別",
-            available_departments
-        )
+
+        # 只有一個科別時直接使用，不顯示下拉選單
+        if len(available_departments) == 1:
+            selected_dept = available_departments[0]
+        else:
+            st.header("科別選擇")
+            selected_dept = st.selectbox(
+                "請選擇科別",
+                available_departments
+            )
         
         # 根據權限顯示上傳區域
         if check_permission(st.session_state.role, 'can_upload_files'):
@@ -673,17 +615,14 @@ def main():
         if check_permission(st.session_state.role, 'can_manage_users'):
             st.markdown("---")
             show_user_management()
-        
-        # 添加測試系統連結
-        st.markdown("---")
-        st.subheader("測試系統")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("填寫表單測試", key="sidebar_form_button"):
-                st.markdown('<meta http-equiv="refresh" content="0;URL=test_form">', unsafe_allow_html=True)
-        with col2:
-            if st.button("查看測試結果", key="sidebar_result_button"):
-                st.markdown('<meta http-equiv="refresh" content="0;URL=test_results">', unsafe_allow_html=True)
+
+        # 評核表單入口（教師和管理員可用）
+        if st.session_state.get('role') in ['admin', 'department_admin', 'teacher']:
+            st.markdown("---")
+            st.subheader("📝 評核表單")
+            if st.button("填寫評核表單", key="sidebar_eval_form_button", use_container_width=True):
+                st.session_state['show_evaluation_form'] = True
+                st.rerun()
 
     # 分頁設置 - 根據權限顯示不同的分頁
     tab_names = []
@@ -887,25 +826,32 @@ def main():
                             else:
                                 st.warning("請先上傳家醫部EPA評核資料檔案")
                                 st.info("💡 提示：請在左側側邊欄選擇「家醫部」科別，然後上傳並合併資料檔案。")
-                        else:
-                            # 顯示一般住院醫師分析
-                            st.header("住院醫師分析")
+                        elif selected_dept == "麻醉部":
+                            # 麻醉部：優先使用 Excel 資料 + 專屬分析
                             if current_data is not None:
                                 r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
                                 if not r_data.empty:
-                                    # 根據權限過濾住院醫師資料
                                     filtered_r_data = filter_data_by_permission(r_data, st.session_state.role, user_department, 'resident')
                                     if not filtered_r_data.empty:
-                                        if selected_dept == "麻醉部":
-                                            show_ANE_R_EPA_peer_analysis_section(filtered_r_data)
-                                        else:
-                                            show_resident_analysis_section(filtered_r_data)
+                                        show_ANE_R_EPA_peer_analysis_section(filtered_r_data)
                                     else:
                                         st.warning("您沒有權限查看此資料")
                                 else:
-                                    st.warning("沒有住院醫師資料")
+                                    # 無 Excel 時，使用通用模板（Supabase）
+                                    from pages.residents.department_analysis_template import show_department_analysis
+                                    show_department_analysis(selected_dept)
                             else:
-                                st.warning("請先載入資料")
+                                from pages.residents.department_analysis_template import show_department_analysis
+                                show_department_analysis(selected_dept)
+                        else:
+                            # 其他科別：通用模板（Supabase + Excel 雙來源）
+                            from pages.residents.department_analysis_template import show_department_analysis
+                            excel_data = None
+                            if current_data is not None:
+                                r_data = current_data[current_data['檔案名稱'].str.contains('R', case=False, na=False)]
+                                if not r_data.empty:
+                                    excel_data = filter_data_by_permission(r_data, st.session_state.role, user_department, 'resident')
+                            show_department_analysis(selected_dept, excel_data=excel_data)
                 
                 # elif tab_name == "老師評分分析":  # 暫時隱藏
                 #     if check_permission(st.session_state.role, 'can_view_analytics'):
@@ -927,24 +873,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# streamlit run new_dashboard.py
-
-# GitHub 更新指令說明
-# 1. 初次設定
-# git init  # 初始化 git 倉庫
-# git remote add origin <repository_url>  # 連接遠端倉庫
-
-# 2. 更新流程
-# git add .  # 加入所有修改的檔案
-# git commit -m "更新說明"  # 提交修改並加入說明
-# git push origin main  # 推送到 GitHub 主分支
-
-# 3. 如果遇到衝突
-# git pull origin main  # 先拉取最新版本
-# 解決衝突後再執行步驟 2
-
-# 4. 查看狀態
-# git status  # 檢查檔案狀態
-# git log  # 查看提交歷史 
 
