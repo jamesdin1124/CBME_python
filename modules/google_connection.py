@@ -266,19 +266,12 @@ def get_credentials_from_file() -> Optional[Dict[str, Any]]:
 def test_connection(client: gspread.Client) -> bool:
     """測試 Google API 連接"""
     try:
-        test_url = "https://docs.google.com/spreadsheets/d/1I2GzYptiPvhN5dT3_qzVXlIAoPeI8S9MaTVzxfDVjrw/edit?gid=0#gid=0"
-        spreadsheet_id = extract_spreadsheet_id(test_url)
-        
-        if spreadsheet_id:
-            test_sheet = client.open_by_key(spreadsheet_id)
-            show_diagnostic(f"成功打開試算表: {test_sheet.title}", "success")
-            return True
-            
+        # 優先用 list_spreadsheet_files 驗證（不依賴特定試算表權限）
         spreadsheets = client.list_spreadsheet_files()
         show_diagnostic(f"Google API 連接成功！找到 {len(spreadsheets)} 個試算表。", "success")
         return True
     except Exception as e:
-        st.error(f"連接測試失敗：{str(e)}")
+        show_diagnostic(f"連接測試失敗：{str(e)}", "error")
         return False
 
 def setup_google_connection() -> Optional[gspread.Client]:
