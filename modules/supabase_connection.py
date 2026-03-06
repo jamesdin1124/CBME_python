@@ -17,11 +17,22 @@ class SupabaseConnection:
         從環境變數中讀取 Supabase URL 和 API Key
         """
         load_dotenv()
+        # 優先從環境變數讀取，fallback 到 Streamlit secrets（Streamlit Cloud 部署用）
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
+        if not self.url:
+            try:
+                self.url = st.secrets["SUPABASE_URL"]
+            except Exception:
+                pass
+        if not self.key:
+            try:
+                self.key = st.secrets["SUPABASE_KEY"]
+            except Exception:
+                pass
 
         if not self.url or not self.key:
-            raise ValueError("請在 .env 檔案中設置 SUPABASE_URL 和 SUPABASE_KEY")
+            raise ValueError("請在 .env 或 Streamlit secrets 中設置 SUPABASE_URL 和 SUPABASE_KEY")
 
         self.client: Client = create_client(self.url, self.key)
 
