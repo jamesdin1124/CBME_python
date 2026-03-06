@@ -145,9 +145,11 @@ def validate_credentials(credentials: Dict[str, Any]) -> Tuple[bool, Optional[st
         if private_key.count('\n') < 2:
             return False, "私鑰缺少必要的換行符"
             
-        if not is_base64(private_key, strict=True):
-            return False, "私鑰核心內容 Base64 驗證失敗"
-        
+        # 僅做基本格式驗證，不做嚴格 Base64 校驗
+        # （Google 的 SDK 會自行驗證私鑰內容）
+        if not is_base64(private_key, strict=False):
+            show_diagnostic("私鑰 Base64 格式警告（非嚴格模式）", "warning")
+
         return True, None
     except Exception as e:
         return False, f"驗證憑證時發生錯誤：{str(e)}"
@@ -197,18 +199,18 @@ def get_credentials_from_file() -> Optional[Dict[str, Any]]:
             return None
         
         # 顯示檔案信息
-        st.info(f"憑證檔案路徑：{credentials_path}")
-        st.info(f"檔案大小：{os.path.getsize(credentials_path)} bytes")
+        show_diagnostic(f"憑證檔案路徑：{credentials_path}", "info")
+        show_diagnostic(f"檔案大小：{os.path.getsize(credentials_path)} bytes", "info")
         
         try:
             with open(credentials_path, 'r', encoding='utf-8') as f:
                 # 讀取原始文件內容
                 file_content = f.read()
-                st.info(f"檔案原始內容長度：{len(file_content)} 字符")
+                show_diagnostic(f"檔案原始內容長度：{len(file_content)} 字符", "info")
                 
                 # 嘗試處理可能的 BOM
                 if file_content.startswith('\ufeff'):
-                    st.info("檢測到並移除 BOM 標記")
+                    show_diagnostic("檢測到並移除 BOM 標記", "info")
                     file_content = file_content[1:]
                 
                 # 嘗試解析 JSON
@@ -225,24 +227,24 @@ def get_credentials_from_file() -> Optional[Dict[str, Any]]:
                     return None
                     
                 original_key = credentials['private_key']
-                st.info("開始修復私鑰格式...")
+                show_diagnostic("開始修復私鑰格式...", "info")
                 fixed_key = fix_private_key_format(original_key)
-                
+
                 if fixed_key == original_key:
-                    st.info("私鑰格式無需修復或修復失敗")
+                    show_diagnostic("私鑰格式無需修復或修復失敗", "info")
                 else:
-                    st.info("私鑰格式已修復")
+                    show_diagnostic("私鑰格式已修復", "info")
                     credentials['private_key'] = fixed_key
-                
+
                 # 顯示修復後的診斷信息
-                st.info("修復後的私鑰診斷信息：")
-                st.info("- 包含開始標記：" + str('-----BEGIN PRIVATE KEY-----' in fixed_key))
-                st.info("- 包含結束標記：" + str('-----END PRIVATE KEY-----' in fixed_key))
-                st.info("- 換行符數量：" + str(fixed_key.count('\n')))
-                st.info("- Base64 驗證：" + str(is_base64(fixed_key)))
-                
+                show_diagnostic("修復後的私鑰診斷信息：", "info")
+                show_diagnostic("- 包含開始標記：" + str('-----BEGIN PRIVATE KEY-----' in fixed_key), "info")
+                show_diagnostic("- 包含結束標記：" + str('-----END PRIVATE KEY-----' in fixed_key), "info")
+                show_diagnostic("- 換行符數量：" + str(fixed_key.count('\n')), "info")
+                show_diagnostic("- Base64 驗證：" + str(is_base64(fixed_key)), "info")
+
                 # 最後驗證整個憑證對象
-                st.info("開始驗證最終憑證...")
+                show_diagnostic("開始驗證最終憑證...", "info")
                 is_valid, error_msg = validate_credentials(credentials)
                 if not is_valid:
                     st.error(f"最終憑證驗證失敗：{error_msg}")
@@ -302,12 +304,9 @@ def setup_google_connection() -> Optional[gspread.Client]:
                 credentials = credentials_file
                 source = "本地文件"
             else:
-                show_diagnostic("無法從本地文件加載憑證", "error")
-                return None
+                show_diagnostic("無法從本地文件加載憑證", "warning")
         except Exception as e:
-            show_diagnostic(f"從本地文件加載憑證時發生錯誤: {e}", "error")
-            show_diagnostic(f"錯誤詳情: {traceback.format_exc()}", "error")
-            return None
+            show_diagnostic(f"從本地文件加載憑證時發生錯誤: {e}", "warning")
 
     if not credentials:
         show_diagnostic("未能獲取有效的 Google API 憑證", "error")

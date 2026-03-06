@@ -14,8 +14,11 @@ venv/
 Thumbs.db
 .env
 # Streamlit
-.streamlit/ 
+.streamlit/
 .streamlit/secret.toml
+
+# GCP 憑證（改用 Streamlit Secrets）
+modules/credentials.json
 
 # Excel 檔案和資料夾
 *.xls
