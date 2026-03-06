@@ -144,13 +144,12 @@ def show_pediatric_evaluation_section():
         if data_source == 'google_sheets':
             st.info("📋 [開啟 Google 表單](https://docs.google.com/spreadsheets/d/1n4kc2d3Z-x9SvIDApPCCz2HSDO0wSrrk9Y5jReMhr-M/edit?usp=sharing)")
     with col3:
-        include_demo = st.checkbox(
+        st.checkbox(
             "包含展示資料",
             value=True,
             key="include_demo_data",
             help="勾選後會載入展示用的範例資料（5位虛擬住院醫師、81筆評核紀錄）"
         )
-        st.session_state['include_demo_data'] = include_demo
 
     # 判斷是否為教師/管理員（可使用表單與帳號管理）
     from modules.auth import check_permission

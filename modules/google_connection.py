@@ -157,11 +157,11 @@ def validate_credentials(credentials: Dict[str, Any]) -> Tuple[bool, Optional[st
 def get_credentials_from_secrets() -> Optional[Dict[str, Any]]:
     """從 Streamlit Secrets 獲取憑證"""
     if not hasattr(st, 'secrets') or not st.secrets:
-        st.error("未找到任何 Secrets 設定")
+        show_diagnostic("未找到任何 Secrets 設定", "warning")
         return None
-    
+
     if "gcp_service_account" not in st.secrets:
-        st.error("在 Secrets 中未找到 gcp_service_account 設定")
+        show_diagnostic("在 Secrets 中未找到 gcp_service_account 設定", "warning")
         return None
     
     try:
@@ -195,7 +195,7 @@ def get_credentials_from_file() -> Optional[Dict[str, Any]]:
         credentials_path = os.path.join(current_dir, 'credentials.json')
         
         if not os.path.exists(credentials_path):
-            st.error(f"未找到憑證檔案：{credentials_path}")
+            show_diagnostic(f"未找到憑證檔案：{credentials_path}", "info")
             return None
         
         # 顯示檔案信息
