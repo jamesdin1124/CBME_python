@@ -124,7 +124,7 @@ def main():
         
         # 顯示表格資料
         df = get_table_data(table_name)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
         
         # 顯示資料統計
         st.subheader("資料統計")
@@ -150,7 +150,7 @@ def main():
             schema,
             columns=["欄位名稱", "資料類型", "可為空", "預設值", "主鍵"]
         )
-        st.dataframe(schema_df, use_container_width=True)
+        st.dataframe(schema_df, width="stretch")
         
         # 顯示表格說明
         if table_name == "users":

@@ -408,7 +408,7 @@ def _show_recent_submissions(supabase_conn, current_user):
                  .replace('meeting_name', '會議名稱')
                 for c in display_df.columns
             ]
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, width="stretch", hide_index=True)
         else:
             st.info("尚無提交記錄")
     except Exception as e:

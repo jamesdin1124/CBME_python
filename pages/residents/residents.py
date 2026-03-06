@@ -144,7 +144,7 @@ def show_resident_analysis_section(df=None):
         )
         
         # 顯示圖表
-        st.plotly_chart(fig_item, use_container_width=True)
+        st.plotly_chart(fig_item, width="stretch")
     
     # 定義必要操作項目和最少次數
     required_procedures = {
@@ -346,7 +346,7 @@ def show_resident_analysis_section(df=None):
     )
     
     # 顯示圖表
-    st.plotly_chart(fig_procedure, use_container_width=True)
+    st.plotly_chart(fig_procedure, width="stretch")
     
     # 顯示該操作項目的統計資訊
     st.subheader(f"{selected_procedure} 統計資訊")

@@ -349,7 +349,7 @@ def show_test_results():
             title="EPA 平均分數雷達圖",
             height=500
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # EPA 評分趨勢圖
         st.subheader("EPA 評分趨勢（按梯次）")
@@ -410,7 +410,7 @@ def show_test_results():
         fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # EPA 評分分布圖
         st.subheader("EPA 評分分布")
@@ -435,7 +435,7 @@ def show_test_results():
             showlegend=False,
             title_text="EPA 評分分布"
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # 評語分析
         st.subheader("評語分析")

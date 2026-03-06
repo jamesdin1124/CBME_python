@@ -189,7 +189,7 @@ def _show_my_research_list(supabase_conn, resident_name):
                  .replace('updated_at', '更新時間')
                 for c in display_df.columns
             ]
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, width="stretch", hide_index=True)
 
             # 編輯/刪除功能（可選）
             st.caption("💡 如需修改或刪除研究記錄，請聯繫管理員或在系統中新增編輯功能。")
@@ -347,7 +347,7 @@ def _show_my_reflection_list(supabase_conn, resident_name):
                  .replace('is_private', '隱私')
                 for c in display_df.columns
             ]
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, width="stretch", hide_index=True)
     except Exception as e:
         st.warning(f"載入反思記錄時發生錯誤：{str(e)}")
 

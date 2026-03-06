@@ -114,7 +114,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
     st.markdown("### 匯入資料總覽 (含 EPA 分組)")
     st.dataframe(
         df,
-        use_container_width=True,
+        width="stretch",
         height=300
     )
     
@@ -531,7 +531,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                  # 更新 ticktext 以避免重複顯示第一個標籤
                 fig1.update_polars(angularaxis_ticktext=categories[:-1])
                 
-                st.plotly_chart(fig1, use_container_width=True)
+                st.plotly_chart(fig1, width="stretch")
             
             with right_col:
                 # 第二個雷達圖（個人平均與全體平均）
@@ -579,7 +579,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                  # 更新 ticktext 以避免重複顯示第一個標籤
                 fig2.update_polars(angularaxis_ticktext=categories[:-1])
                 
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
             
             # 在每個EPA後添加分隔線
             st.markdown("---")
@@ -599,7 +599,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
     st.markdown("### 選定學員完整資料表")
     st.dataframe(
         original_student_data,
-        use_container_width=True,
+        width="stretch",
         height=300
     )
     
@@ -622,7 +622,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
         # 顯示資料表
         st.dataframe(
             core_skill_data,
-            use_container_width=True,
+            width="stretch",
             height=200
         )
     else:
@@ -749,7 +749,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                      # 更新 ticktext 以避免重複顯示第一個標籤
                     fig_core.update_polars(angularaxis_ticktext=skills_closed[:-1])
                     
-                    st.plotly_chart(fig_core, use_container_width=True)
+                    st.plotly_chart(fig_core, width="stretch")
                 else:
                     st.warning(f"無法為 {student} 繪製核心技能雷達圖 (無有效標籤數據)。")
             else:
@@ -799,7 +799,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
         
         st.dataframe(
             epa_comparison_data[display_columns],
-            use_container_width=True,
+            width="stretch",
             height=200
         )
 
@@ -940,7 +940,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
                          # 更新 ticktext 以避免重複顯示第一個標籤
                         fig_epa_comp.update_polars(angularaxis_ticktext=display_labels_closed[:-1])
                         
-                        st.plotly_chart(fig_epa_comp, use_container_width=True)
+                        st.plotly_chart(fig_epa_comp, width="stretch")
                     else:
                          st.warning(f"無法為 {student} 繪製舊 CoreEPA 雷達圖 (無有效標籤數據)。")
                 else:
@@ -1028,7 +1028,7 @@ def show_ANE_R_EPA_peer_analysis_section(df):
     
     st.dataframe(
         styled_df,
-        use_container_width=True,
+        width="stretch",
         height=400,
         column_config={
              "完成狀況": st.column_config.TextColumn(

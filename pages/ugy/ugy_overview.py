@@ -370,7 +370,7 @@ def display_dept_data(dept_df):
         display_columns = ['姓名'] + date_columns
         
         # 顯示資料
-        st.dataframe(dept_df[display_columns], use_container_width=True)
+        st.dataframe(dept_df[display_columns], width="stretch")
         
         # 顯示統計資訊
         st.caption("資料統計")
@@ -577,7 +577,7 @@ def display_visualizations():
                 dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
                 
                 # 顯示數量圖表（第一個）
-                st.plotly_chart(dept_grade_quantity_fig, use_container_width=True, key="dept_grade_quantity_chart")
+                st.plotly_chart(dept_grade_quantity_fig, width="stretch", key="dept_grade_quantity_chart")
             else:
                 st.warning(f"沒有教師評核EPA等級數值資料，無法進行數量分析")
         
@@ -593,7 +593,7 @@ def display_visualizations():
                 dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
                 
                 # 顯示百分比圖表（第二個）
-                st.plotly_chart(dept_grade_percentage_fig, use_container_width=True, key="dept_grade_percentage_chart")
+                st.plotly_chart(dept_grade_percentage_fig, width="stretch", key="dept_grade_percentage_chart")
             else:
                 st.warning(f"沒有教師評核EPA等級數值資料，無法進行百分比分析")
 
@@ -602,7 +602,7 @@ def display_visualizations():
         
         if not filtered_by_layer_df.empty:
             radar_fig = create_layer_radar_chart(filtered_by_layer_df, selected_layers)
-            st.plotly_chart(radar_fig, use_container_width=True, key="all_layers_radar_chart")
+            st.plotly_chart(radar_fig, width="stretch", key="all_layers_radar_chart")
         else:
             st.error("沒有足夠的資料繪製雷達圖 (經過篩選後)")
 
@@ -619,7 +619,7 @@ def display_visualizations():
             for i, layer in enumerate(selected_layers):
                 if i < len(trend_figures):
                     st.caption(f"階層 {layer} 的EPA評核趨勢")
-                    st.plotly_chart(trend_figures[i], use_container_width=True, key=f"trend_chart_{layer}")
+                    st.plotly_chart(trend_figures[i], width="stretch", key=f"trend_chart_{layer}")
                     if i != len(selected_layers) - 1:
                         st.markdown("---")
 

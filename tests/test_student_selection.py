@@ -96,7 +96,7 @@ def test_permission_matrix():
         permission_data.append(row)
     
     permission_df = pd.DataFrame(permission_data)
-    st.dataframe(permission_df, use_container_width=True)
+    st.dataframe(permission_df, width="stretch")
     
     # 解釋權限
     st.subheader("權限說明")

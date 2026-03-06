@@ -37,7 +37,7 @@ class LongitudinalChart:
     使用方式：
         chart = LongitudinalChart()
         fig = chart.create_individual_trend(df, time_col='梯次', score_cols=['EPA1','EPA2'])
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     """
 
     def __init__(self, y_range=(0, 5.5), height=500):

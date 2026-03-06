@@ -94,21 +94,21 @@ def display_radar_chart(df, value_columns, name_column=None, title="能力評估
             
             # 建立並顯示雷達圖
             fig = create_radar_chart(value_columns, values, f"{selected_name} - {title}", scale)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             # 顯示全部資料的平均值
             values = [df[col].mean() for col in value_columns]
             
             # 建立並顯示雷達圖
             fig = create_radar_chart(value_columns, values, f"全部 - {title}", scale)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     else:
         # 沒有分組欄位，直接顯示整體平均
         values = [df[col].mean() for col in value_columns]
         
         # 建立並顯示雷達圖
         fig = create_radar_chart(value_columns, values, title, scale)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 # 新增函數：顯示多個雷達圖比較
 def display_comparison_radar_charts(df, value_columns, group_column, title="比較雷達圖", scale=5, key_prefix="", 
@@ -228,7 +228,7 @@ def display_comparison_radar_charts(df, value_columns, group_column, title="比�
     )
     
     # 顯示圖表
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # 新增函數：顯示雷達圖元件
 def radar_chart_component(data, title="能力評估", key_prefix="radar", student_column=None):
@@ -293,7 +293,7 @@ def radar_chart_component(data, title="能力評估", key_prefix="radar", studen
                 # 使用單一雷達圖模式
                 values = [data[col].mean() for col in selected_columns]
                 fig = create_radar_chart(selected_columns, values, title, scale)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
         else:
             st.warning("請選擇至少一個維度")
 

@@ -401,7 +401,7 @@ def _show_recent_submissions(department, current_user):
                 'meeting_name': '會議名稱',
             }
             display_df = display_df.rename(columns=col_rename)
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, width="stretch", hide_index=True)
         else:
             st.info("尚無提交記錄")
 

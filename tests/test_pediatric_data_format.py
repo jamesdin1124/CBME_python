@@ -91,13 +91,13 @@ def test_time_trend_with_pediatric_data():
     df = create_sample_pediatric_data()
     
     st.subheader("原始資料")
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")
     
     # 處理資料
     processed_df = process_pediatric_data_test(df)
     
     st.subheader("處理後的資料")
-    st.dataframe(processed_df, use_container_width=True)
+    st.dataframe(processed_df, width="stretch")
     
     # 時間趨勢分析
     if '評核日期' in processed_df.columns and processed_df['評核日期'].notna().any():
@@ -110,7 +110,7 @@ def test_time_trend_with_pediatric_data():
         
         # 顯示每日統計表格
         with st.expander("每日評核次數詳情", expanded=True):
-            st.dataframe(daily_counts, use_container_width=True)
+            st.dataframe(daily_counts, width="stretch")
         
         # 篩選一週內的資料
         today = date.today()
@@ -168,7 +168,7 @@ def test_time_trend_with_pediatric_data():
                 markers=True
             )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # 顯示統計摘要
         st.subheader("統計摘要")

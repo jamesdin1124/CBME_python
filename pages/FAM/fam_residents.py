@@ -203,7 +203,7 @@ def show_data_overview():
             )
             fig.update_traces(textposition='inside', textinfo='percent+label')
             fig.update_layout(height=300)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     
     # 資料時間範圍
     if stats['date_range']:
@@ -222,7 +222,7 @@ def show_data_overview():
         
         with col1:
             fig = visualizer.create_epa_distribution_chart(epa_distribution)
-            st.plotly_chart(fig, use_container_width=True, key="epa_distribution_chart")
+            st.plotly_chart(fig, width="stretch", key="epa_distribution_chart")
         
         with col2:
             st.subheader("EPA項目清單")
@@ -239,7 +239,7 @@ def show_data_overview():
     st.write("**📊 EPA分數分布小提琴圖**")
     fig = visualizer.create_student_epa_scores_boxplot(df)
     if fig:
-        st.plotly_chart(fig, use_container_width=True, key="student_epa_scores_boxplot")
+        st.plotly_chart(fig, width="stretch", key="student_epa_scores_boxplot")
     else:
         st.warning("無法生成住院醫師EPA分數分布圖")
     
@@ -247,7 +247,7 @@ def show_data_overview():
     st.write("**📈 EPA分數時間趨勢圖**")
     line_fig = visualizer.create_student_epa_scores_line_chart(df)
     if line_fig:
-        st.plotly_chart(line_fig, use_container_width=True, key="student_epa_scores_line_chart")
+        st.plotly_chart(line_fig, width="stretch", key="student_epa_scores_line_chart")
     else:
         st.warning("無法生成住院醫師EPA分數趨勢圖")
     
@@ -259,7 +259,7 @@ def show_data_overview():
         
         with col1:
             fig = visualizer.create_complexity_distribution_chart(complexity_distribution)
-            st.plotly_chart(fig, use_container_width=True, key="complexity_distribution_chart")
+            st.plotly_chart(fig, width="stretch", key="complexity_distribution_chart")
         
         with col2:
             for complexity, count in complexity_distribution.items():
@@ -360,7 +360,7 @@ def show_individual_analysis():
                     if available_columns:
                         st.dataframe(
                             student_data[available_columns],
-                            use_container_width=True,
+                            width="stretch",
                             hide_index=True
                         )
                         
@@ -403,7 +403,7 @@ def show_individual_analysis():
                 )
                 
                 if radar_fig:
-                    st.plotly_chart(radar_fig, use_container_width=True, key="individual_reliability_radar")
+                    st.plotly_chart(radar_fig, width="stretch", key="individual_reliability_radar")
                 else:
                     st.info("無法生成雷達圖，可能缺少EPA項目或信賴程度資料")
                 
@@ -433,7 +433,7 @@ def show_individual_analysis():
                 # 創建信賴程度boxplot
                 boxplot_fig = visualizer.create_reliability_boxplot(student_data, selected_student)
                 if boxplot_fig:
-                    st.plotly_chart(boxplot_fig, use_container_width=True, key="individual_reliability_boxplot")
+                    st.plotly_chart(boxplot_fig, width="stretch", key="individual_reliability_boxplot")
                 else:
                     # 備用：顯示分布統計
                     st.write("**信賴程度分布：**")
@@ -491,7 +491,7 @@ def show_individual_analysis():
                                 )
                                 
                                 if enhanced_fig is not None:
-                                    st.plotly_chart(enhanced_fig, use_container_width=True, key=f"epa_enhanced_trend_{epa_item}")
+                                    st.plotly_chart(enhanced_fig, width="stretch", key=f"epa_enhanced_trend_{epa_item}")
                                 else:
                                     # 備用：計算月度趨勢並使用簡化版趨勢圖
                                     monthly_trend_data = processor.calculate_monthly_epa_trend(epa_data, epa_item)
@@ -505,7 +505,7 @@ def show_individual_analysis():
                                         )
                                         
                                         if simple_fig is not None:
-                                            st.plotly_chart(simple_fig, use_container_width=True, key=f"epa_trend_{epa_item}")
+                                            st.plotly_chart(simple_fig, width="stretch", key=f"epa_trend_{epa_item}")
                                         else:
                                             # 最後備用：完整版趨勢圖
                                             trend_fig = visualizer.create_epa_monthly_trend_chart(
@@ -515,7 +515,7 @@ def show_individual_analysis():
                                             )
                                             
                                             if trend_fig is not None:
-                                                st.plotly_chart(trend_fig, use_container_width=True, key=f"epa_trend_full_{epa_item}")
+                                                st.plotly_chart(trend_fig, width="stretch", key=f"epa_trend_full_{epa_item}")
                             
                             except Exception as e:
                                 st.error(f"❌ {epa_item} 趨勢圖創建時發生異常: {str(e)}")

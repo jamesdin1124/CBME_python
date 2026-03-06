@@ -153,7 +153,7 @@ def show_teacher_evaluation_ranking(teacher_df):
         
         st.dataframe(
             display_df,
-            use_container_width=True,
+            width="stretch",
             height=400
         )
         
@@ -173,7 +173,7 @@ def show_teacher_evaluation_ranking(teacher_df):
             showlegend=False
         )
         
-        st.plotly_chart(fig_count, use_container_width=True)
+        st.plotly_chart(fig_count, width="stretch")
         
         # 創建平均分數分佈圖
         fig_score = px.scatter(
@@ -188,11 +188,11 @@ def show_teacher_evaluation_ranking(teacher_df):
         )
         
         fig_score.update_layout(height=500)
-        st.plotly_chart(fig_score, use_container_width=True)
+        st.plotly_chart(fig_score, width="stretch")
         
         # 顯示詳細資料
         with st.expander("📋 完整排行榜資料", expanded=False):
-            st.dataframe(teacher_stats, use_container_width=True)
+            st.dataframe(teacher_stats, width="stretch")
         
     except Exception as e:
         st.error(f"顯示老師評核排行榜時發生錯誤：{str(e)}")
@@ -389,7 +389,7 @@ def show_teacher_feedback_quality_analysis(feedback_df):
                 '簡陋': '#dc3545'
             }
         )
-        st.plotly_chart(fig_dist, use_container_width=True)
+        st.plotly_chart(fig_dist, width="stretch")
         
         # 優秀回饋老師名單
         st.markdown("### 🌟 回饋完整的老師名單")
@@ -401,7 +401,7 @@ def show_teacher_feedback_quality_analysis(feedback_df):
             display_columns = ['老師姓名', '品質分數', '回饋欄位數', '平均回饋長度', '品質原因']
             st.dataframe(
                 excellent_teachers[display_columns],
-                use_container_width=True,
+                width="stretch",
                 height=300
             )
             
@@ -425,7 +425,7 @@ def show_teacher_feedback_quality_analysis(feedback_df):
             display_columns = ['老師姓名', '品質分數', '回饋欄位數', '平均回饋長度', '品質原因']
             st.dataframe(
                 poor_teachers[display_columns],
-                use_container_width=True,
+                width="stretch",
                 height=300
             )
             
@@ -449,7 +449,7 @@ def show_teacher_feedback_quality_analysis(feedback_df):
         display_columns = ['排名', '老師姓名', '品質等級', '品質分數', '回饋欄位數', '平均回饋長度']
         st.dataframe(
             ranking_df[display_columns],
-            use_container_width=True,
+            width="stretch",
             height=400
         )
         
@@ -462,11 +462,11 @@ def show_teacher_feedback_quality_analysis(feedback_df):
             color_discrete_sequence=['#1f77b4']
         )
         fig_score.update_layout(height=400)
-        st.plotly_chart(fig_score, use_container_width=True)
+        st.plotly_chart(fig_score, width="stretch")
         
         # 顯示完整資料
         with st.expander("📋 完整回饋品質分析資料", expanded=False):
-            st.dataframe(feedback_df, use_container_width=True)
+            st.dataframe(feedback_df, width="stretch")
         
     except Exception as e:
         st.error(f"顯示回饋品質分析時發生錯誤：{str(e)}")
@@ -564,7 +564,7 @@ def show_teacher_score_outlier_analysis(teacher_df):
             outlier_df = outlier_df.sort_values('ZScore_Outlier數', ascending=False)
         
         display_df = outlier_df[display_columns]
-        st.dataframe(display_df, use_container_width=True, height=400)
+        st.dataframe(display_df, width="stretch", height=400)
         
         # 創建Outlier分佈圖
         if analysis_method == "兩種方法比較":
@@ -608,7 +608,7 @@ def show_teacher_score_outlier_analysis(teacher_df):
                 height=500
             )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # 顯示高Outlier比例的老師
         st.markdown("### ⚠️ 需要關注的老師")
@@ -626,13 +626,13 @@ def show_teacher_score_outlier_analysis(teacher_df):
         
         if not high_outlier_teachers.empty:
             st.warning(f"發現 {len(high_outlier_teachers)} 位老師的評核分數有較多異常值，建議進一步了解評核標準的一致性")
-            st.dataframe(high_outlier_teachers[['老師姓名', '總評核次數', '平均分數', 'IQR_Outlier數', 'IQR_Outlier比例'] if "IQR" in analysis_method else ['老師姓名', '總評核次數', '平均分數', 'ZScore_Outlier數', 'ZScore_Outlier比例']], use_container_width=True)
+            st.dataframe(high_outlier_teachers[['老師姓名', '總評核次數', '平均分數', 'IQR_Outlier數', 'IQR_Outlier比例'] if "IQR" in analysis_method else ['老師姓名', '總評核次數', '平均分數', 'ZScore_Outlier數', 'ZScore_Outlier比例']], width="stretch")
         else:
             st.success("所有老師的評核分數都在正常範圍內")
         
         # 顯示詳細資料
         with st.expander("📋 完整Outlier分析資料", expanded=False):
-            st.dataframe(outlier_df, use_container_width=True)
+            st.dataframe(outlier_df, width="stretch")
         
     except Exception as e:
         st.error(f"顯示Outlier分析時發生錯誤：{str(e)}")
@@ -676,7 +676,7 @@ def show_ugy_teacher_analysis():
     
     # 顯示原始資料
     with st.expander("📋 老師評核原始資料", expanded=False):
-        st.dataframe(teacher_df, use_container_width=True)
+        st.dataframe(teacher_df, width="stretch")
     
     # 提取回饋品質資料
     with st.spinner("正在分析老師回饋品質..."):

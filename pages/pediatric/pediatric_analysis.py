@@ -696,7 +696,7 @@ def show_skill_completion_overview(df):
         # 更新X軸標籤角度
         fig_individual.update_xaxes(tickangle=-45)
         
-        st.plotly_chart(fig_individual, use_container_width=True)
+        st.plotly_chart(fig_individual, width="stretch")
 
 
 def show_epa_overview(df):
@@ -728,7 +728,7 @@ def show_epa_overview(df):
             labels={'x': 'EPA 項目', 'y': '評核次數'}
         )
         fig.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 # ═══════════════════════════════════════════════════════
@@ -922,7 +922,7 @@ def show_comparison_bar_chart(all_status):
         height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def show_skill_heatmap(df):
@@ -997,7 +997,7 @@ def show_skill_heatmap(df):
         yaxis=dict(tickfont=dict(size=13)),
         margin=dict(l=100, r=30, t=30, b=100)
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def show_overall_epa_trend(df):
@@ -1071,7 +1071,7 @@ def show_overall_epa_trend(df):
         ),
         margin=dict(r=150)  # 為圖例留出右側空間
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # ═══════════════════════════════════════════════════════
@@ -1111,7 +1111,7 @@ def show_data_overview():
         
         # 顯示原始資料
         with st.expander("原始資料預覽", expanded=False):
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width="stretch")
         
         # 技能項目完成比例分析已移動至「CCC 總覽」tab 的熱圖矩陣
         st.info("💡 詳細技能完成度分析請見「🏆 CCC 總覽」tab 的技能熱圖矩陣")
@@ -1265,7 +1265,7 @@ def show_individual_analysis():
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
                 margin=dict(l=10, r=10, t=10, b=40)
             )
-            st.plotly_chart(fig_epa, use_container_width=True, key=f"epa_radar_{selected_resident}")
+            st.plotly_chart(fig_epa, width="stretch", key=f"epa_radar_{selected_resident}")
         else:
             st.info("無 EPA 評核記錄")
 
@@ -1354,7 +1354,7 @@ def show_individual_analysis():
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
                 margin=dict(l=10, r=10, t=10, b=40)
             )
-            st.plotly_chart(fig_mtg, use_container_width=True, key=f"mtg_radar_{selected_resident}")
+            st.plotly_chart(fig_mtg, width="stretch", key=f"mtg_radar_{selected_resident}")
         else:
             st.info("無會議報告評核記錄")
 
@@ -1383,7 +1383,7 @@ def show_individual_analysis():
                 with st.container(border=True, height=500):
                     st.dataframe(
                         technical_data[avail].sort_values('評核日期', ascending=False),
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True
                     )
         else:
@@ -1451,7 +1451,7 @@ def show_individual_analysis():
                 with st.container(border=True, height=300):
                     st.dataframe(
                         meeting_data[avail].sort_values('評核日期', ascending=False),
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True
                     )
         else:
@@ -1477,7 +1477,7 @@ def show_individual_analysis():
                 with st.container(border=True, height=500):
                     st.dataframe(
                         epa_data[avail].sort_values('評核日期', ascending=False),
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True
                     )
             else:
@@ -1543,7 +1543,7 @@ def show_epa_trend_chart(epa_data, resident_name):
         hovermode='x unified',
         legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5)
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"epa_trend_{resident_name}")
+    st.plotly_chart(fig, width="stretch", key=f"epa_trend_{resident_name}")
 
 
 def show_meeting_radar_large(meeting_data, peer_meeting, resident_name, resident_level):
@@ -1621,7 +1621,7 @@ def show_meeting_radar_large(meeting_data, peer_meeting, resident_name, resident
             margin=dict(l=30, r=30, t=30, b=50)
         )
 
-        st.plotly_chart(fig_mtg, use_container_width=True,
+        st.plotly_chart(fig_mtg, width="stretch",
                        key=f"mtg_radar_large_{resident_name}")
     else:
         st.info("無會議報告評核記錄")
@@ -1659,7 +1659,7 @@ def show_statistical_analysis():
             
             if stats_data:
                 stats_df = pd.DataFrame(stats_data)
-                st.dataframe(stats_df, use_container_width=True)
+                st.dataframe(stats_df, width="stretch")
                 
                 # 評分分布圖
                 fig = go.Figure()
@@ -1680,7 +1680,7 @@ def show_statistical_analysis():
                     yaxis_title="評分",
                     xaxis_title="評分項目"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
         
         # 評核教師分析
         if '評核教師' in df.columns:
@@ -1706,7 +1706,7 @@ def show_statistical_analysis():
             
             if teacher_stats:
                 teacher_df = pd.DataFrame(teacher_stats)
-                st.dataframe(teacher_df, use_container_width=True)
+                st.dataframe(teacher_df, width="stretch")
         
         # 時間分析
         if '評核日期' in df.columns:
@@ -1723,7 +1723,7 @@ def show_statistical_analysis():
                 y='評核次數',
                 title="每月評核次數"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     
     else:
         st.warning("無法載入資料")
@@ -2197,7 +2197,7 @@ def show_grouped_skill_progress(skill_counts, technical_data=None):
             showlegend=True,
         )
 
-        st.plotly_chart(fig, use_container_width=True, key=f"skill_bar_{group_name}")
+        st.plotly_chart(fig, width="stretch", key=f"skill_bar_{group_name}")
         st.divider()
 
 def show_skill_details(resident_data, resident_name):
@@ -2219,7 +2219,7 @@ def show_skill_details(resident_data, resident_name):
             if '評核日期' in available_columns:
                 skill_records = skill_records.sort_values('評核日期', ascending=False)
             
-            st.dataframe(skill_records[available_columns], use_container_width=True)
+            st.dataframe(skill_records[available_columns], width="stretch")
         else:
             st.warning("沒有可用的技能記錄欄位")
     else:
@@ -2286,7 +2286,7 @@ def show_skill_completion_stats(skill_counts):
             xaxis_tickangle=-45
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # 技能完成度圓餅圖
         fig_pie = go.Figure(data=[go.Pie(
@@ -2300,7 +2300,7 @@ def show_skill_completion_stats(skill_counts):
             height=400
         )
         
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, width="stretch")
 
 def show_skill_requirements():
     """顯示技能要求清單"""
@@ -2316,7 +2316,7 @@ def show_skill_requirements():
         })
     
     skill_df = pd.DataFrame(skill_data)
-    st.dataframe(skill_df, use_container_width=True)
+    st.dataframe(skill_df, width="stretch")
     
     # 技能分類統計
     st.subheader("技能分類統計")
@@ -2334,7 +2334,7 @@ def show_skill_requirements():
         title="技能要求次數分布"
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 def create_individual_radar_chart(resident_data, resident_name, full_df):
     """創建個別住院醫師評核分數雷達圖"""
@@ -2447,7 +2447,7 @@ def create_individual_radar_chart(resident_data, resident_name, full_df):
         )
         
         # 顯示雷達圖
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # 顯示分數對比表格（預設收起）
         if level_avg_scores:
@@ -2462,7 +2462,7 @@ def create_individual_radar_chart(resident_data, resident_name, full_df):
                     })
                 
                 comparison_df = pd.DataFrame(comparison_data)
-                st.dataframe(comparison_df, use_container_width=True)
+                st.dataframe(comparison_df, width="stretch")
         
     except Exception as e:
         st.error(f"創建雷達圖時發生錯誤：{str(e)}")
@@ -2510,7 +2510,7 @@ def show_resident_research_progress(conn, resident_name):
 
         if display_data:
             df = pd.DataFrame(display_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
             # 詳細檢視（可展開）
             with st.expander("📝 詳細進度說明", expanded=False):
@@ -2574,7 +2574,7 @@ def show_resident_learning_reflections(conn, resident_name):
 
         if display_data:
             df = pd.DataFrame(display_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
             # 詳細檢視（Gibbs 反思循環內容）
             with st.expander("📖 詳細反思內容", expanded=False):
@@ -2667,7 +2667,7 @@ def show_research_progress_overview(conn, residents):
 
         if display_data:
             df = pd.DataFrame(display_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
         # 第三排：研究進度分布圖（圓餅圖）
         with st.expander("📈 研究進度分布圖", expanded=False):
@@ -2681,7 +2681,7 @@ def show_research_progress_overview(conn, residents):
                 title="研究進度狀態分布",
                 height=350
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     except Exception as e:
         st.warning(f"載入研究進度總覽時發生錯誤：{str(e)}")

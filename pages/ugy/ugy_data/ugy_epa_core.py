@@ -144,7 +144,7 @@ def display_dept_data(dept_df):
         display_columns = ['學號', '姓名'] + date_columns
         
         # 顯示資料
-        st.dataframe(dept_df[display_columns], use_container_width=True)
+        st.dataframe(dept_df[display_columns], width="stretch")
         
         # 顯示統計資訊
         st.caption("資料統計")
@@ -182,7 +182,7 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
             full_df=full_df, 
             standard_categories=standard_categories
         )
-        st.plotly_chart(radar_fig, use_container_width=True, key=f"student_radar_{student_id}")
+        st.plotly_chart(radar_fig, width="stretch", key=f"student_radar_{student_id}")
     
     # 右欄：顯示回饋表格和統計
     with col2:
@@ -206,7 +206,7 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
             feedback_display = feedback_display.sort_values(['梯次', 'EPA評核項目'])
             
             # 顯示回饋表格，設定較小的固定高度
-            st.dataframe(feedback_display, use_container_width=True, height=150)
+            st.dataframe(feedback_display, width="stretch", height=150)
         
         # 使用摺疊框顯示評核統計，預設為展開狀態
         with st.expander("評核統計", expanded=False):
@@ -263,7 +263,7 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
             )
             
             # 顯示樞紐分析表，調整高度使整體佈局更加平衡
-            st.dataframe(styled_pivot, use_container_width=True, height=180)
+            st.dataframe(styled_pivot, width="stretch", height=180)
             
             # 然後顯示整體統計數據
             # 首先創建包含所有EPA評核項目的DataFrame
@@ -291,7 +291,7 @@ def display_student_data(student_df, student_id, full_df=None, standard_categori
             
             # 顯示整體統計，同樣調整高度
             st.write("整體評核統計")
-            st.dataframe(stats.round(2), use_container_width=True, height=180)
+            st.dataframe(stats.round(2), width="stretch", height=180)
     
     # 如果有多個梯次，顯示趨勢圖
     if multiple_batches:
@@ -323,7 +323,7 @@ def draw_student_trend(student_df, student_id, full_df):
     )
     
     # 顯示趨勢圖，為學生趨勢圖添加唯一key
-    st.plotly_chart(trend_fig, use_container_width=True, key=f"student_trend_{student_id}")
+    st.plotly_chart(trend_fig, width="stretch", key=f"student_trend_{student_id}")
 
 def display_visualizations(df):
     """顯示資料視覺化"""
@@ -445,7 +445,7 @@ def display_visualizations(df):
             )
             
             # 顯示雷達圖
-            st.plotly_chart(radar_fig, use_container_width=True, key="all_layers_radar_chart")
+            st.plotly_chart(radar_fig, width="stretch", key="all_layers_radar_chart")
         else:
             st.error("沒有足夠的資料繪製雷達圖")
         
@@ -487,7 +487,7 @@ def display_visualizations(df):
                 )
                 
                 # 顯示趨勢圖，為每個趨勢圖添加唯一key
-                st.plotly_chart(trend_fig, use_container_width=True, key=f"trend_chart_{layer}")
+                st.plotly_chart(trend_fig, width="stretch", key=f"trend_chart_{layer}")
                 
                 # 添加分隔線，除了最後一個階層
                 if layer != layers[-1]:
@@ -802,7 +802,7 @@ def show_UGY_EPA_section():
                                     # 顯示資料框
                                     st.dataframe(
                                         display_df_raw,
-                                        use_container_width=True,
+                                        width="stretch",
                                         hide_index=True
                                     )
                                     st.info(f"共有 {len(display_df_raw)} 筆資料")
@@ -865,7 +865,7 @@ def show_UGY_EPA_section():
                                              styled_analysis = completeness_analysis.style.applymap(
                                                  highlight_completeness, subset=['資料充足性']
                                              )
-                                             st.dataframe(styled_analysis, use_container_width=True)
+                                             st.dataframe(styled_analysis, width="stretch")
                                              # 統計代碼
                                              insufficient_count = (completeness_analysis['評核數量'] < 2).sum()
                                              total_count = len(completeness_analysis)
@@ -889,7 +889,7 @@ def show_UGY_EPA_section():
                                             dept_data = dept_data.sort_values('日期')
                                             
                                             # 顯示訓練科部資訊
-                                            st.dataframe(dept_data, use_container_width=True)
+                                            st.dataframe(dept_data, width="stretch")
                                         else:
                                             st.warning(f"無法獲取學生 {selected_student} 的訓練科部資訊：{dept_info['error']}")
                             

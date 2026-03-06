@@ -271,7 +271,7 @@ def test_connection(client: gspread.Client) -> bool:
         show_diagnostic(f"Google API 連接成功！找到 {len(spreadsheets)} 個試算表。", "success")
         return True
     except Exception as e:
-        show_diagnostic(f"連接測試失敗：{str(e)}", "error")
+        st.warning(f"⚠️ Google API 連接測試失敗：{str(e)}")
         return False
 
 def setup_google_connection() -> Optional[gspread.Client]:
@@ -302,7 +302,7 @@ def setup_google_connection() -> Optional[gspread.Client]:
             show_diagnostic(f"從本地文件加載憑證時發生錯誤: {e}", "warning")
 
     if not credentials:
-        show_diagnostic("未能獲取有效的 Google API 憑證", "error")
+        st.warning("⚠️ 無法載入 Google API 憑證。請確認 Streamlit Secrets 中已設定 [gcp_service_account] 區段。")
         return None
 
     show_diagnostic(f"使用來源 '{source}' 的憑證建立連接...", "info")

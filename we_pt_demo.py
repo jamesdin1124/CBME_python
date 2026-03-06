@@ -150,7 +150,7 @@ def wes_pt_page():
             st.subheader("合併後的病患資料")
             st.write(f"資料筆數：{len(filtered_df)} 筆")
             st.write(f"欄位數量：{len(filtered_df.columns)} 個")
-            st.dataframe(filtered_df, use_container_width=True)
+            st.dataframe(filtered_df, width="stretch")
             
             # 在側邊欄添加數值欄位篩選
             st.sidebar.markdown("### 數值欄位篩選")

@@ -141,7 +141,7 @@ def _show_overview(df: pd.DataFrame | None, department: str, epa_items: list):
             score_col=score_col,
             group_col=group_col,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── 群組雷達圖 ──
     if epa_items and score_col and group_col:
@@ -165,7 +165,7 @@ def _show_overview(df: pd.DataFrame | None, department: str, epa_items: list):
                 student_name=f"{department} 群組平均",
                 max_score=5.0,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("EPA 項目尚無有效評分資料")
 
@@ -209,7 +209,7 @@ def _show_individual(df: pd.DataFrame | None, department: str, epa_items: list):
             score_col=score_col,
             student_name=selected,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── 個人 vs 群組雷達 ──
     if epa_items and score_col and group_col:
@@ -238,11 +238,11 @@ def _show_individual(df: pd.DataFrame | None, department: str, epa_items: list):
                 group_name=f"{department} 平均",
                 max_score=5.0,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # ── 個人評核紀錄表 ──
     st.subheader(f"📋 {selected} 評核紀錄")
-    st.dataframe(student_df, hide_index=True, use_container_width=True)
+    st.dataframe(student_df, hide_index=True, width="stretch")
 
 
 # ─── 欄位偵測輔助 ──────────────────────────────────────

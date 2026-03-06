@@ -111,7 +111,7 @@ def show_UGY_peer_analysis_section(df):
     st.markdown("### 完整資料表")
     st.dataframe(
         period_data,
-        use_container_width=True,
+        width="stretch",
         height=300
     )
     
@@ -134,7 +134,7 @@ def show_UGY_peer_analysis_section(df):
         # 顯示資料表
         st.dataframe(
             core_skill_data,
-            use_container_width=True,
+            width="stretch",
             height=200
         )
     else:
@@ -237,7 +237,7 @@ def show_UGY_peer_analysis_section(df):
                     width=400
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             else:
                 st.warning(f"沒有找到 {student} 的有效評核分數")
         
@@ -277,7 +277,7 @@ def show_UGY_peer_analysis_section(df):
         
         st.dataframe(
             epa_data[display_columns],
-            use_container_width=True,
+            width="stretch",
             height=200
         )
 
@@ -387,7 +387,7 @@ def show_UGY_peer_analysis_section(df):
                             width=400
                         )
                         
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                     else:
                         st.warning(f"沒有找到 {student} 和同儕都有評核的 EPA 項目")
                 else:
@@ -488,6 +488,6 @@ def show_UGY_peer_analysis_section(df):
     
     st.dataframe(
         styled_df,
-        use_container_width=True,
+        width="stretch",
         height=400
     ) 

@@ -828,7 +828,7 @@ class RadarChartComponent:
                     scale=scale
                 )
                 fig = self.radar_viz.create_simple_radar_chart(selected_columns, values, config)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             else:
                 st.warning("請選擇至少一個維度")
     
@@ -876,7 +876,7 @@ class RadarChartComponent:
                     fig = self.radar_viz.create_comparison_radar_chart(
                         data, selected_columns, group_by, config, selected_groups
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
                 else:
                     st.warning("請至少選擇一個對象進行比較")
             else:

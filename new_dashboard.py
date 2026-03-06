@@ -405,7 +405,7 @@ def main():
                     with col_sv:
                         supervisor_name = st.text_input("指導醫師", placeholder="指導您的主治醫師姓名")
 
-                submit = st.form_submit_button("提交申請", use_container_width=True)
+                submit = st.form_submit_button("提交申請", width="stretch")
 
                 if submit:
                     import hashlib
@@ -620,7 +620,7 @@ def main():
         if st.session_state.get('role') in ['admin', 'department_admin', 'teacher']:
             st.markdown("---")
             st.subheader("📝 評核表單")
-            if st.button("填寫評核表單", key="sidebar_eval_form_button", use_container_width=True):
+            if st.button("填寫評核表單", key="sidebar_eval_form_button", width="stretch"):
                 st.session_state['show_evaluation_form'] = True
                 st.rerun()
 

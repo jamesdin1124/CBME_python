@@ -240,7 +240,7 @@ def show_teacher_scoring_analysis():
     fig_teachers.update_xaxes(tickangle=45)
     fig_teachers.update_layout(height=600)
     
-    st.plotly_chart(fig_teachers, use_container_width=True)
+    st.plotly_chart(fig_teachers, width="stretch")
     
     # 各科評分級距分析
     st.subheader("🏥 各科評分級距")
@@ -257,7 +257,7 @@ def show_teacher_scoring_analysis():
     fig_epa.update_xaxes(tickangle=45)
     fig_epa.update_layout(height=600)
     
-    st.plotly_chart(fig_epa, use_container_width=True)
+    st.plotly_chart(fig_epa, width="stretch")
     
     # 教師評分統計表
     st.subheader("📋 教師評分統計摘要")
@@ -388,7 +388,7 @@ def show_teacher_comparison():
     )
     fig.update_xaxes(tickangle=45)
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     
     # 統計比較表
     comparison_stats = comparison_data.groupby(teacher_column)['教師評核EPA等級'].agg([

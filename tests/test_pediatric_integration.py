@@ -70,7 +70,7 @@ def test_pediatric_integration():
                 {'技能項目': skill, '最少次數': data['minimum'], '說明': data['description']}
                 for skill, data in PEDIATRIC_SKILL_REQUIREMENTS.items()
             ]),
-            use_container_width=True
+            width="stretch"
         )
         
     except ImportError as e:

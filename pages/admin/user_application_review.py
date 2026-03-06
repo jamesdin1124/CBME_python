@@ -110,7 +110,7 @@ def show_user_application_review():
                                 height=100
                             )
 
-                        submit = st.form_submit_button("提交審核結果", use_container_width=True)
+                        submit = st.form_submit_button("提交審核結果", width="stretch")
 
                         if submit:
                             reviewer_name = st.session_state.get('username', 'admin')
@@ -171,7 +171,7 @@ def show_user_application_review():
                     'reviewed_at': '審核時間',
                     'created_at': '申請時間'
                 }),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
 

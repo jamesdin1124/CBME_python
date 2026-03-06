@@ -257,7 +257,7 @@ def show_analysis_section(df):
                                     height=500
                                 )
                                 
-                                st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, width="stretch")
                             else:
                                 st.warning(f"沒有找到 {selected_student} 的有效評核分數")
                         

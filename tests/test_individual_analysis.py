@@ -189,7 +189,7 @@ def test_individual_analysis():
     processed_df = process_individual_data(df)
     
     st.subheader("原始資料")
-    st.dataframe(processed_df, use_container_width=True)
+    st.dataframe(processed_df, width="stretch")
     
     # 選擇受評核人員
     selected_resident = "林盈秀"
@@ -279,7 +279,7 @@ def test_individual_analysis():
                         xaxis_tickangle=-45
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
                     
                     # 技能完成度統計
                     col1, col2, col3, col4 = st.columns(4)
@@ -382,7 +382,7 @@ def test_individual_analysis():
                         hovermode='x unified'
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
                     
                     # 顯示最新評分摘要
                     st.write("**最新評分摘要**")
@@ -423,14 +423,14 @@ def test_individual_analysis():
                     )
                     fig.add_hline(y=5, line_dash="dash", line_color="red", 
                                 annotation_text="滿分線 (5分)", annotation_position="top right")
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
             
             # 操作技術詳細記錄
             with st.expander("操作技術詳細記錄", expanded=False):
                 display_columns = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '熟練程度', '操作技術教師回饋']
                 available_columns = [col for col in display_columns if col in technical_data.columns]
                 if available_columns:
-                    st.dataframe(technical_data[available_columns], use_container_width=True)
+                    st.dataframe(technical_data[available_columns], width="stretch")
         else:
             st.info("該住院醫師目前沒有操作技術評核記錄")
         
@@ -464,7 +464,7 @@ def test_individual_analysis():
                     title=f"{selected_resident} 會議報告類型分布"
                 )
                 fig.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             
             # 會議報告評分分析
             meeting_score_columns = ['內容是否充分_數值', '辯證資料的能力_數值', '口條、呈現方式是否清晰_數值',
@@ -493,7 +493,7 @@ def test_individual_analysis():
                         title=f"{selected_resident} 會議報告評分平均"
                     )
                     fig.update_layout(xaxis_tickangle=-45)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
             
             # 會議報告詳細記錄
             with st.expander("會議報告詳細記錄", expanded=False):
@@ -501,7 +501,7 @@ def test_individual_analysis():
                                  '口條、呈現方式是否清晰', '是否具開創、建設性的想法', '回答提問是否具邏輯、有條有理', '會議報告教師回饋']
                 available_columns = [col for col in display_columns if col in meeting_data.columns]
                 if available_columns:
-                    st.dataframe(meeting_data[available_columns], use_container_width=True)
+                    st.dataframe(meeting_data[available_columns], width="stretch")
         else:
             st.info("該住院醫師目前沒有會議報告評核記錄")
 

@@ -933,7 +933,7 @@ def display_dept_data(dept_df):
         display_columns = ['姓名'] + date_columns
         
         # 顯示資料
-        st.dataframe(dept_df[display_columns], use_container_width=True)
+        st.dataframe(dept_df[display_columns], width="stretch")
         
         # 顯示統計資訊
         st.caption("資料統計")
@@ -983,7 +983,7 @@ def display_student_data(student_df, student_id, standard_categories=None):
             show_all_layers=True,
             show_student_layer_only=False
         )
-        st.plotly_chart(radar_fig, use_container_width=True, key=f"student_radar_{student_id}")
+        st.plotly_chart(radar_fig, width="stretch", key=f"student_radar_{student_id}")
     
     # 右欄：顯示回饋表格和統計
     with col2:
@@ -1007,7 +1007,7 @@ def display_student_data(student_df, student_id, standard_categories=None):
             feedback_display = feedback_display.sort_values(['梯次', 'EPA評核項目'])
             
             # 顯示回饋表格，設定較小的固定高度
-            st.dataframe(feedback_display, use_container_width=True, height=150)
+            st.dataframe(feedback_display, width="stretch", height=150)
         
         # 使用摺疊框顯示評核統計，預設為展開狀態
         with st.expander("評核統計", expanded=False):
@@ -1064,7 +1064,7 @@ def display_student_data(student_df, student_id, standard_categories=None):
             )
             
             # 顯示樞紐分析表，調整高度使整體佈局更加平衡
-            st.dataframe(styled_pivot, use_container_width=True, height=180)
+            st.dataframe(styled_pivot, width="stretch", height=180)
             
             # 然後顯示整體統計數據
             # 首先創建包含所有EPA評核項目的DataFrame
@@ -1092,7 +1092,7 @@ def display_student_data(student_df, student_id, standard_categories=None):
             
             # 顯示整體統計，同樣調整高度
             st.write("整體評核統計")
-            st.dataframe(stats.round(2), use_container_width=True, height=180)
+            st.dataframe(stats.round(2), width="stretch", height=180)
     
     # 如果有多個梯次，顯示趨勢圖
     if multiple_batches:
@@ -1124,7 +1124,7 @@ def draw_student_trend(student_df, student_id, full_df):
     )
     
     # 顯示趨勢圖，為學生趨勢圖添加唯一key
-    st.plotly_chart(trend_fig, use_container_width=True, key=f"student_trend_{student_id}")
+    st.plotly_chart(trend_fig, width="stretch", key=f"student_trend_{student_id}")
 
 def display_visualizations():
     """顯示資料視覺化"""
@@ -1320,7 +1320,7 @@ def display_visualizations():
                 dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
                 
                 # 顯示數量圖表（第一個）
-                st.plotly_chart(dept_grade_quantity_fig, use_container_width=True, key="dept_grade_quantity_chart")
+                st.plotly_chart(dept_grade_quantity_fig, width="stretch", key="dept_grade_quantity_chart")
             else:
                 st.warning(f"沒有教師評核EPA等級數值資料，無法進行數量分析")
         
@@ -1336,7 +1336,7 @@ def display_visualizations():
                 dept_grade_percentage_fig, dept_grade_quantity_fig = create_dept_grade_percentage_chart(filtered_by_layer_df, dept_column)
                 
                 # 顯示百分比圖表（第二個）
-                st.plotly_chart(dept_grade_percentage_fig, use_container_width=True, key="dept_grade_percentage_chart")
+                st.plotly_chart(dept_grade_percentage_fig, width="stretch", key="dept_grade_percentage_chart")
             else:
                 st.warning(f"沒有教師評核EPA等級數值資料，無法進行百分比分析")
         
@@ -1360,7 +1360,7 @@ def display_visualizations():
                 showlegend=True,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
             )
-            st.plotly_chart(radar_fig, use_container_width=True, key="all_layers_radar_chart")
+            st.plotly_chart(radar_fig, width="stretch", key="all_layers_radar_chart")
         else:
             st.error("沒有足夠的資料繪製雷達圖 (經過篩選後)")
         
@@ -1389,7 +1389,7 @@ def display_visualizations():
                         height=450,
                         margin=dict(t=30, b=30, l=30, r=30)
                     )
-                    st.plotly_chart(trend_fig, use_container_width=True, key=f"trend_chart_{layer}")
+                    st.plotly_chart(trend_fig, width="stretch", key=f"trend_chart_{layer}")
                     if layer != selected_layers[-1]:
                         st.markdown("---")
                 except Exception as e:

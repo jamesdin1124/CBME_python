@@ -145,7 +145,7 @@ def _show_csv_import():
         st.markdown("**Step 3：預覽資料**")
         preview_df = df.copy()
         preview_df['密碼'] = '******'
-        st.dataframe(preview_df, use_container_width=True)
+        st.dataframe(preview_df, width="stretch")
         st.info(f"共 {len(df)} 筆資料")
 
         # 驗證
@@ -303,7 +303,7 @@ def _show_account_list():
             '狀態': '啟用中' if u.get('is_active', True) else '已停用',
         })
 
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     st.caption(f"共 {len(rows)} 筆")
 
     # 帳號操作區

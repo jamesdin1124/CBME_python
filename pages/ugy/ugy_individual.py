@@ -284,13 +284,13 @@ def display_average_scores_table(df):
         # 顯示表格
         st.dataframe(
             pivot_df,
-            use_container_width=True,
+            width="stretch",
             height=400
         )
         
         # 顯示詳細資料
         with st.expander("📋 詳細資料", expanded=False):
-            st.dataframe(average_df, use_container_width=True)
+            st.dataframe(average_df, width="stretch")
         
         # 顯示階層統計
         st.subheader("📈 階層統計")
@@ -300,7 +300,7 @@ def display_average_scores_table(df):
         }).round(2)
         
         level_stats.columns = ['平均分數_平均', '平均分數_最低', '平均分數_最高', 'EPA項目數', '總評核次數']
-        st.dataframe(level_stats, use_container_width=True)
+        st.dataframe(level_stats, width="stretch")
         
     except Exception as e:
         st.error(f"顯示平均分數表格時發生錯誤：{str(e)}")

@@ -149,9 +149,9 @@ def show_diagnostic_tool():
             available_columns = [col for col in display_columns if col in df.columns]
             
             if available_columns:
-                st.dataframe(df[available_columns].head(), use_container_width=True)
+                st.dataframe(df[available_columns].head(), width="stretch")
             else:
-                st.dataframe(df.head(), use_container_width=True)
+                st.dataframe(df.head(), width="stretch")
 
 # 主要功能
 if __name__ == "__main__":

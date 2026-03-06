@@ -85,10 +85,10 @@ def test_time_trend():
     processed_df = process_time_data(df)
     
     st.subheader("原始資料")
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")
     
     st.subheader("處理後的資料")
-    st.dataframe(processed_df, use_container_width=True)
+    st.dataframe(processed_df, width="stretch")
     
     # 時間趨勢分析
     if '評核日期' in processed_df.columns:
@@ -118,7 +118,7 @@ def test_time_trend():
             
             # 顯示每日統計表格
             with st.expander("每日評核次數詳情", expanded=True):
-                st.dataframe(daily_counts, use_container_width=True)
+                st.dataframe(daily_counts, width="stretch")
             
             # 創建趨勢圖
             fig = px.line(
@@ -157,7 +157,7 @@ def test_time_trend():
                 bgcolor="lightblue"
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.warning("沒有找到有效的評核日期資料")
     else:

@@ -53,7 +53,7 @@ def test_skill_tracking():
         {'技能項目': skill, '最少次數': data['minimum'], '說明': data['description']}
         for skill, data in PEDIATRIC_SKILL_REQUIREMENTS.items()
     ])
-    st.dataframe(skill_df, use_container_width=True)
+    st.dataframe(skill_df, width="stretch")
     
     # 測試個別住院醫師技能追蹤
     st.subheader("個別住院醫師技能追蹤測試")

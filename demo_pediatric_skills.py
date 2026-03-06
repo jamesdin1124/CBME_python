@@ -141,7 +141,7 @@ def show_skill_dashboard():
         
         # 顯示該住院醫師的評核記錄
         with st.expander("評核記錄詳情", expanded=False):
-            st.dataframe(resident_data, use_container_width=True)
+            st.dataframe(resident_data, width="stretch")
         
         # 計算技能完成次數
         skill_counts = calculate_skill_counts(resident_data)
@@ -243,7 +243,7 @@ def show_skill_completion_stats(skill_counts):
             xaxis_tickangle=-45
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # 技能完成度圓餅圖
         fig_pie = go.Figure(data=[go.Pie(
@@ -257,7 +257,7 @@ def show_skill_completion_stats(skill_counts):
             height=400
         )
         
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, width="stretch")
 
 def show_skill_requirements():
     """顯示技能要求清單"""
@@ -273,7 +273,7 @@ def show_skill_requirements():
         })
     
     skill_df = pd.DataFrame(skill_data)
-    st.dataframe(skill_df, use_container_width=True)
+    st.dataframe(skill_df, width="stretch")
     
     # 技能分類統計
     st.subheader("技能分類統計")
@@ -291,7 +291,7 @@ def show_skill_requirements():
         title="技能要求次數分布"
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 def main():
     """主函數"""

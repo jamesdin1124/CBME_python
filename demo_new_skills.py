@@ -42,7 +42,7 @@ def main():
     skill_df = skill_df.sort_values('最少次數')
     
     # 顯示表格
-    st.dataframe(skill_df, use_container_width=True)
+    st.dataframe(skill_df, width="stretch")
     
     # 高亮新增的技能
     st.subheader("🆕 新增技能項目")

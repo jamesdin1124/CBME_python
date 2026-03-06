@@ -86,7 +86,7 @@ def test_skill_display():
         })
     
     skill_df = pd.DataFrame(skill_data)
-    st.dataframe(skill_df, use_container_width=True)
+    st.dataframe(skill_df, width="stretch")
 
 def main():
     """主函數"""
