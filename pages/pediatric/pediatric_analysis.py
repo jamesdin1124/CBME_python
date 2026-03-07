@@ -100,7 +100,7 @@ PEDIATRIC_SKILL_REQUIREMENTS = {
 }
 
 # 兒科 EPA 信賴等級評估三項目（表單 Q18）
-PEDIATRIC_EPA_ITEMS = ['病人日常照護', '緊急照護處置', '病歷書寫']
+PEDIATRIC_EPA_ITEMS = ['門診表現(OPD)', '一般病人照護（WARD）', '緊急處置（ED, DR）', '重症照護（PICU, NICU）', '病歷書寫']
 
 # ─── 技能分組（用於 CCC 總覽和個別分析的分類進度顯示）───
 SKILL_GROUPS = {

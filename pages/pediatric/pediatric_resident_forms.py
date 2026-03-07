@@ -14,7 +14,7 @@ RESEARCH_STATUS = ['構思中', '撰寫中', '投稿中', '接受']
 REFLECTION_TYPES = ['臨床反思', '學習心得', '個案討論', '技能學習', '其他']
 
 # EPA 項目（與 pediatric_forms.py 一致）
-PEDIATRIC_EPA_ITEMS = ['病人日常照護', '緊急照護處置', '病歷書寫']
+PEDIATRIC_EPA_ITEMS = ['門診表現(OPD)', '一般病人照護（WARD）', '緊急處置（ED, DR）', '重症照護（PICU, NICU）', '病歷書寫']
 
 # 技能項目（16 項）
 PEDIATRIC_SKILL_ITEMS = [

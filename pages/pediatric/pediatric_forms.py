@@ -28,7 +28,24 @@ PEDIATRIC_SKILL_REQUIREMENTS = {
     'ECMO照護': {'minimum': 1, 'description': '訓練期間最少1次'},
 }
 
-PEDIATRIC_EPA_ITEMS = ['病人日常照護', '緊急照護處置', '病歷書寫']
+PEDIATRIC_EPA_ITEMS = [
+    '門診表現(OPD)',
+    '一般病人照護（WARD）',
+    '緊急處置（ED, DR）',
+    '重症照護（PICU, NICU）',
+    '病歷書寫',
+]
+
+# 會議名稱選項
+MEETING_NAME_OPTIONS = [
+    'Staff Round',
+    'Journal Meeting',
+    '晨會指導',
+    'EBM指導',
+    '多專科會議',
+    'MM',
+    '其他',
+]
 
 # 9 級可信賴程度（兒科表單標準選項 1.5–5.0）
 RELIABILITY_OPTIONS = {
@@ -139,7 +156,7 @@ def show_technical_skill_form(supabase_conn, current_user):
 
         col_a, col_b = st.columns(2)
         with col_a:
-            patient_id = st.text_input("病歷號（選填）")
+            patient_id = st.text_input("病歷號 *", placeholder="請輸入病歷號")
             sedation = st.text_input("鎮靜藥物（選填）")
         with col_b:
             # 9 級可信賴程度（EPA 統一量表）
@@ -149,12 +166,6 @@ def show_technical_skill_form(supabase_conn, current_user):
                 index=2,  # 預設「教師在旁必要時協助」
                 help="依觀察到的獨立執行程度選擇"
             )
-            # 熟練度自動推導
-            _rel_score = RELIABILITY_OPTIONS[reliability_label]
-            if _rel_score >= PROFICIENCY_THRESHOLD:
-                st.success(f"📊 可信賴分數 **{_rel_score}** — 熟練")
-            else:
-                st.warning(f"📊 可信賴分數 **{_rel_score}** — 不熟練")
 
         feedback = st.text_area("操作技術教師回饋", placeholder="請描述住院醫師的操作表現...")
 
@@ -163,6 +174,9 @@ def show_technical_skill_form(supabase_conn, current_user):
         if submitted:
             if not evaluated_resident:
                 st.error("請選擇或輸入受評核人員")
+                return
+            if not patient_id:
+                st.error("請輸入病歷號")
                 return
             # 取得當前使用者的科別（用於科別過濾）
             user_department = st.session_state.get('user_department', '小兒部')
@@ -204,7 +218,8 @@ def show_meeting_report_form(supabase_conn, current_user):
 
         st.markdown("---")
 
-        meeting_name = st.text_input("會議名稱", placeholder="例：兒科晨會、Case Conference...")
+        meeting_name = st.selectbox("會議名稱", options=MEETING_NAME_OPTIONS)
+        meeting_topic = st.text_input("報告主題", placeholder="請輸入報告主題...")
 
         st.markdown("### 📊 五維度評分")
         st.caption("每個維度 1-5 分，5 = 卓越，1 = 不符合期待")
@@ -247,6 +262,7 @@ def show_meeting_report_form(supabase_conn, current_user):
                 'resident_level': resident_level,
                 'evaluation_item': '會議報告',
                 'meeting_name': meeting_name or None,
+                'meeting_topic': meeting_topic or None,
                 'content_sufficient': MEETING_SCORE_MAP[content],
                 'data_analysis_ability': MEETING_SCORE_MAP[analysis],
                 'presentation_clarity': MEETING_SCORE_MAP[presentation],
@@ -291,15 +307,6 @@ def show_epa_form(supabase_conn, current_user):
             index=2,  # 預設「教師在旁必要時協助」
             help="依實際觀察選擇最符合的等級"
         )
-
-        # 顯示對應分數
-        score = RELIABILITY_OPTIONS[reliability_label]
-        if score >= 4.0:
-            st.success(f"📊 對應分數：**{score}** 分 — 高度信賴")
-        elif score >= 3.0:
-            st.info(f"📊 對應分數：**{score}** 分 — 可獨立執行")
-        else:
-            st.warning(f"📊 對應分數：**{score}** 分 — 需要監督")
 
         feedback = st.text_area("EPA 質性回饋", placeholder="請描述具體觀察到的行為表現...")
 

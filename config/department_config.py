@@ -43,7 +43,7 @@ DEPARTMENT_EPA_CONFIG = {
     # ─── 小兒部 ───
     '小兒部': {
         'evaluation_types': ['technical_skill', 'meeting_report', 'epa'],
-        'epa_items': ['病人日常照護', '緊急照護處置', '病歷書寫'],
+        'epa_items': ['門診表現(OPD)', '一般病人照護（WARD）', '緊急處置（ED, DR）', '重症照護（PICU, NICU）', '病歷書寫'],
         'skill_items': {
             '插氣管內管': {'minimum': 3, 'description': '訓練期間最少3次'},
             '插臍(動靜脈)導管': {'minimum': 1, 'description': '訓練期間最少1次'},
