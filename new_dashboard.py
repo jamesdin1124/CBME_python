@@ -21,6 +21,9 @@ from pages.ugy.ugy_peers import show_UGY_peer_analysis_section
 from pages.ugy.ugy_overview import show_ugy_student_overview
 from pages.ugy.ugy_individual import show_ugy_student_analysis
 from pages.ugy.ugy_teacher_analysis import show_ugy_teacher_analysis
+from pages.ugy.ugy_epa_form import show_ugy_epa_form, show_ugy_epa_batch_form
+from pages.ugy.ugy_student_portal import show_student_portal_for_logged_in
+from modules.ugy_student_manager import show_ugy_student_management
 from config.epa_constants import EPA_LEVEL_MAPPING
 from config.department_config import ALL_DEPARTMENTS
 from modules.auth import (
@@ -664,67 +667,8 @@ def main():
             with tabs[i]:
                 if tab_name == "我的評核資料":
                     st.header("我的評核資料")
-                    # 從 session state 中獲取所有科別的資料
-                    all_data = []
-                    for dept in departments:
-                        if f"{dept}_data" in st.session_state:
-                            all_data.append(st.session_state[f"{dept}_data"])
-                    
-                    if all_data:
-                        # 合併所有科別的資料
-                        current_data = pd.concat(all_data, ignore_index=True)
-                        # 過濾出該學生的資料
-                        student_data = current_data[current_data['學號'] == st.session_state.get('student_id')]
-                        if not student_data.empty:
-                            # 顯示基本資訊
-                            st.subheader("基本資訊")
-                            st.write(f"姓名：{student_data['姓名'].iloc[0]}")
-                            st.write(f"學號：{student_data['學號'].iloc[0]}")
-                            st.write(f"科別：{student_data['科別'].iloc[0]}")
-                            
-                            # 顯示 EPA 評分
-                            st.subheader("EPA 評分")
-                            epa_columns = [col for col in student_data.columns if 'EPA' in col]
-                            for epa_col in epa_columns:
-                                st.write(f"{epa_col}：{student_data[epa_col].iloc[0]}")
-                            
-                            # 顯示評語
-                            if '評語' in student_data.columns:
-                                st.subheader("評語")
-                                st.write(student_data['評語'].iloc[0])
-                            
-                            # 顯示趨勢圖
-                            st.subheader("評分趨勢")
-                            if len(student_data) > 1:  # 確保有多筆資料才顯示趨勢圖
-                                trend_data = student_data[epa_columns].T
-                                trend_data.columns = ['評分']
-                                st.line_chart(trend_data)
-                            
-                            # 顯示雷達圖
-                            st.subheader("能力雷達圖")
-                            if epa_columns:
-                                radar_data = student_data[epa_columns].iloc[0]
-                                fig = go.Figure()
-                                fig.add_trace(go.Scatterpolar(
-                                    r=radar_data.values,
-                                    theta=radar_data.index,
-                                    fill='toself',
-                                    name='能力評分'
-                                ))
-                                fig.update_layout(
-                                    polar=dict(
-                                        radialaxis=dict(
-                                            visible=True,
-                                            range=[0, 5]
-                                        )
-                                    ),
-                                    showlegend=False
-                                )
-                                st.plotly_chart(fig)
-                        else:
-                            st.warning("找不到您的評核資料")
-                    else:
-                        st.warning("尚未上傳任何評核資料")
+                    # 使用新的學生成績面板（從 Supabase 讀取）
+                    show_student_portal_for_logged_in()
                 
                 elif tab_name == "UGY":
                     if check_permission(st.session_state.role, 'can_view_ugy_data'):
@@ -735,19 +679,32 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析", "老師分析"])
-                            
+                            ugy_tab_names = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單", "批次評核"]
+                            if st.session_state.get('role') in ['admin', 'department_admin']:
+                                ugy_tab_names.append("學生帳號管理")
+                            ugy_subtabs = st.tabs(ugy_tab_names)
+
                             with ugy_subtabs[0]:
                                 st.header("學生總覽")
                                 show_ugy_student_overview()
-                            
+
                             with ugy_subtabs[1]:
                                 st.header("個別學生分析")
                                 show_ugy_student_analysis()
-                            
+
                             with ugy_subtabs[2]:
                                 st.header("老師分析")
                                 show_ugy_teacher_analysis()
+
+                            with ugy_subtabs[3]:
+                                show_ugy_epa_form()
+
+                            with ugy_subtabs[4]:
+                                show_ugy_epa_batch_form()
+
+                            if st.session_state.get('role') in ['admin', 'department_admin']:
+                                with ugy_subtabs[5]:
+                                    show_ugy_student_management()
     else:
         # 為非學生角色準備 current_data
         current_data = None
@@ -774,20 +731,33 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_subtabs = st.tabs(["學生總覽", "個別學生分析", "老師分析"])
-                            
+                            ugy_tab_names2 = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單", "批次評核"]
+                            if st.session_state.get('role') in ['admin', 'department_admin']:
+                                ugy_tab_names2.append("學生帳號管理")
+                            ugy_subtabs = st.tabs(ugy_tab_names2)
+
                             with ugy_subtabs[0]:
                                 st.header("學生總覽")
                                 show_ugy_student_overview()
-                            
+
                             with ugy_subtabs[1]:
                                 st.header("個別學生分析")
                                 show_ugy_student_analysis()
-                            
+
                             with ugy_subtabs[2]:
                                 st.header("老師分析")
                                 show_ugy_teacher_analysis()
-                
+
+                            with ugy_subtabs[3]:
+                                show_ugy_epa_form()
+
+                            with ugy_subtabs[4]:
+                                show_ugy_epa_batch_form()
+
+                            if st.session_state.get('role') in ['admin', 'department_admin']:
+                                with ugy_subtabs[5]:
+                                    show_ugy_student_management()
+
                 elif tab_name == "PGY":
                     if check_permission(st.session_state.role, 'can_view_pgy_data'):
                         st.header("PGY 分析")
