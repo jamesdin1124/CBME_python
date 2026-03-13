@@ -26,31 +26,8 @@ def _get_supabase_conn():
 
 
 def load_threshold_settings():
-    """
-    從 Supabase 載入門檻設定。
-    失敗時回退到硬碼預設值，並快取在 session_state。
-    """
-    cache_key = '_pediatric_thresholds'
-    if cache_key in st.session_state:
-        return st.session_state[cache_key]
-
-    defaults = {
-        'technical_green_threshold': THRESHOLD_TECHNICAL_GREEN,
-        'technical_red_threshold': THRESHOLD_TECHNICAL_RED,
-        'score_green_threshold': THRESHOLD_SCORE_GREEN,
-        'score_red_threshold': THRESHOLD_SCORE_RED,
-    }
-    conn = _get_supabase_conn()
-    if conn:
-        try:
-            settings = conn.get_active_thresholds()
-            if settings and 'technical_green_threshold' in settings:
-                st.session_state[cache_key] = settings
-                return settings
-        except Exception:
-            pass
-    st.session_state[cache_key] = defaults
-    return defaults
+    """已棄用：門檻改為依年級分級（LEVEL_THRESHOLDS），保留函式以向後相容。"""
+    return LEVEL_THRESHOLDS
 
 # 小兒部住院醫師評核表單欄位對應
 PEDIATRIC_FORM_FIELDS = {
@@ -111,13 +88,19 @@ SKILL_GROUPS = {
     '急救與特殊照護類': ['APLS', 'NRP', 'CVVH照護', 'ECMO照護']
 }
 
-# ─── CCC 門檢標準（硬碼）───
-# 技能完成率門檢（百分比）
-THRESHOLD_TECHNICAL_GREEN = 100   # 所有項目均完成
-THRESHOLD_TECHNICAL_RED   = 60    # < 60% 為紅燈
-# EPA / 會議報告均分門檢（1-5 分制）
-THRESHOLD_SCORE_GREEN = 3.5
-THRESHOLD_SCORE_RED   = 2.5
+# ─── CCC 門檻標準（依年級分級）───
+# score_threshold: EPA 均分 & 會議報告均分的達標門檻
+# skill_pass_rate: 操作技術評核中 ≥3 分紀錄佔比的達標門檻（%）
+LEVEL_THRESHOLDS = {
+    'PGY2': {'score_threshold': 2.5, 'skill_pass_rate': 30},
+    'R1':   {'score_threshold': 2.5, 'skill_pass_rate': 30},
+    'R2':   {'score_threshold': 3.0, 'skill_pass_rate': 60},
+    'R3':   {'score_threshold': 3.5, 'skill_pass_rate': 90},
+}
+
+def _get_level_thresholds(level):
+    """取得年級對應的門檻，不認識的年級 fallback 到 R1"""
+    return LEVEL_THRESHOLDS.get(str(level), LEVEL_THRESHOLDS['R1'])
 
 def show_pediatric_evaluation_section():
     """顯示小兒部住院醫師評核分頁"""
@@ -743,14 +726,34 @@ def _get_resident_level(df, resident_name):
     return lvs.mode().iloc[0] if len(lvs) > 0 else '未知'
 
 def _status_emoji(status):
-    return {'GREEN': '🟢', 'YELLOW': '🟡', 'RED': '🔴'}.get(status, '⚪')
+    return {'PASS': '✅', 'FAIL': '❌', 'GREEN': '🟢', 'YELLOW': '🟡', 'RED': '🔴'}.get(status, '⚪')
 
 def _status_label(status):
-    return {'GREEN': '進度良好', 'YELLOW': '需注意', 'RED': '需輔導'}.get(status, '未知')
+    return {'PASS': '達標', 'FAIL': '未達標', 'GREEN': '進度良好', 'YELLOW': '需注意', 'RED': '需輔導'}.get(status, '未知')
 
 def show_ccc_overview():
     """Tab 1：CCC 總覽頁面主函數"""
     st.subheader("🏆 CCC 會議 — 小兒部住院醫師訓練進度總覽")
+
+    # ── 達標標準說明 ──
+    with st.expander("📋 各年級達標標準"):
+        std_col1, std_col2 = st.columns(2)
+        with std_col1:
+            st.markdown("**會議報告 & EPA（均分門檻）**")
+            st.markdown(
+                "| 年級 | 達標門檻 |\n|------|--------|\n"
+                "| PGY2 / R1 | ≥ 2.5 分 |\n"
+                "| R2 | ≥ 3.0 分 |\n"
+                "| R3 | ≥ 3.5 分 |"
+            )
+        with std_col2:
+            st.markdown("**操作技術（≥3 分評核佔比）**")
+            st.markdown(
+                "| 年級 | 達標比例 |\n|------|--------|\n"
+                "| PGY2 / R1 | ≥ 30% |\n"
+                "| R2 | ≥ 60% |\n"
+                "| R3 | ≥ 90% |"
+            )
 
     # 獲取選擇的科別（僅在 Supabase 模式下生效）
     selected_dept = st.session_state.get('selected_department')
@@ -785,8 +788,9 @@ def show_ccc_overview():
     all_status = {}  # {姓名: status_dict}
     for name in residents:
         res_df = df[df['受評核人員'] == name]
-        all_status[name] = calculate_resident_status(res_df, df)
-        all_status[name]['level'] = _get_resident_level(df, name)
+        level = _get_resident_level(df, name)
+        all_status[name] = calculate_resident_status(res_df, df, resident_level=level)
+        all_status[name]['level'] = level
 
     # ── Section B：摘要卡片 ──
     show_resident_cards(all_status, df)
@@ -815,62 +819,66 @@ def show_ccc_overview():
 
 
 def show_alert_banner(all_status):
-    """警報橫帶：紅、黃、綠分類顯示姓名"""
-    groups = {'RED': [], 'YELLOW': [], 'GREEN': []}
+    """警報橫帶：達標/未達標分類顯示姓名"""
+    groups = {'PASS': [], 'FAIL': []}
     for name, info in all_status.items():
         groups[info['overall']].append(name)
 
-    # 必須至少有一種狀態才顯示
     banner_parts = []
-    if groups['RED']:
+    if groups['FAIL']:
         banner_parts.append(
-            f'<span style="background:#ffe0e0;color:#c0392b;padding:6px 12px;border-radius:6px;font-weight:bold;">🔴 需輔導：{" ・ ".join(groups["RED"])}</span>'
+            f'<span style="background:#ffe0e0;color:#c0392b;padding:6px 12px;border-radius:6px;font-weight:bold;">❌ 未達標：{" ・ ".join(groups["FAIL"])}</span>'
         )
-    if groups['YELLOW']:
+    if groups['PASS']:
         banner_parts.append(
-            f'<span style="background:#fff3cd;color:#856404;padding:6px 12px;border-radius:6px;font-weight:bold;">🟡 需注意：{" ・ ".join(groups["YELLOW"])}</span>'
-        )
-    if groups['GREEN']:
-        banner_parts.append(
-            f'<span style="background:#d4edda;color:#155724;padding:6px 12px;border-radius:6px;font-weight:bold;">🟢 進度良好：{" ・ ".join(groups["GREEN"])}</span>'
+            f'<span style="background:#d4edda;color:#155724;padding:6px 12px;border-radius:6px;font-weight:bold;">✅ 達標：{" ・ ".join(groups["PASS"])}</span>'
         )
 
     st.markdown(' &nbsp;&nbsp; '.join(banner_parts), unsafe_allow_html=True)
 
 
 def show_resident_cards(all_status, df):
-    """摘要卡片列表：每行 3 張卡片"""
+    """摘要卡片列表：每行 3 張卡片，含年級門檻與達標狀態"""
     residents = list(all_status.keys())
     n_cols = min(3, len(residents))
     cols = st.columns(n_cols)
 
     for i, name in enumerate(residents):
         info = all_status[name]
+        th = info.get('thresholds', _get_level_thresholds(info['level']))
         col = cols[i % n_cols]
 
         with col:
             with st.container(border=True):
-                # 標題行：姓名 + 級職
+                # 標題行：姓名 + 級職 + 整體狀態
+                overall_icon = _status_emoji(info['overall'])
                 st.markdown(
-                    f"**{name}** &nbsp; {info['level']}",
+                    f"**{name}** &nbsp; {info['level']} &nbsp; {overall_icon} {_status_label(info['overall'])}",
                     unsafe_allow_html=True
                 )
                 st.divider()
 
-                # 三個指標並排（加上計分方式註記）
+                # 三個指標並排
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     epa_val = info['epa']['avg_score']
-                    st.metric("EPA均分 (1-5分)", f"{epa_val:.1f}" if epa_val is not None else "—",
-                              help="三項EPA可信賴程度平均值")
+                    st.metric("EPA均分", f"{epa_val:.1f}" if epa_val is not None else "—")
+                    epa_icon = _status_emoji(info['epa']['status'])
+                    st.caption(f"{epa_icon} 門檻 ≥{th['score_threshold']}")
                 with c2:
-                    tech_val = info['technical']['completion_rate']
-                    st.metric("技能完成率 (%)", f"{tech_val:.0f}%" if tech_val is not None else "—",
-                              help="已達標技能數 ÷ 16項 × 100%")
+                    tech_rate = info['technical']['pass_rate']
+                    pass_cnt = info['technical']['pass_count']
+                    total_cnt = info['technical']['total_count']
+                    st.metric("技能達標率", f"{tech_rate:.0f}%" if tech_rate is not None else "—")
+                    tech_icon = _status_emoji(info['technical']['status'])
+                    st.caption(f"{tech_icon} 門檻 ≥{th['skill_pass_rate']}%")
+                    if total_cnt > 0:
+                        st.caption(f"({pass_cnt}/{total_cnt} 筆≥3分)")
                 with c3:
                     mtg_val = info['meeting']['avg_score']
-                    st.metric("會議報告均分 (1-5分)", f"{mtg_val:.1f}" if mtg_val is not None else "—",
-                              help="五維度評分平均值")
+                    st.metric("會議報告均分", f"{mtg_val:.1f}" if mtg_val is not None else "—")
+                    mtg_icon = _status_emoji(info['meeting']['status'])
+                    st.caption(f"{mtg_icon} 門檻 ≥{th['score_threshold']}")
 
                 # 研究進度簡要顯示（若有 Supabase 連線）
                 conn = _get_supabase_conn()
@@ -889,9 +897,9 @@ def show_resident_cards(all_status, df):
 
 
 def show_comparison_bar_chart(all_status):
-    """並排長條圖：三維度百分化後對比"""
+    """並排長條圖：三維度百分化後對比（含年級門檻標註）"""
     st.subheader("📊 訓練完成度並排比較")
-    st.caption("技能完成率 = 已達標技能數÷16×100% ｜ EPA達標率 = EPA均分÷5×100% ｜ 會議報告均分 = 五維度均分÷5×100%")
+    st.caption("技能達標率 = ≥3分評核佔比 ｜ EPA/會議 = 均分÷5×100%。門檻依年級：PGY2/R1→2.5分/30%, R2→3.0分/60%, R3→3.5分/90%")
 
     names = list(all_status.keys())
     tech_rates  = []
@@ -900,20 +908,14 @@ def show_comparison_bar_chart(all_status):
 
     for name in names:
         info = all_status[name]
-        tech_rates.append(info['technical']['completion_rate'] if info['technical']['completion_rate'] is not None else 0)
-        # EPA：均分 / 5 * 100 → 百分化
+        tech_rates.append(info['technical']['pass_rate'] if info['technical']['pass_rate'] is not None else 0)
         epa_rates.append(info['epa']['avg_score'] / 5 * 100 if info['epa']['avg_score'] is not None else 0)
-        # 會議報告：均分 / 5 * 100
         mtg_rates.append(info['meeting']['avg_score'] / 5 * 100 if info['meeting']['avg_score'] is not None else 0)
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(name='技能完成率',   x=names, y=tech_rates, marker_color='#4A90D9'))
-    fig.add_trace(go.Bar(name='EPA達標率',    x=names, y=epa_rates,  marker_color='#50C878'))
-    fig.add_trace(go.Bar(name='會議報告均分', x=names, y=mtg_rates,  marker_color='#F5A623'))
-
-    # Y=60% 虛線
-    fig.add_hline(y=60, line_dash="dash", line_color="red",
-                  annotation_text="最低期望 (60%)", annotation_position="top left")
+    fig.add_trace(go.Bar(name='技能達標率 (≥3分%)',   x=names, y=tech_rates, marker_color='#4A90D9'))
+    fig.add_trace(go.Bar(name='EPA均分 (%)',    x=names, y=epa_rates,  marker_color='#50C878'))
+    fig.add_trace(go.Bar(name='會議報告均分 (%)', x=names, y=mtg_rates,  marker_color='#F5A623'))
 
     fig.update_layout(
         barmode='group',
@@ -1730,106 +1732,29 @@ def show_statistical_analysis():
 
 
 def _show_threshold_settings_ui():
-    """CCC 門檻設定介面（管理員專用）"""
-    thresholds = load_threshold_settings()
+    """CCC 門檻標準（依年級分級，唯讀展示）"""
+    st.markdown("#### 各年級達標標準")
+    st.markdown("判定方式：**二級制（達標 / 未達標）**，三維度中任一未達標即為整體未達標。")
 
-    st.markdown("#### 技能完成率門檻（百分比）")
     col1, col2 = st.columns(2)
     with col1:
-        tech_green = st.slider(
-            "🟢 綠燈門檻（%）",
-            min_value=80.0, max_value=100.0,
-            value=float(thresholds.get('technical_green_threshold', 100.0)),
-            step=5.0,
-            help="所有項目均完成才算綠燈"
+        st.markdown("**會議報告 & EPA（均分門檻）**")
+        st.markdown(
+            "| 年級 | 達標門檻 |\n|------|--------|\n"
+            "| PGY2 / R1 | ≥ 2.5 分 |\n"
+            "| R2 | ≥ 3.0 分 |\n"
+            "| R3 | ≥ 3.5 分 |"
         )
     with col2:
-        tech_red = st.slider(
-            "🔴 紅燈門檻（%）",
-            min_value=30.0, max_value=80.0,
-            value=float(thresholds.get('technical_red_threshold', 60.0)),
-            step=5.0,
-            help="低於此值為紅燈（需輔導）"
+        st.markdown("**操作技術（≥3 分評核佔比）**")
+        st.markdown(
+            "| 年級 | 達標比例 |\n|------|--------|\n"
+            "| PGY2 / R1 | ≥ 30% |\n"
+            "| R2 | ≥ 60% |\n"
+            "| R3 | ≥ 90% |"
         )
 
-    st.markdown("#### EPA / 會議報告均分門檻（1-5 分）")
-    col3, col4 = st.columns(2)
-    with col3:
-        score_green = st.slider(
-            "🟢 綠燈門檻（分）",
-            min_value=2.5, max_value=5.0,
-            value=float(thresholds.get('score_green_threshold', 3.5)),
-            step=0.1
-        )
-    with col4:
-        score_red = st.slider(
-            "🔴 紅燈門檻（分）",
-            min_value=1.5, max_value=3.5,
-            value=float(thresholds.get('score_red_threshold', 2.5)),
-            step=0.1
-        )
-
-    # 驗證
-    if tech_green <= tech_red:
-        st.error("❌ 技能完成率：綠燈門檻必須大於紅燈門檻")
-        return
-    if score_green <= score_red:
-        st.error("❌ 分數門檻：綠燈門檻必須大於紅燈門檻")
-        return
-
-    # 預覽
-    st.markdown("**預覽門檻判定：**")
-    st.write(f"- 🟢 **GREEN**：技能 ≥ {tech_green}%，分數 ≥ {score_green}")
-    st.write(f"- 🟡 **YELLOW**：介於紅燈與綠燈之間")
-    st.write(f"- 🔴 **RED**：技能 < {tech_red}%，分數 < {score_red}")
-
-    notes = st.text_input("變更說明（選填）", placeholder="為什麼調整門檻？")
-
-    if st.button("💾 儲存門檻設定", type="primary"):
-        conn = _get_supabase_conn()
-        if conn:
-            success = conn.save_threshold_settings(
-                settings={
-                    'technical_green_threshold': tech_green,
-                    'technical_red_threshold': tech_red,
-                    'score_green_threshold': score_green,
-                    'score_red_threshold': score_red,
-                },
-                updated_by=st.session_state.get('username', 'unknown'),
-                notes=notes
-            )
-            if success:
-                # 清除快取以強制重新載入
-                if '_pediatric_thresholds' in st.session_state:
-                    del st.session_state['_pediatric_thresholds']
-                st.success("✅ 門檻設定已更新！CCC 狀態將重新計算。")
-                st.rerun()
-            else:
-                st.error("❌ 儲存失敗，請檢查 Supabase 連線")
-        else:
-            st.error("❌ 無法連線 Supabase，門檻設定需要資料庫連線")
-
-    # 歷史記錄
-    if st.checkbox("顯示歷史門檻設定"):
-        conn = _get_supabase_conn()
-        if conn:
-            try:
-                result = conn.get_client().table('pediatric_threshold_settings') \
-                    .select('*') \
-                    .order('created_at', desc=True) \
-                    .limit(10) \
-                    .execute()
-                if result.data:
-                    for h in result.data:
-                        active_tag = " ✅ **（作用中）**" if h.get('is_active') else ""
-                        st.markdown(f"**{str(h.get('effective_from', ''))[:16]}** — {h.get('updated_by', '?')}{active_tag}")
-                        st.caption(f"技能: {h.get('technical_red_threshold')}%-{h.get('technical_green_threshold')}% | "
-                                   f"分數: {h.get('score_red_threshold')}-{h.get('score_green_threshold')} | "
-                                   f"{h.get('notes', '')}")
-                else:
-                    st.info("尚無歷史記錄")
-            except Exception as e:
-                st.warning(f"載入歷史記錄失敗：{str(e)}")
+    st.info("門檻標準定義於程式碼中（LEVEL_THRESHOLDS），如需調整請聯繫系統管理員。")
 
 
 def show_data_management():
@@ -1992,38 +1917,33 @@ def calculate_skill_counts(resident_data):
     
     return skill_counts
 
-def calculate_resident_status(resident_data, full_df):
-    """計算單位住院醫師的 GREEN / YELLOW / RED 狀態
-    判定維度：技能完成率、EPA均分、會議報告均分
-    取三個維度中最差者為 overall 狀態
-    無資料的維度視為 YELLOW
-    門檻值從 Supabase 動態載入（失敗時回退到硬碼預設值）
+def calculate_resident_status(resident_data, full_df, resident_level='R1'):
+    """計算住院醫師的達標狀態（依年級分級門檻）
+    判定維度：技能達標率、EPA均分、會議報告均分
+    取三個維度中最差者為 overall 狀態（二級制：PASS / FAIL）
+    無資料的維度視為 FAIL
     """
-    # 動態載入門檻
-    thresholds = load_threshold_settings()
-    th_tech_green = float(thresholds.get('technical_green_threshold', THRESHOLD_TECHNICAL_GREEN))
-    th_tech_red = float(thresholds.get('technical_red_threshold', THRESHOLD_TECHNICAL_RED))
-    th_score_green = float(thresholds.get('score_green_threshold', THRESHOLD_SCORE_GREEN))
-    th_score_red = float(thresholds.get('score_red_threshold', THRESHOLD_SCORE_RED))
+    th = _get_level_thresholds(resident_level)
+    score_threshold = th['score_threshold']
+    skill_pass_rate = th['skill_pass_rate']
 
-    def _level(value, green_thresh, red_thresh):
+    def _pass_fail(value, threshold):
         if value is None:
-            return 'YELLOW'
-        if value >= green_thresh:
-            return 'GREEN'
-        if value < red_thresh:
-            return 'RED'
-        return 'YELLOW'
+            return 'FAIL'
+        return 'PASS' if value >= threshold else 'FAIL'
 
-    # ── 維度 1：技能完成率 ──
+    # ── 維度 1：技能達標率（所有操作技術評核中 ≥3 分的比例）──
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'] if '評核項目' in resident_data.columns else pd.DataFrame()
-    skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
-    if skill_counts:
-        completed_skills = sum(1 for d in skill_counts.values() if d['completed'] >= d['required'])
-        tech_rate = completed_skills / len(skill_counts) * 100
+    if not technical_data.empty and '可信賴程度_數值' in technical_data.columns:
+        all_scores = technical_data['可信賴程度_數值'].dropna()
+        total_count = len(all_scores)
+        pass_count = int((all_scores >= 3).sum())
+        tech_rate = pass_count / total_count * 100 if total_count > 0 else None
     else:
         tech_rate = None
-    tech_status = _level(tech_rate, th_tech_green, th_tech_red)
+        total_count = 0
+        pass_count = 0
+    tech_status = _pass_fail(tech_rate, skill_pass_rate)
 
     # ── 維度 2：EPA 均分 ──
     epa_data = resident_data[resident_data['評核項目'].astype(str).str.contains('EPA', na=False)] if '評核項目' in resident_data.columns else pd.DataFrame()
@@ -2032,7 +1952,7 @@ def calculate_resident_status(resident_data, full_df):
         epa_avg = float(epa_avg) if pd.notna(epa_avg) else None
     else:
         epa_avg = None
-    epa_status = _level(epa_avg, th_score_green, th_score_red)
+    epa_status = _pass_fail(epa_avg, score_threshold)
 
     # ── 維度 3：會議報告均分 ──
     meeting_data = resident_data[resident_data['評核項目'] == '會議報告'] if '評核項目' in resident_data.columns else pd.DataFrame()
@@ -2040,22 +1960,23 @@ def calculate_resident_status(resident_data, full_df):
                           '是否具開創、建設性的想法_數值', '回答提問是否具邏輯、有條有理_數值']
     available_score_cols = [c for c in meeting_score_cols if c in meeting_data.columns] if not meeting_data.empty else []
     if available_score_cols:
-        all_scores = meeting_data[available_score_cols].values.flatten()
-        valid = all_scores[~pd.isna(all_scores)]
+        all_meeting_scores = meeting_data[available_score_cols].values.flatten()
+        valid = all_meeting_scores[~pd.isna(all_meeting_scores)]
         meeting_avg = float(valid.mean()) if len(valid) > 0 else None
     else:
         meeting_avg = None
-    meeting_status = _level(meeting_avg, th_score_green, th_score_red)
+    meeting_status = _pass_fail(meeting_avg, score_threshold)
 
-    # ── overall：取最差者（RED > YELLOW > GREEN）──
-    priority = {'RED': 0, 'YELLOW': 1, 'GREEN': 2}
-    overall = min([tech_status, epa_status, meeting_status], key=lambda s: priority[s])
+    # ── overall：三維度中有任一 FAIL 則 FAIL ──
+    overall = 'PASS' if all(s == 'PASS' for s in [tech_status, epa_status, meeting_status]) else 'FAIL'
 
     return {
         'overall': overall,
-        'technical': {'status': tech_status, 'completion_rate': tech_rate},
+        'thresholds': th,
+        'technical': {'status': tech_status, 'pass_rate': tech_rate,
+                      'pass_count': pass_count, 'total_count': total_count},
         'epa':       {'status': epa_status,  'avg_score': epa_avg},
-        'meeting':   {'status': meeting_status, 'avg_score': meeting_avg}
+        'meeting':   {'status': meeting_status, 'avg_score': meeting_avg},
     }
 
 def show_skill_progress(skill_counts, resident_name):

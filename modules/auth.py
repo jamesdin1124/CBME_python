@@ -202,6 +202,47 @@ def create_user(username, password, role, name,
         return False, f"建立失敗：{str(e)}"
 
 
+def change_password(username, old_password, new_password):
+    """
+    修改使用者密碼
+
+    Args:
+        username: 使用者帳號
+        old_password: 舊密碼（明文）
+        new_password: 新密碼（明文）
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        conn = _get_supabase_conn()
+
+        # 先驗證舊密碼
+        result = conn.client.table('pediatric_users').select('password_hash').eq(
+            'username', username
+        ).eq('is_active', True).execute()
+
+        if not result.data or len(result.data) == 0:
+            return False, "找不到該使用者"
+
+        old_hash = hash_password(old_password)
+        if result.data[0].get('password_hash') != old_hash:
+            return False, "舊密碼不正確"
+
+        # 更新密碼
+        new_hash = hash_password(new_password)
+        update_result = conn.client.table('pediatric_users').update(
+            {'password_hash': new_hash}
+        ).eq('username', username).execute()
+
+        if update_result.data:
+            return True, "密碼修改成功"
+        return False, "密碼修改失敗"
+
+    except Exception as e:
+        return False, f"密碼修改失敗：{str(e)}"
+
+
 def deactivate_user(username):
     """停用使用者（軟刪除）"""
     try:
@@ -502,6 +543,34 @@ def show_user_management():
 
     except Exception as e:
         st.error(f"讀取使用者列表失敗：{str(e)}")
+
+
+def show_change_password_form():
+    """顯示修改密碼表單"""
+    st.subheader("🔑 修改密碼")
+
+    with st.form("change_password_form"):
+        old_password = st.text_input("目前密碼", type="password")
+        new_password = st.text_input("新密碼", type="password")
+        confirm_password = st.text_input("確認新密碼", type="password")
+        submitted = st.form_submit_button("確認修改", type="primary")
+
+        if submitted:
+            if not old_password or not new_password or not confirm_password:
+                st.error("請填寫所有欄位")
+            elif new_password != confirm_password:
+                st.error("新密碼與確認密碼不一致")
+            elif len(new_password) < 4:
+                st.error("新密碼長度至少 4 個字元")
+            elif old_password == new_password:
+                st.error("新密碼不能與舊密碼相同")
+            else:
+                username = st.session_state.get('username')
+                success, message = change_password(username, old_password, new_password)
+                if success:
+                    st.success(f"✅ {message}")
+                else:
+                    st.error(f"❌ {message}")
 
 
 # ── 向後相容的匯出（供 new_dashboard.py 等匯入使用）──

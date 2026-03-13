@@ -496,14 +496,20 @@ def main():
     
     # 顯示登出按鈕與管理入口
     with st.sidebar:
-        if st.button("登出"):
-            st.session_state.logged_in = False
-            st.session_state.username = None
-            st.session_state.role = None
-            st.session_state.user_name = None
-            st.session_state.user_department = None
-            st.session_state.student_id = None
-            st.rerun()
+        col_pwd, col_logout = st.columns(2)
+        with col_pwd:
+            if st.button("🔑 修改密碼"):
+                st.session_state['show_change_password'] = True
+                st.rerun()
+        with col_logout:
+            if st.button("登出"):
+                st.session_state.logged_in = False
+                st.session_state.username = None
+                st.session_state.role = None
+                st.session_state.user_name = None
+                st.session_state.user_department = None
+                st.session_state.student_id = None
+                st.rerun()
 
         # 管理員和科別管理員專屬：管理功能入口
         if st.session_state.get('role') in ['admin', 'department_admin']:
@@ -521,11 +527,26 @@ def main():
                     st.session_state.pop('show_application_review', None)
                     st.rerun()
 
+        # 返回主頁按鈕（修改密碼頁面）
+        if st.session_state.get('show_change_password'):
+            if st.button("↩️ 返回主頁", key="sidebar_back_pwd"):
+                st.session_state.pop('show_change_password', None)
+                st.rerun()
+
         # 返回主頁按鈕（評核表單頁面）
         if st.session_state.get('show_evaluation_form'):
             if st.button("↩️ 返回主頁", key="sidebar_back_eval"):
                 st.session_state.pop('show_evaluation_form', None)
                 st.rerun()
+
+    # 修改密碼頁面
+    if st.session_state.get('show_change_password'):
+        if st.button("↩️ 返回主頁", key="back_from_change_password"):
+            st.session_state.pop('show_change_password', None)
+            st.rerun()
+        from modules.auth import show_change_password_form
+        show_change_password_form()
+        return
 
     # 帳號申請審核頁面（admin 和 department_admin 專用）
     if st.session_state.get('show_application_review') and st.session_state.get('role') in ['admin', 'department_admin']:
