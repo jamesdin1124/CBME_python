@@ -655,15 +655,15 @@ def main():
     if check_permission(st.session_state.role, 'can_view_all'):
         # 管理員可以看到所有資料
         tab_names.append("UGY")
-        tab_names.append("PGY")
+        # tab_names.append("PGY")  # 暫時隱藏
         tab_names.append("住院醫師")
         # tab_names.append("老師評分分析")  # 暫時隱藏
     elif check_permission(st.session_state.role, 'can_view_ugy_data'):
         # 主治醫師和住院醫師可以看到UGY資料
         tab_names.append("UGY")
         
-        if check_permission(st.session_state.role, 'can_view_pgy_data'):
-            tab_names.append("PGY")
+        # if check_permission(st.session_state.role, 'can_view_pgy_data'):
+        #     tab_names.append("PGY")  # 暫時隱藏
         
         if check_permission(st.session_state.role, 'can_view_resident_data'):
             tab_names.append("住院醫師")
