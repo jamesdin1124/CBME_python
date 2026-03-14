@@ -71,9 +71,7 @@ PEDIATRIC_SKILL_REQUIREMENTS = {
     '腹部超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     '腎臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     'APLS': {'minimum': 3, 'description': '訓練期間最少3次'},
-    'NRP': {'minimum': 5, 'description': '訓練期間最少5次'}, 
-    'CVVH照護': {'minimum': 1, 'description': '訓練期間最少1次'}, 
-    'ECMO照護': {'minimum': 1, 'description': '訓練期間最少1次'}
+    'NRP': {'minimum': 5, 'description': '訓練期間最少5次'},
 }
 
 # 兒科 EPA 信賴等級評估三項目（表單 Q18）
@@ -85,7 +83,7 @@ SKILL_GROUPS = {
                     '插中心靜脈導管(CVC)', '肋膜液或是腹水抽取',
                     '插胸管', '放置動脈導管', '經皮式中央靜脈導管(PICC)'],
     '超音波類':    ['腦部超音波', '心臟超音波', '腹部超音波', '腎臟超音波'],
-    '急救與特殊照護類': ['APLS', 'NRP', 'CVVH照護', 'ECMO照護']
+    '急救類': ['APLS', 'NRP']
 }
 
 # ─── CCC 門檻標準（依年級分級）───

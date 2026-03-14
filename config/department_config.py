@@ -59,8 +59,6 @@ DEPARTMENT_EPA_CONFIG = {
             '腎臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
             'APLS': {'minimum': 3, 'description': '訓練期間最少3次'},
             'NRP': {'minimum': 5, 'description': '訓練期間最少5次'},
-            'CVVH照護': {'minimum': 1, 'description': '訓練期間最少1次'},
-            'ECMO照護': {'minimum': 1, 'description': '訓練期間最少1次'},
         },
         'has_dual_assessment': False,
     },
