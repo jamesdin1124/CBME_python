@@ -1392,18 +1392,18 @@ def show_individual_analysis():
 | **2.0** | 🔴 教師在旁逐步共同操作 |
 | **1.5** | 🔴 允許住院醫師在旁觀察 |
 
-> ≥ 3 分（綠）= 可間接指導下獨立執行，計入技能達標
+> ≥ 2.5 分（黃燈以上）= 計入技能完成次數 ｜ 綠燈門檻依年級不同（R1: 2.5 / R2: 3.0 / R3: 3.5）
 """)
     col_left, col_right = st.columns([1.2, 0.8])
 
     with col_left:
         st.markdown("**各類別技能進度**")
         if skill_counts:
-            show_grouped_skill_progress(skill_counts, technical_data)
+            show_grouped_skill_progress(skill_counts, technical_data, resident_level)
         else:
             _sk = calculate_skill_counts(technical_data) if not technical_data.empty else {}
             if _sk:
-                show_grouped_skill_progress(_sk, technical_data)
+                show_grouped_skill_progress(_sk, technical_data, resident_level)
             else:
                 st.info("無操作技術評核記錄")
 
@@ -1918,26 +1918,25 @@ def show_skill_tracking():
         st.warning("無法載入資料")
 
 def calculate_skill_counts(resident_data):
-    """計算住院醫師各項技能完成次數（可信賴程度需在3以上才列入完成）"""
+    """計算住院醫師各項技能完成次數（可信賴程度 ≥2.5 才列入完成）"""
     skill_counts = {}
-    
+
     # 從評核技術項目欄位中提取技能資訊
     if '評核技術項目' in resident_data.columns:
         technical_items = resident_data['評核技術項目'].dropna()
-        
+
         for skill in PEDIATRIC_SKILL_REQUIREMENTS.keys():
-            # 計算該技能出現的次數（只計算可信賴程度3以上的記錄）
+            # 計算該技能出現的次數（只計算可信賴程度 ≥2.5 的記錄）
             count = 0
             for idx, item in technical_items.items():
                 if skill in str(item):
                     # 檢查該記錄的可信賴程度
                     if '可信賴程度_數值' in resident_data.columns:
                         reliability_score = resident_data.loc[idx, '可信賴程度_數值']
-                        # 只有可信賴程度在3以上（3、4、5）才計入完成
-                        if pd.notna(reliability_score) and reliability_score >= 3:
+                        # 可信賴程度 ≥2.5（黃燈以上）才計入完成
+                        if pd.notna(reliability_score) and reliability_score >= 2.5:
                             count += 1
                     else:
-                        # 如果沒有可信賴程度欄位，則使用原始計算方式
                         count += 1
             
             skill_counts[skill] = {
@@ -2040,9 +2039,11 @@ def show_skill_progress(skill_counts, resident_name):
         # 添加分隔線
         st.markdown("---")
 
-def show_grouped_skill_progress(skill_counts, technical_data=None):
-    """技能分組堆疊長條圖：依可信賴程度分數著色（紅<2.5 / 黃2.5~<3 / 綠≥3），按三組呈現"""
+def show_grouped_skill_progress(skill_counts, technical_data=None, resident_level='R1'):
+    """技能分組堆疊長條圖：依年級門檻著色（綠≥門檻 / 黃≥2.5 / 紅<2.5），按三組呈現"""
     import plotly.graph_objects as go
+    th = _get_level_thresholds(resident_level)
+    green_threshold = th['score_threshold']  # 年級門檻
 
     # 從 technical_data 統計每項技能的分數分佈
     def _score_distribution(skill_name):
@@ -2059,7 +2060,7 @@ def show_grouped_skill_progress(skill_counts, technical_data=None):
                 if '可信賴程度_數值' in technical_data.columns:
                     score = technical_data.loc[idx, '可信賴程度_數值']
                 if pd.notna(score):
-                    if score >= 3:
+                    if score >= green_threshold:
                         green += 1
                     elif score >= 2.5:
                         yellow += 1
@@ -2098,36 +2099,36 @@ def show_grouped_skill_progress(skill_counts, technical_data=None):
         green_vals = green_vals[::-1]
         required_vals = required_vals[::-1]
 
-        # 產生標籤文字（技能名稱 + 完成/需求）
+        # 產生標籤文字（技能名稱 + 完成/需求，黃燈以上才算完成）
         text_labels = []
         for i, skill in enumerate(skills_list):
-            total = red_vals[i] + yellow_vals[i] + green_vals[i]
+            completed = yellow_vals[i] + green_vals[i]  # ≥2.5 才算完成
             req = required_vals[i]
-            done = "✅" if total >= req else f"還需{req - total}次"
-            text_labels.append(f"{skill}  ({total}/{req}) {done}")
+            done = "✅" if completed >= req else f"還需{req - completed}次"
+            text_labels.append(f"{skill}  ({completed}/{req}) {done}")
 
         fig = go.Figure()
 
-        # 紅色：< 2.5 分
+        # 紅色：< 2.5 分（未達標，不計入完成）
         fig.add_trace(go.Bar(
             y=text_labels, x=red_vals, name='< 2.5 分',
             orientation='h',
             marker_color='#e74c3c',
             hovertemplate='%{y}<br><2.5分: %{x}次<extra></extra>'
         ))
-        # 黃色：2.5~<3 分
+        # 黃色：≥2.5 但未達年級門檻
         fig.add_trace(go.Bar(
-            y=text_labels, x=yellow_vals, name='2.5~<3 分',
+            y=text_labels, x=yellow_vals, name=f'2.5~<{green_threshold} 分',
             orientation='h',
             marker_color='#f39c12',
-            hovertemplate='%{y}<br>2.5~<3分: %{x}次<extra></extra>'
+            hovertemplate='%{y}<br>黃燈: %{x}次<extra></extra>'
         ))
-        # 綠色：≥ 3 分
+        # 綠色：≥ 年級門檻
         fig.add_trace(go.Bar(
-            y=text_labels, x=green_vals, name='≥ 3 分',
+            y=text_labels, x=green_vals, name=f'≥ {green_threshold} 分',
             orientation='h',
             marker_color='#27ae60',
-            hovertemplate='%{y}<br>≥3分: %{x}次<extra></extra>'
+            hovertemplate='%{y}<br>綠燈: %{x}次<extra></extra>'
         ))
 
         # X 軸上限
