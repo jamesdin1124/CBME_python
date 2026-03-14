@@ -70,12 +70,21 @@ PEDIATRIC_SKILL_REQUIREMENTS = {
     '心臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     '腹部超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     '腎臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
-    'APLS': {'minimum': 3, 'description': '訓練期間最少3次'},
-    'NRP': {'minimum': 5, 'description': '訓練期間最少5次'},
+    'APLS': {'minimum': 0, 'description': '僅記錄，不設最低門檻'},
+    'NRP': {'minimum': 0, 'description': '僅記錄，不設最低門檻'},
 }
 
-# 兒科 EPA 信賴等級評估三項目（表單 Q18）
+# 兒科 EPA 信賴等級評估項目（表單 Q18）
 PEDIATRIC_EPA_ITEMS = ['門診表現(OPD)', '一般病人照護（WARD）', '緊急處置（ED, DR）', '重症照護（PICU, NICU）', '病歷書寫']
+
+def _normalize_paren(s):
+    """統一全形/半形括號，方便比對 EPA 項目名稱"""
+    return str(s).replace('（', '(').replace('）', ')').replace('︵', '(').replace('︶', ')')
+
+def _match_epa_item(series, item):
+    """比對 EPA 項目，容許全形/半形括號差異"""
+    norm_item = _normalize_paren(item)
+    return series.astype(str).apply(lambda x: norm_item in _normalize_paren(x))
 
 # ─── 技能分組（用於 CCC 總覽和個別分析的分類進度顯示）───
 SKILL_GROUPS = {
@@ -93,7 +102,7 @@ LEVEL_THRESHOLDS = {
     'PGY2': {'score_threshold': 2.5, 'skill_pass_rate': 30},
     'R1':   {'score_threshold': 2.5, 'skill_pass_rate': 30},
     'R2':   {'score_threshold': 3.0, 'skill_pass_rate': 60},
-    'R3':   {'score_threshold': 3.5, 'skill_pass_rate': 90},
+    'R3':   {'score_threshold': 3.5, 'skill_pass_rate': 100},
 }
 
 def _get_level_thresholds(level):
@@ -108,23 +117,20 @@ def show_pediatric_evaluation_section():
     # 顯示表單連結 + 資料來源（預設小兒部，不需科別過濾）
     st.session_state['selected_department'] = '小兒部'
 
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([2, 1])
     with col1:
-        # 資料來源選擇
+        # 資料來源選擇（Google Sheets 暫時隱藏）
         data_source = st.radio(
             "資料來源",
-            options=['supabase', 'google_sheets', 'test'],
-            format_func=lambda x: {'supabase': '☁️ Supabase', 'google_sheets': '📊 Google Sheets', 'test': '🧪 測試資料'}[x],
+            options=['supabase', 'test'],
+            format_func=lambda x: {'supabase': '☁️ Supabase', 'test': '🧪 測試資料'}[x],
             horizontal=True,
-            index=0 if _get_supabase_conn() else 1,
-            help="選擇資料來源：Supabase（新）、Google Sheets（舊）或測試資料"
+            index=0 if _get_supabase_conn() else 0,
+            help="選擇資料來源：Supabase 或測試資料"
         )
         st.session_state['pediatric_data_source'] = data_source
         st.session_state['use_pediatric_test_data'] = (data_source == 'test')
     with col2:
-        if data_source == 'google_sheets':
-            st.info("📋 [開啟 Google 表單](https://docs.google.com/spreadsheets/d/1n4kc2d3Z-x9SvIDApPCCz2HSDO0wSrrk9Y5jReMhr-M/edit?usp=sharing)")
-    with col3:
         st.checkbox(
             "包含展示資料",
             value=True,
@@ -210,7 +216,7 @@ def load_pediatric_data(department=None):
         department (str, optional): 科別過濾，僅在 Supabase 模式下生效
     """
     try:
-        data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
+        data_source = st.session_state.get('pediatric_data_source', 'supabase')
 
         # ── 測試資料模式 ──
         if data_source == 'test' or st.session_state.get('use_pediatric_test_data', False):
@@ -224,16 +230,11 @@ def load_pediatric_data(department=None):
                 st.error(f"❌ 測試資料檔案不存在：{test_data_path}")
                 return None, None
 
-        # ── Supabase 模式 ──
-        elif data_source == 'supabase':
+        # ── Supabase 模式（預設）──
+        else:
             df, sheet_titles = _load_from_supabase(department=department)
             if df is None or df.empty:
-                st.warning("⚠️ Supabase 無資料或連線失敗，嘗試回退到 Google Sheets...")
-                df, sheet_titles = _load_from_google_sheets()
-
-        # ── Google Sheets 模式 ──
-        else:
-            df, sheet_titles = _load_from_google_sheets()
+                st.warning("⚠️ Supabase 無資料或連線失敗")
 
         if df is not None and not df.empty:
             processed_df = process_pediatric_data(df)
@@ -745,12 +746,12 @@ def show_ccc_overview():
                 "| R3 | ≥ 3.5 分 |"
             )
         with std_col2:
-            st.markdown("**操作技術（≥3 分評核佔比）**")
+            st.markdown("**操作技術（達標項目佔比，≥2.5 分算完成）**")
             st.markdown(
                 "| 年級 | 達標比例 |\n|------|--------|\n"
                 "| PGY2 / R1 | ≥ 30% |\n"
                 "| R2 | ≥ 60% |\n"
-                "| R3 | ≥ 90% |"
+                "| R3 | ≥ 100% |"
             )
 
     # 獲取選擇的科別（僅在 Supabase 模式下生效）
@@ -896,7 +897,7 @@ def show_resident_cards(all_status, df):
 def show_comparison_bar_chart(all_status):
     """並排長條圖：三維度百分化後對比（含年級門檻標註）"""
     st.subheader("📊 訓練完成度並排比較")
-    st.caption("技能達標率 = 達標項目÷16項×100% ｜ EPA/會議 = 均分÷5×100%。門檻依年級：PGY2/R1→2.5分/30%, R2→3.0分/60%, R3→3.5分/90%")
+    st.caption("技能達標率 = 達標項目÷16項×100% ｜ EPA/會議 = 均分÷5×100%。門檻依年級：PGY2/R1→2.5分/30%, R2→3.0分/60%, R3→3.5分/100%")
 
     names = list(all_status.keys())
     tech_rates  = []
@@ -951,10 +952,16 @@ def show_skill_heatmap(df):
         for skill in skills:
             c = counts.get(skill, {}).get('completed', 0)
             r = counts.get(skill, {}).get('required', PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'])
-            row_z.append(min(c / r, 1.5) if r > 0 else 0)  # cap at 1.5 for color
-            row_text.append(f"{c}/{r}")
-            if c >= r:
-                completed_n += 1
+            if r == 0:
+                # 僅記錄項目（APLS/NRP）：有紀錄就算達標（綠色）
+                row_z.append(1.0 if c > 0 else 0.5)
+                row_text.append(f"{c}/記錄")
+                completed_n += 1  # minimum=0 永遠算達標
+            else:
+                row_z.append(min(c / r, 1.5))  # cap at 1.5 for color
+                row_text.append(f"{c}/{r}")
+                if c >= r:
+                    completed_n += 1
         z_matrix.append(row_z)
         text_matrix.append(row_text)
         resident_rates.append(completed_n / len(skills) * 100 if skills else 0)
@@ -1212,16 +1219,18 @@ def show_individual_analysis():
     overall_emoji = _status_emoji(status['overall'])
     overall_label = _status_label(status['overall'])
     st.markdown(f"### 能力儀表盤　`{resident_level}`　{overall_emoji} {overall_label}")
-    col_epa, col_tech, col_mtg = st.columns(3)
 
-    # ── 左欄：EPA 雷達圖 ──
-    with col_epa:
+    # ═══ 2×2 格局 ═══
+    row1_left, row1_right = st.columns(2)
+
+    # ── [1,1] EPA 雷達圖 ──
+    with row1_left:
         st.markdown("**EPA 信賴程度**")
         if not epa_data.empty and 'EPA項目' in epa_data.columns:
             num_col_epa = 'EPA可信賴程度_數值' if 'EPA可信賴程度_數值' in epa_data.columns else None
             epa_scores = {}
             for item in PEDIATRIC_EPA_ITEMS:
-                item_df = epa_data[epa_data['EPA項目'].astype(str).str.contains(item, na=False)]
+                item_df = epa_data[_match_epa_item(epa_data['EPA項目'], item)]
                 if not item_df.empty and num_col_epa and num_col_epa in item_df.columns:
                     s = item_df[num_col_epa].dropna()
                     epa_scores[item] = float(s.mean()) if len(s) > 0 else 1.0
@@ -1239,7 +1248,7 @@ def show_individual_analysis():
             peer_scores = {}
             if not peer_epa.empty:
                 for item in PEDIATRIC_EPA_ITEMS:
-                    item_df = peer_epa[peer_epa['EPA項目'].astype(str).str.contains(item, na=False)]
+                    item_df = peer_epa[_match_epa_item(peer_epa['EPA項目'], item)]
                     if not item_df.empty and num_col_epa and num_col_epa in item_df.columns:
                         s = item_df[num_col_epa].dropna()
                         peer_scores[item] = float(s.mean()) if len(s) > 0 else 1.0
@@ -1281,27 +1290,8 @@ def show_individual_analysis():
         else:
             st.info("無 EPA 評核記錄")
 
-    # ── 中欄：技能完成度摘要 ──
-    with col_tech:
-        st.markdown("**臨床技術 完成度**")
-        skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
-        if skill_counts:
-            completed_skills = sum(1 for d in skill_counts.values() if d['completed'] >= d['required'])
-            total_skills = len(skill_counts)
-            rate = completed_skills / total_skills
-            st.progress(min(rate, 1.0), text=f"已完成 {completed_skills} / {total_skills} 項")
-            unfinished = [name for name, d in skill_counts.items() if d['completed'] < d['required']]
-            tech_rate = status['technical']['pass_rate']
-            tech_emoji = _status_emoji(status['technical']['status'])
-            tech_val = f"{tech_rate:.0f}%" if tech_rate is not None else "N/A"
-            st.caption(f"達標率 {tech_val}（{completed_skills}/{total_skills}項）　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
-            if unfinished:
-                st.caption(f"⚠️ 尚有 {len(unfinished)} 項未達標，詳見下方「操作技術」區塊")
-        else:
-            st.info("無操作技術評核記錄")
-
-    # ── 右欄：會議報告雷達圖 ──
-    with col_mtg:
+    # ── [1,2] 會議報告雷達圖 ──
+    with row1_right:
         st.markdown("**會議報告 評分**")
 
         radar_text_cols = [
@@ -1376,6 +1366,58 @@ def show_individual_analysis():
         else:
             st.info("無會議報告評核記錄")
 
+    # ═══ 第二排 ═══
+    row2_left, row2_right = st.columns(2)
+
+    # ── [2,1] 技能完成度摘要 ──
+    with row2_left:
+        st.markdown("**臨床技術 完成度**")
+        skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
+        if skill_counts:
+            completed_skills = sum(1 for d in skill_counts.values() if d['completed'] >= d['required'])
+            total_skills = len(skill_counts)
+            rate = completed_skills / total_skills
+            st.progress(min(rate, 1.0), text=f"已完成 {completed_skills} / {total_skills} 項")
+            unfinished = [name for name, d in skill_counts.items() if d['completed'] < d['required']]
+            tech_rate = status['technical']['pass_rate']
+            tech_emoji = _status_emoji(status['technical']['status'])
+            tech_val = f"{tech_rate:.0f}%" if tech_rate is not None else "N/A"
+            st.caption(f"達標率 {tech_val}（{completed_skills}/{total_skills}項）　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
+            if unfinished:
+                st.caption(f"⚠️ 尚有 {len(unfinished)} 項未達標，詳見下方「操作技術」區塊")
+        else:
+            st.info("無操作技術評核記錄")
+
+    # ── [2,2] 研究進度摘要 ──
+    with row2_right:
+        st.markdown("**📚 研究進度**")
+        conn = _get_supabase_conn()
+        if conn:
+            try:
+                research_records = conn.fetch_research_progress(filters={'resident_name': selected_resident})
+                if research_records:
+                    status_emoji_map = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
+                    status_counts = {}
+                    for rec in research_records:
+                        s = rec.get('current_status', '構思中')
+                        status_counts[s] = status_counts.get(s, 0) + 1
+                    # 摘要列
+                    summary_parts = [f"{status_emoji_map.get(k, '📝')} {k} {v}" for k, v in status_counts.items()]
+                    st.markdown(f"共 **{len(research_records)}** 項研究　{'　'.join(summary_parts)}")
+                    # 簡易清單
+                    for rec in research_records:
+                        emoji = status_emoji_map.get(rec.get('current_status', ''), '📝')
+                        title = rec.get('research_title', '（未命名）')
+                        supervisor = rec.get('supervisor_name', '—')
+                        st.caption(f"{emoji} {title}（指導：{supervisor}）")
+                    st.caption("詳見下方「研究進度」區塊")
+                else:
+                    st.info("尚未登記研究進度")
+            except Exception:
+                st.info("尚未登記研究進度")
+        else:
+            st.info("研究進度功能需要 Supabase 連線")
+
     # ═══ Section 2：技能分類進度（左右兩欄）═══
     st.markdown("### 技能分類進度")
     with st.expander("📖 可信賴程度分數說明（9 級制，1.5–5.0 分）"):
@@ -1386,13 +1428,13 @@ def show_individual_analysis():
 | **4.5** | 🟢 教師不需 on call，事後提供回饋及監督 |
 | **4.0** | 🟢 教師 on call 提供監督 |
 | **3.6** | 🟢 教師可稍後到場協助，必要時事後確認 |
-| **3.3** | 🟢 教師可立即到場協助，事後重點確認 |
-| **3.0** | 🟢 教師可立即到場協助，事後逐項確認 |
+| **3.3** | 🟡 教師可立即到場協助，事後重點確認 |
+| **3.0** | 🟡 教師可立即到場協助，事後逐項確認 |
 | **2.5** | 🟡 教師在旁必要時協助 |
 | **2.0** | 🔴 教師在旁逐步共同操作 |
 | **1.5** | 🔴 允許住院醫師在旁觀察 |
 
-> ≥ 2.5 分（黃燈以上）= 計入技能完成次數 ｜ 綠燈門檻依年級不同（R1: 2.5 / R2: 3.0 / R3: 3.5）
+> ≥ 2.5 分（黃燈以上）= 計入技能完成次數 ｜ 綠燈固定 ≥ 3.5 分，黃燈 ≥ 2.5 分
 """)
     col_left, col_right = st.columns([1.2, 0.8])
 
@@ -1551,7 +1593,7 @@ def show_epa_trend_chart(epa_data, resident_name, resident_level='R1'):
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']  # 最多 6 種顏色
 
     for i, epa_item in enumerate(PEDIATRIC_EPA_ITEMS):
-        item_data = monthly_avg[monthly_avg['EPA項目'].str.contains(epa_item, na=False)]
+        item_data = monthly_avg[_match_epa_item(monthly_avg['EPA項目'], epa_item)]
         if not item_data.empty:
             fig.add_trace(go.Scatter(
                 x=item_data['年月'],
@@ -1778,12 +1820,12 @@ def _show_threshold_settings_ui():
             "| R3 | ≥ 3.5 分 |"
         )
     with col2:
-        st.markdown("**操作技術（≥3 分評核佔比）**")
+        st.markdown("**操作技術（達標項目佔比，≥2.5 分算完成）**")
         st.markdown(
             "| 年級 | 達標比例 |\n|------|--------|\n"
             "| PGY2 / R1 | ≥ 30% |\n"
             "| R2 | ≥ 60% |\n"
-            "| R3 | ≥ 90% |"
+            "| R3 | ≥ 100% |"
         )
 
     st.info("門檻標準定義於程式碼中（LEVEL_THRESHOLDS），如需調整請聯繫系統管理員。")
@@ -1943,7 +1985,7 @@ def calculate_skill_counts(resident_data):
                 'completed': count,
                 'required': PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'],
                 'description': PEDIATRIC_SKILL_REQUIREMENTS[skill]['description'],
-                'progress': min(count / PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'] * 100, 100)
+                'progress': min(count / PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'] * 100, 100) if PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'] > 0 else (100.0 if count > 0 else 0.0)
             }
     
     return skill_counts
@@ -2040,10 +2082,9 @@ def show_skill_progress(skill_counts, resident_name):
         st.markdown("---")
 
 def show_grouped_skill_progress(skill_counts, technical_data=None, resident_level='R1'):
-    """技能分組堆疊長條圖：依年級門檻著色（綠≥門檻 / 黃≥2.5 / 紅<2.5），按三組呈現"""
+    """技能分組堆疊長條圖：固定著色（綠≥3.5 / 黃≥2.5 / 紅<2.5），按三組呈現"""
     import plotly.graph_objects as go
-    th = _get_level_thresholds(resident_level)
-    green_threshold = th['score_threshold']  # 年級門檻
+    green_threshold = 3.5  # 固定門檻，不隨年級變動
 
     # 從 technical_data 統計每項技能的分數分佈
     def _score_distribution(skill_name):
@@ -2104,8 +2145,13 @@ def show_grouped_skill_progress(skill_counts, technical_data=None, resident_leve
         for i, skill in enumerate(skills_list):
             completed = yellow_vals[i] + green_vals[i]  # ≥2.5 才算完成
             req = required_vals[i]
-            done = "✅" if completed >= req else f"還需{req - completed}次"
-            text_labels.append(f"{skill}  ({completed}/{req}) {done}")
+            if req == 0:
+                # 僅記錄項目（APLS/NRP）
+                done = "✅ 已記錄" if completed > 0 else "僅記錄"
+                text_labels.append(f"{skill}  ({completed}次) {done}")
+            else:
+                done = "✅" if completed >= req else f"還需{req - completed}次"
+                text_labels.append(f"{skill}  ({completed}/{req}) {done}")
 
         fig = go.Figure()
 
@@ -2116,16 +2162,16 @@ def show_grouped_skill_progress(skill_counts, technical_data=None, resident_leve
             marker_color='#e74c3c',
             hovertemplate='%{y}<br><2.5分: %{x}次<extra></extra>'
         ))
-        # 黃色：≥2.5 但未達年級門檻
+        # 黃色：≥2.5 但 <3.5
         fig.add_trace(go.Bar(
-            y=text_labels, x=yellow_vals, name=f'2.5~<{green_threshold} 分',
+            y=text_labels, x=yellow_vals, name='2.5~<3.5 分',
             orientation='h',
             marker_color='#f39c12',
             hovertemplate='%{y}<br>黃燈: %{x}次<extra></extra>'
         ))
-        # 綠色：≥ 年級門檻
+        # 綠色：≥ 3.5
         fig.add_trace(go.Bar(
-            y=text_labels, x=green_vals, name=f'≥ {green_threshold} 分',
+            y=text_labels, x=green_vals, name='≥ 3.5 分',
             orientation='h',
             marker_color='#27ae60',
             hovertemplate='%{y}<br>綠燈: %{x}次<extra></extra>'

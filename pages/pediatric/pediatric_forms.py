@@ -1,11 +1,16 @@
 """
 兒科 CCC 評估系統 — 自訂評核表單
 提供操作技術、會議報告、EPA 三類評核表單，
-資料直接寫入 Supabase。
+資料直接寫入 Supabase。支援語音輸入教師回饋。
 """
 
 import streamlit as st
 from datetime import date, datetime
+from modules.voice_input import (
+    voice_feedback_input, _transcribe_audio, _refine_with_gpt,
+    _check_role, _remaining_quota,
+    DAILY_TRANSCRIBE_LIMIT, DAILY_REFINE_LIMIT,
+)
 
 # ─── 共用常數（與 pediatric_analysis.py 一致）───
 
@@ -131,12 +136,102 @@ def _common_header_fields(supabase_conn, form_key):
     return evaluation_date, evaluated_resident, resident_level
 
 
+# ─── 語音輸入輔助（放在 form 外面，因為 form 內不支援互動按鈕）───
+
+def _show_voice_section(key: str):
+    """在表單上方顯示語音輸入區塊，轉錄結果存入 session_state 供表單內 text_area 使用"""
+    # 角色檢查：僅教師 / 管理員可使用
+    if not _check_role():
+        return
+
+    text_key = f"voice_text_{key}"
+    if text_key not in st.session_state:
+        st.session_state[text_key] = ""
+
+    # 剩餘配額
+    trans_left = _remaining_quota('transcribe', DAILY_TRANSCRIBE_LIMIT)
+    refine_left = _remaining_quota('refine', DAILY_REFINE_LIMIT)
+
+    with st.expander("🎙️ 語音輸入教師回饋", expanded=False):
+        st.caption(
+            f"錄音或上傳音檔，自動辨識中英文醫學用語 → 填入下方回饋欄位　｜　"
+            f"今日剩餘：轉錄 **{trans_left}** 次、潤飾 **{refine_left}** 次"
+        )
+
+        if trans_left <= 0:
+            st.warning(f"⚠️ 今日語音轉錄額度已用完（{DAILY_TRANSCRIBE_LIMIT} 次/天），請直接打字輸入")
+        else:
+            rec_col, upload_col, action_col = st.columns([1, 2, 1])
+
+            with rec_col:
+                try:
+                    from audio_recorder_streamlit import audio_recorder
+                    audio_bytes = audio_recorder(
+                        text="錄音",
+                        recording_color="#e74c3c",
+                        neutral_color="#6c757d",
+                        icon_size="1x",
+                        key=f"recorder_{key}",
+                    )
+                    if audio_bytes:
+                        with st.spinner("🔄 語音辨識中..."):
+                            transcribed = _transcribe_audio(audio_bytes)
+                        if transcribed:
+                            current = st.session_state.get(text_key, "")
+                            sep = "\n" if current.strip() else ""
+                            st.session_state[text_key] = current + sep + transcribed
+                            st.success("✅ 辨識完成")
+                except ImportError:
+                    st.info("💡 安裝 `audio_recorder_streamlit` 即可使用即時錄音")
+
+            with upload_col:
+                uploaded = st.file_uploader(
+                    "上傳錄音檔",
+                    type=["wav", "mp3", "m4a", "ogg", "webm"],
+                    key=f"upload_{key}",
+                    label_visibility="collapsed",
+                )
+                if uploaded and st.button("📝 轉錄音檔", key=f"do_transcribe_{key}"):
+                    with st.spinner("🔄 語音辨識中..."):
+                        transcribed = _transcribe_audio(uploaded.getvalue())
+                    if transcribed:
+                        current = st.session_state.get(text_key, "")
+                        sep = "\n" if current.strip() else ""
+                        st.session_state[text_key] = current + sep + transcribed
+                        st.success("✅ 辨識完成")
+
+            with action_col:
+                if st.session_state.get(text_key, "").strip():
+                    if refine_left > 0:
+                        if st.button("✨ AI 潤飾", key=f"refine_{key}",
+                                     help="修正醫學用語、改善語句結構"):
+                            with st.spinner("🔄 AI 潤飾中..."):
+                                refined = _refine_with_gpt(st.session_state[text_key])
+                                st.session_state[text_key] = refined
+                                st.success("✅ 潤飾完成")
+                    if st.button("🗑️ 清除", key=f"clear_{key}"):
+                        st.session_state[text_key] = ""
+
+        # 預覽目前辨識文字
+        if st.session_state.get(text_key, "").strip():
+            st.text_area(
+                "📋 語音辨識結果（提交時會自動帶入下方回饋欄）",
+                value=st.session_state[text_key],
+                height=80,
+                key=f"preview_{key}",
+                disabled=True,
+            )
+
+
 # ─── 表單 1：操作技術評核 ───
 
 def show_technical_skill_form(supabase_conn, current_user):
     """操作技術評核表單（16 項技能）"""
     st.subheader("🔧 操作技術評核表單")
     st.caption("評核住院醫師的各項操作技術執行能力")
+
+    # 語音輸入（必須放在 form 外面）
+    _show_voice_section('tech_feedback')
 
     with st.form("technical_skill_form", clear_on_submit=True):
         evaluation_date, evaluated_resident, resident_level = \
@@ -165,7 +260,11 @@ def show_technical_skill_form(supabase_conn, current_user):
                 help="依觀察到的獨立執行程度選擇"
             )
 
-        feedback = st.text_area("操作技術教師回饋", placeholder="請描述住院醫師的操作表現...")
+        feedback = st.text_area(
+            "操作技術教師回饋",
+            value=st.session_state.get('voice_text_tech_feedback', ''),
+            placeholder="請描述住院醫師的操作表現...",
+        )
 
         submitted = st.form_submit_button("📤 提交技術評核", type="primary")
 
@@ -198,6 +297,7 @@ def show_technical_skill_form(supabase_conn, current_user):
             result = supabase_conn.insert_pediatric_evaluation(data)
             if result:
                 st.success(f"✅ 已提交 **{evaluated_resident}** 的 **{technical_skill}** 技術評核！")
+                st.session_state.pop('voice_text_tech_feedback', None)
                 st.balloons()
             else:
                 st.error("❌ 提交失敗，請檢查網路連線或聯繫管理員")
@@ -209,6 +309,9 @@ def show_meeting_report_form(supabase_conn, current_user):
     """會議報告評核表單（5 維度 1-5 分）"""
     st.subheader("📑 會議報告評核表單")
     st.caption("評核住院醫師的會議報告表現（五維度評分）")
+
+    # 語音輸入（必須放在 form 外面）
+    _show_voice_section('meeting_feedback')
 
     with st.form("meeting_report_form", clear_on_submit=True):
         evaluation_date, evaluated_resident, resident_level = \
@@ -241,7 +344,11 @@ def show_meeting_report_form(supabase_conn, current_user):
             "5️⃣ 回答提問是否具邏輯、有條有理",
             options=score_labels, value='3 尚可')
 
-        feedback = st.text_area("會議報告教師回饋", placeholder="請描述住院醫師的報告表現...")
+        feedback = st.text_area(
+            "會議報告教師回饋",
+            value=st.session_state.get('voice_text_meeting_feedback', ''),
+            placeholder="請描述住院醫師的報告表現...",
+        )
 
         submitted = st.form_submit_button("📤 提交會議報告評核", type="primary")
 
@@ -276,6 +383,7 @@ def show_meeting_report_form(supabase_conn, current_user):
                        MEETING_SCORE_MAP[presentation] + MEETING_SCORE_MAP[innovative] +
                        MEETING_SCORE_MAP[logical]) / 5
                 st.success(f"✅ 已提交 **{evaluated_resident}** 的會議報告評核！（平均 {avg:.1f} 分）")
+                st.session_state.pop('voice_text_meeting_feedback', None)
                 st.balloons()
             else:
                 st.error("❌ 提交失敗，請檢查網路連線或聯繫管理員")
@@ -287,6 +395,9 @@ def show_epa_form(supabase_conn, current_user):
     """EPA 信賴等級評估表單（3 項 EPA）"""
     st.subheader("🎯 EPA 信賴等級評估表單")
     st.caption("Entrustable Professional Activities — 可信賴專業活動評估")
+
+    # 語音輸入（必須放在 form 外面）
+    _show_voice_section('epa_feedback')
 
     with st.form("epa_form", clear_on_submit=True):
         evaluation_date, evaluated_resident, resident_level = \
@@ -306,7 +417,11 @@ def show_epa_form(supabase_conn, current_user):
             help="依實際觀察選擇最符合的等級"
         )
 
-        feedback = st.text_area("EPA 質性回饋", placeholder="請描述具體觀察到的行為表現...")
+        feedback = st.text_area(
+            "EPA 質性回饋",
+            value=st.session_state.get('voice_text_epa_feedback', ''),
+            placeholder="請描述具體觀察到的行為表現...",
+        )
 
         submitted = st.form_submit_button("📤 提交 EPA 評估", type="primary")
 
@@ -333,6 +448,7 @@ def show_epa_form(supabase_conn, current_user):
             result = supabase_conn.insert_pediatric_evaluation(data)
             if result:
                 st.success(f"✅ 已提交 **{evaluated_resident}** 的 **{epa_item}** EPA 評估！")
+                st.session_state.pop('voice_text_epa_feedback', None)
                 st.balloons()
             else:
                 st.error("❌ 提交失敗，請檢查網路連線或聯繫管理員")
