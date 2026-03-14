@@ -13,12 +13,16 @@ venv/
 .DS_Store
 Thumbs.db
 .env
-# Streamlit
+# Streamlit（含所有機密設定檔）
 .streamlit/
+.streamlit/secrets.toml
 .streamlit/secret.toml
+.streamlit/import JSON.py
 
 # GCP 憑證（改用 Streamlit Secrets）
 modules/credentials.json
+credentials.json
+*.json.bak
 
 # Excel 檔案和資料夾
 *.xls

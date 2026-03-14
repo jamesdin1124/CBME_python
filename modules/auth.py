@@ -3,7 +3,8 @@
 
 提供：
 - 使用者角色定義與權限矩陣
-- Supabase 身份驗證
+- Supabase 身份驗證（bcrypt 密碼雜湊）
+- 暴力破解防護（失敗次數追蹤 + 帳號暫時鎖定）
 - 使用者 CRUD 操作
 - 登入介面
 - 使用者管理介面
@@ -12,6 +13,11 @@
 import streamlit as st
 import hashlib
 import pandas as pd
+from datetime import datetime, timedelta
+
+# ─── 暴力破解防護設定 ───
+MAX_LOGIN_ATTEMPTS = 5          # 最大連續失敗次數
+LOCKOUT_MINUTES = 15            # 鎖定時間（分鐘）
 
 
 # ═══════════════════════════════════════════════════════
@@ -105,12 +111,98 @@ PERMISSIONS = {
 
 
 # ═══════════════════════════════════════════════════════
-# 密碼工具
+# 密碼工具（bcrypt + SHA-256 向後相容）
 # ═══════════════════════════════════════════════════════
 
-def hash_password(password):
-    """將密碼進行 SHA-256 雜湊處理"""
+def _sha256_hash(password):
+    """舊版 SHA-256 雜湊（僅供向後相容驗證）"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def hash_password(password):
+    """使用 bcrypt 進行密碼雜湊（含隨機鹽值，抵禦彩虹表攻擊）"""
+    try:
+        import bcrypt
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+    except ImportError:
+        # bcrypt 未安裝時 fallback（不應發生在正式環境）
+        st.warning("⚠️ bcrypt 未安裝，使用較弱的 SHA-256 雜湊")
+        return _sha256_hash(password)
+
+
+def verify_password(password, stored_hash):
+    """
+    驗證密碼是否正確。
+    支援 bcrypt（新）和 SHA-256（舊）兩種格式，自動判斷。
+    """
+    try:
+        import bcrypt
+        # bcrypt hash 以 $2b$ 或 $2a$ 開頭
+        if stored_hash.startswith(('$2b$', '$2a$', '$2y$')):
+            return bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+    except ImportError:
+        pass
+
+    # Fallback: 舊版 SHA-256 比對（64 字元 hex）
+    if len(stored_hash) == 64:
+        return _sha256_hash(password) == stored_hash
+
+    return False
+
+
+# ═══════════════════════════════════════════════════════
+# 暴力破解防護
+# ═══════════════════════════════════════════════════════
+
+def _get_login_tracker():
+    """取得登入嘗試追蹤器（存在 session_state 中）"""
+    if '_login_attempts' not in st.session_state:
+        st.session_state._login_attempts = {}
+    return st.session_state._login_attempts
+
+
+def _is_locked_out(username):
+    """檢查帳號是否被暫時鎖定"""
+    tracker = _get_login_tracker()
+    record = tracker.get(username)
+    if not record:
+        return False, 0
+
+    attempts = record.get('count', 0)
+    locked_until = record.get('locked_until')
+
+    if locked_until and datetime.now() < locked_until:
+        remaining = (locked_until - datetime.now()).seconds // 60 + 1
+        return True, remaining
+
+    # 鎖定已過期，重置
+    if locked_until and datetime.now() >= locked_until:
+        tracker[username] = {'count': 0, 'locked_until': None}
+        return False, 0
+
+    return False, 0
+
+
+def _record_failed_attempt(username):
+    """記錄一次失敗的登入嘗試"""
+    tracker = _get_login_tracker()
+    if username not in tracker:
+        tracker[username] = {'count': 0, 'locked_until': None}
+
+    tracker[username]['count'] += 1
+    attempts = tracker[username]['count']
+
+    if attempts >= MAX_LOGIN_ATTEMPTS:
+        tracker[username]['locked_until'] = datetime.now() + timedelta(minutes=LOCKOUT_MINUTES)
+        return attempts, True  # 已鎖定
+
+    return attempts, False
+
+
+def _reset_login_attempts(username):
+    """登入成功後重置失敗計數"""
+    tracker = _get_login_tracker()
+    tracker.pop(username, None)
 
 
 # ═══════════════════════════════════════════════════════
@@ -126,11 +218,18 @@ def _get_supabase_conn():
 def authenticate_user(username, password):
     """
     驗證使用者身份（純 Supabase）
+    含暴力破解防護 + 自動升級舊版 SHA-256 hash → bcrypt
 
     Returns:
         dict: 包含 role, name, department, email, student_id, user_id
         None: 驗證失敗
     """
+    # ── 暴力破解檢查 ──
+    locked, remaining_min = _is_locked_out(username)
+    if locked:
+        st.error(f"🔒 帳號已暫時鎖定，請 {remaining_min} 分鐘後再試")
+        return None
+
     try:
         conn = _get_supabase_conn()
         result = conn.client.table('pediatric_users').select('*').eq(
@@ -138,12 +237,24 @@ def authenticate_user(username, password):
         ).eq('is_active', True).execute()
 
         if not result.data or len(result.data) == 0:
+            _record_failed_attempt(username)
             return None
 
         user = result.data[0]
-        password_hash = hash_password(password)
+        stored_hash = user.get('password_hash', '')
 
-        if user.get('password_hash') == password_hash:
+        if verify_password(password, stored_hash):
+            # ── 自動升級：若仍是 SHA-256 hash，升級為 bcrypt ──
+            if len(stored_hash) == 64 and not stored_hash.startswith('$2'):
+                try:
+                    new_hash = hash_password(password)
+                    conn.client.table('pediatric_users').update(
+                        {'password_hash': new_hash}
+                    ).eq('username', username).execute()
+                except Exception:
+                    pass  # 升級失敗不影響登入
+
+            _reset_login_attempts(username)
             return {
                 'role': user.get('user_type', 'resident'),
                 'name': user.get('full_name', username),
@@ -152,10 +263,15 @@ def authenticate_user(username, password):
                 'student_id': user.get('student_id'),
                 'user_id': user.get('id'),
             }
+
+        # 密碼錯誤
+        attempts, just_locked = _record_failed_attempt(username)
+        if just_locked:
+            st.error(f"🔒 連續失敗 {MAX_LOGIN_ATTEMPTS} 次，帳號鎖定 {LOCKOUT_MINUTES} 分鐘")
         return None
 
     except Exception as e:
-        st.error(f"認證失敗：{str(e)}")
+        st.error("認證過程發生錯誤，請稍後再試")
         return None
 
 
@@ -177,8 +293,11 @@ def create_user(username, password, role, name,
         if existing.data and len(existing.data) > 0:
             return False, "使用者名稱已存在"
 
-        # 確保密碼是 hash（SHA-256 hash 長度為 64）
-        password_hash = password if len(password) == 64 else hash_password(password)
+        # 確保密碼是 hash（bcrypt 以 $2b$ 開頭，SHA-256 長度 64）
+        is_already_hashed = (
+            password.startswith(('$2b$', '$2a$', '$2y$')) or len(password) == 64
+        )
+        password_hash = password if is_already_hashed else hash_password(password)
 
         user_data = {
             'username': username,
@@ -225,11 +344,11 @@ def change_password(username, old_password, new_password):
         if not result.data or len(result.data) == 0:
             return False, "找不到該使用者"
 
-        old_hash = hash_password(old_password)
-        if result.data[0].get('password_hash') != old_hash:
+        stored_hash = result.data[0].get('password_hash', '')
+        if not verify_password(old_password, stored_hash):
             return False, "舊密碼不正確"
 
-        # 更新密碼
+        # 更新密碼（一律使用 bcrypt）
         new_hash = hash_password(new_password)
         update_result = conn.client.table('pediatric_users').update(
             {'password_hash': new_hash}
@@ -240,7 +359,7 @@ def change_password(username, old_password, new_password):
         return False, "密碼修改失敗"
 
     except Exception as e:
-        return False, f"密碼修改失敗：{str(e)}"
+        return False, "密碼修改失敗，請稍後再試"
 
 
 def deactivate_user(username):
@@ -429,7 +548,14 @@ def show_login_page():
                 st.success(f"歡迎回來，{st.session_state['user_name']}！")
                 return True
             else:
-                st.error("使用者名稱或密碼錯誤")
+                # 顯示剩餘嘗試次數
+                tracker = _get_login_tracker()
+                record = tracker.get(username, {})
+                attempts = record.get('count', 0)
+                remaining = MAX_LOGIN_ATTEMPTS - attempts
+                if remaining > 0:
+                    st.error(f"使用者名稱或密碼錯誤（剩餘 {remaining} 次嘗試）")
+                # 鎖定訊息已在 authenticate_user 中顯示
     return False
 
 
@@ -560,8 +686,8 @@ def show_change_password_form():
                 st.error("請填寫所有欄位")
             elif new_password != confirm_password:
                 st.error("新密碼與確認密碼不一致")
-            elif len(new_password) < 4:
-                st.error("新密碼長度至少 4 個字元")
+            elif len(new_password) < 8:
+                st.error("新密碼長度至少 8 個字元")
             elif old_password == new_password:
                 st.error("新密碼不能與舊密碼相同")
             else:
