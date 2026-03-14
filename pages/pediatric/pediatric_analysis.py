@@ -1048,11 +1048,13 @@ def show_overall_epa_trend(df):
             marker=dict(size=7)
         ))
 
-    # 添加門檢線
-    fig.add_hline(y=3.5, line_dash="dash", line_color="green",
-                  annotation_text="優秀門檢 (3.5)", annotation_position="top right")
-    fig.add_hline(y=2.5, line_dash="dash", line_color="orange",
-                  annotation_text="及格門檢 (2.5)", annotation_position="bottom right")
+    # 添加各年級門檻線
+    fig.add_hline(y=3.5, line_dash="dash", line_color="red",
+                  annotation_text="R3 門檻 (3.5)", annotation_position="top right")
+    fig.add_hline(y=3.0, line_dash="dash", line_color="orange",
+                  annotation_text="R2 門檻 (3.0)", annotation_position="top right")
+    fig.add_hline(y=2.5, line_dash="dash", line_color="green",
+                  annotation_text="PGY2/R1 門檻 (2.5)", annotation_position="bottom right")
 
     fig.update_layout(
         title="所有住院醫師 EPA 整體趨勢比較",
@@ -1205,7 +1207,14 @@ def show_individual_analysis():
     epa_data       = resident_data[resident_data['評核項目'].astype(str).str.contains('EPA', na=False)].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
 
     # ═══ Section A：能力儀表盤（三欄並排，無 expander）═══
-    st.markdown("### 能力儀表盤")
+    resident_level = _get_resident_level(df, selected_resident)
+    th = _get_level_thresholds(resident_level)
+    status = calculate_resident_status(resident_data, df, resident_level=resident_level)
+
+    # 年級 + 達標狀態
+    overall_emoji = _status_emoji(status['overall'])
+    overall_label = _status_label(status['overall'])
+    st.markdown(f"### 能力儀表盤　`{resident_level}`　{overall_emoji} {overall_label}")
     col_epa, col_tech, col_mtg = st.columns(3)
 
     # ── 左欄：EPA 雷達圖 ──
@@ -1268,6 +1277,10 @@ def show_individual_analysis():
                 margin=dict(l=10, r=10, t=10, b=40)
             )
             st.plotly_chart(fig_epa, width="stretch", key=f"epa_radar_{selected_resident}")
+            epa_avg = status['epa']['avg_score']
+            epa_emoji = _status_emoji(status['epa']['status'])
+            epa_val = f"{epa_avg:.1f}" if epa_avg is not None else "N/A"
+            st.caption(f"均分 {epa_val}　{epa_emoji} 門檻 ≥{th['score_threshold']}")
         else:
             st.info("無 EPA 評核記錄")
 
@@ -1281,10 +1294,12 @@ def show_individual_analysis():
             rate = completed_skills / total_skills
             st.progress(min(rate, 1.0), text=f"已完成 {completed_skills} / {total_skills} 項")
             unfinished = [name for name, d in skill_counts.items() if d['completed'] < d['required']]
+            tech_rate = status['technical']['pass_rate']
+            tech_emoji = _status_emoji(status['technical']['status'])
+            tech_val = f"{tech_rate:.0f}%" if tech_rate is not None else "N/A"
+            st.caption(f"≥3分佔比 {tech_val}　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
             if unfinished:
                 st.caption(f"⚠️ 尚有 {len(unfinished)} 項未達標，詳見下方「操作技術」區塊")
-            else:
-                st.success("所有技能均已達標")
         else:
             st.info("無操作技術評核記錄")
 
@@ -1357,6 +1372,10 @@ def show_individual_analysis():
                 margin=dict(l=10, r=10, t=10, b=40)
             )
             st.plotly_chart(fig_mtg, width="stretch", key=f"mtg_radar_{selected_resident}")
+            mtg_avg = status['meeting']['avg_score']
+            mtg_emoji = _status_emoji(status['meeting']['status'])
+            mtg_val = f"{mtg_avg:.1f}" if mtg_avg is not None else "N/A"
+            st.caption(f"均分 {mtg_val}　{mtg_emoji} 門檻 ≥{th['score_threshold']}")
         else:
             st.info("無會議報告評核記錄")
 
@@ -1468,7 +1487,7 @@ def show_individual_analysis():
         with col_left:
             st.markdown("**信賴程度月度趨勢**")
             st.caption("各 EPA 項目每月平均可信賴程度變化")
-            show_epa_trend_chart(epa_data, selected_resident)
+            show_epa_trend_chart(epa_data, selected_resident, resident_level)
 
         with col_right:
             st.markdown("**詳細記錄**")
@@ -1494,7 +1513,7 @@ def show_individual_analysis():
         show_resident_research_progress(conn, selected_resident)
 
 
-def show_epa_trend_chart(epa_data, resident_name):
+def show_epa_trend_chart(epa_data, resident_name, resident_level='R1'):
     """EPA 信賴程度趨勢圖：X軸=時間（月份），Y軸=各EPA項目的月均分"""
     if 'EPA可信賴程度_數值' not in epa_data.columns:
         st.info("無 EPA 可信賴程度數值資料")
@@ -1530,14 +1549,14 @@ def show_epa_trend_chart(epa_data, resident_name):
                 marker=dict(size=8)
             ))
 
-    # 添加門檢線
-    fig.add_hline(y=3.5, line_dash="dash", line_color="green",
-                  annotation_text="優秀門檢 (3.5)", annotation_position="top right")
-    fig.add_hline(y=2.5, line_dash="dash", line_color="orange",
-                  annotation_text="及格門檢 (2.5)", annotation_position="bottom right")
+    # 添加該住院醫師年級的門檻線
+    th = _get_level_thresholds(resident_level)
+    fig.add_hline(y=th['score_threshold'], line_dash="dash", line_color="red",
+                  annotation_text=f"{resident_level} 門檻 ({th['score_threshold']})",
+                  annotation_position="top right")
 
     fig.update_layout(
-        title=f"{resident_name} EPA 信賴程度月度趨勢",
+        title=f"{resident_name} EPA 信賴程度月度趨勢（{resident_level}）",
         xaxis_title="時間（年月）",
         yaxis_title="可信賴程度（1-5分）",
         yaxis=dict(range=[0, 5.5]),
