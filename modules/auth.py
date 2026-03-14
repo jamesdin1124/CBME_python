@@ -317,8 +317,8 @@ def create_user(username, password, role, name,
         else:
             return False, "建立失敗"
 
-    except Exception as e:
-        return False, f"建立失敗：{str(e)}"
+    except Exception:
+        return False, "建立失敗，請稍後再試"
 
 
 def change_password(username, old_password, new_password):
@@ -374,7 +374,7 @@ def deactivate_user(username):
             return True, "使用者已停用"
         return False, "找不到該使用者"
     except Exception as e:
-        return False, f"停用失敗：{str(e)}"
+        return False, "停用失敗，請稍後再試"
 
 
 def update_user_role(username, new_role):
@@ -389,7 +389,7 @@ def update_user_role(username, new_role):
             return True, "使用者權限更新成功"
         return False, "找不到該使用者"
     except Exception as e:
-        return False, f"更新失敗：{str(e)}"
+        return False, "更新失敗，請稍後再試"
 
 
 # ═══════════════════════════════════════════════════════
@@ -488,6 +488,8 @@ def filter_data_by_permission(data, user_role, user_department, data_type):
         if user_role in ['department_admin', 'teacher'] and user_department:
             if '科別' in data.columns:
                 return data[data['科別'] == user_department]
+            else:
+                return pd.DataFrame()  # 缺少科別欄位，安全起見不回傳資料
         return data
 
     elif data_type == 'resident':
@@ -496,12 +498,16 @@ def filter_data_by_permission(data, user_role, user_department, data_type):
         if user_role in ['department_admin', 'teacher'] and user_department:
             if '科別' in data.columns:
                 return data[data['科別'] == user_department]
+            else:
+                return pd.DataFrame()  # 缺少科別欄位，安全起見不回傳資料
         elif user_role == 'resident':
             username = st.session_state.get('username')
             if '姓名' in data.columns:
                 return data[data['姓名'] == username]
             elif 'resident_name' in data.columns:
                 return data[data['resident_name'] == username]
+            else:
+                return pd.DataFrame()  # 無法識別使用者，不回傳資料
         return data
 
     elif data_type == 'department':
@@ -510,6 +516,8 @@ def filter_data_by_permission(data, user_role, user_department, data_type):
         if user_role in ['department_admin', 'teacher'] and user_department:
             if '科別' in data.columns:
                 return data[data['科別'] == user_department]
+            else:
+                return pd.DataFrame()  # 缺少科別欄位，安全起見不回傳資料
         return data
 
     return data
@@ -668,7 +676,7 @@ def show_user_management():
                                     st.error(message)
 
     except Exception as e:
-        st.error(f"讀取使用者列表失敗：{str(e)}")
+        st.error("讀取使用者列表失敗，請稍後再試")
 
 
 def show_change_password_form():
@@ -694,7 +702,11 @@ def show_change_password_form():
                 username = st.session_state.get('username')
                 success, message = change_password(username, old_password, new_password)
                 if success:
-                    st.success(f"✅ {message}")
+                    st.success(f"✅ {message}，請重新登入")
+                    import time
+                    time.sleep(2)
+                    st.session_state.clear()
+                    st.rerun()
                 else:
                     st.error(f"❌ {message}")
 

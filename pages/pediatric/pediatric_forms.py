@@ -4,6 +4,7 @@
 資料直接寫入 Supabase。支援語音輸入教師回饋。
 """
 
+import re
 import streamlit as st
 from datetime import date, datetime
 from modules.voice_input import (
@@ -11,6 +12,26 @@ from modules.voice_input import (
     _check_role, _remaining_quota,
     DAILY_TRANSCRIBE_LIMIT, DAILY_REFINE_LIMIT,
 )
+
+
+# ─── 輸入驗證 ───
+
+def _sanitize_text(text: str, max_length: int = 2000) -> str:
+    """清理使用者輸入文字，移除潛在危險字元"""
+    if not text:
+        return ""
+    text = text.strip()[:max_length]
+    # 移除控制字元（保留換行和 tab）
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+    return text
+
+
+def _validate_patient_id(patient_id: str) -> bool:
+    """驗證病歷號格式（僅允許英數字和常見分隔符）"""
+    if not patient_id:
+        return True  # 非必填時允許空值
+    return bool(re.match(r'^[A-Za-z0-9\-_]{1,30}$', patient_id))
+
 
 # ─── 共用常數（與 pediatric_analysis.py 一致）───
 
@@ -275,6 +296,12 @@ def show_technical_skill_form(supabase_conn, current_user):
             if not patient_id:
                 st.error("請輸入病歷號")
                 return
+            if not _validate_patient_id(patient_id):
+                st.error("病歷號格式不正確（僅允許英數字、- 和 _，最長30字）")
+                return
+            # 清理文字輸入
+            patient_id = _sanitize_text(patient_id, 30)
+            feedback = _sanitize_text(feedback)
             # 取得當前使用者的科別（用於科別過濾）
             user_department = st.session_state.get('user_department', '小兒部')
 
@@ -356,6 +383,10 @@ def show_meeting_report_form(supabase_conn, current_user):
             if not evaluated_resident:
                 st.error("請選擇或輸入受評核人員")
                 return
+            # 清理文字輸入
+            feedback = _sanitize_text(feedback)
+            meeting_name = _sanitize_text(meeting_name, 200) if meeting_name else None
+            meeting_topic = _sanitize_text(meeting_topic, 200) if meeting_topic else None
             # 取得當前使用者的科別（用於科別過濾）
             user_department = st.session_state.get('user_department', '小兒部')
 
@@ -429,6 +460,8 @@ def show_epa_form(supabase_conn, current_user):
             if not evaluated_resident:
                 st.error("請選擇或輸入受評核人員")
                 return
+            # 清理文字輸入
+            feedback = _sanitize_text(feedback)
             # 取得當前使用者的科別（用於科別過濾）
             user_department = st.session_state.get('user_department', '小兒部')
 

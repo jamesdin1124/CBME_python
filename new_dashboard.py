@@ -55,7 +55,7 @@ def get_supabase_connection():
         _supabase_conn = SupabaseConnection()
         return _supabase_conn
     except Exception as e:
-        st.error(f"無法連線 Supabase：{str(e)}")
+        st.error("無法連線 Supabase，請檢查網路連線或聯繫管理員")
         return None
 
 def get_openai_client():
@@ -106,8 +106,7 @@ def get_openai_client():
         return client
         
     except Exception as e:
-        st.error(f"❌ 初始化過程中發生錯誤：{str(e)}")
-        st.error(f"詳細追蹤：\n{traceback.format_exc()}")
+        st.error("❌ OpenAI 初始化失敗，請檢查 API 金鑰設定")
         return None
 
 # 初始化 session state
@@ -288,9 +287,7 @@ def merge_excel_files(uploaded_files):
         return merged_df
 
     except Exception as e:
-        st.error(f"合併檔案過程中發生未預期的錯誤：{str(e)}")
-        import traceback
-        st.error(traceback.format_exc()) # 顯示詳細的錯誤追蹤
+        st.error("合併檔案過程中發生未預期的錯誤，請稍後再試")
         return None
 
 def correct_text_with_gpt(text):
@@ -329,16 +326,7 @@ def correct_text_with_gpt(text):
         st.success("✅ OpenAI API 呼叫成功！")
         return response.choices[0].message.content.strip()
     except Exception as e:
-        # 安全地獲取錯誤訊息字串
-        error_details = f"錯誤類型: {type(e).__name__}"
-        try:
-            error_message = str(e)
-        except Exception:
-            error_message = "無法顯示的錯誤訊息 (編碼問題)"
-
-        st.error(f"❌ 呼叫 OpenAI API 時發生錯誤：{error_message} ({error_details})", icon="🚨")
-        tb_str = f"詳細追蹤資訊:\n{traceback.format_exc()}"
-        st.error(tb_str)
+        st.error("❌ 呼叫 OpenAI API 時發生錯誤，請稍後再試")
         return text
 
 def main():
