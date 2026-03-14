@@ -3,44 +3,42 @@
 -- 在 Supabase Dashboard → SQL Editor 中執行此腳本
 -- =============================================
 
--- 1. 啟用 RLS
-ALTER TABLE pediatric_evaluations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pediatric_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_applications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE research_progress ENABLE ROW LEVEL SECURITY;
-ALTER TABLE learning_reflections ENABLE ROW LEVEL SECURITY;
+-- 1. 啟用 RLS（僅對已存在的表執行）
+DO $$
+DECLARE
+    tbl TEXT;
+BEGIN
+    FOR tbl IN
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename IN (
+            'pediatric_evaluations',
+            'pediatric_users',
+            'user_applications',
+            'pediatric_research_progress',
+            'pediatric_learning_reflections'
+          )
+    LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
+        RAISE NOTICE 'RLS enabled on %', tbl;
 
--- 2. Service Role 完全存取（後端 API 使用）
--- service_role key 跳過 RLS，所以 Streamlit 後端仍可正常運作
+        -- 建立 deny anon 政策（若尚未存在）
+        BEGIN
+            EXECUTE format(
+                'CREATE POLICY "deny_anon_all" ON %I FOR ALL TO anon USING (false)',
+                tbl
+            );
+            RAISE NOTICE 'Policy created on %', tbl;
+        EXCEPTION WHEN duplicate_object THEN
+            RAISE NOTICE 'Policy already exists on %, skipped', tbl;
+        END;
+    END LOOP;
+END
+$$;
 
--- 3. Anon key 預設拒絕所有存取
--- （目前 Streamlit 使用 service_role key，此政策做為額外安全層）
-
-CREATE POLICY "deny_anon_all" ON pediatric_evaluations
-    FOR ALL TO anon USING (false);
-
-CREATE POLICY "deny_anon_all" ON pediatric_users
-    FOR ALL TO anon USING (false);
-
-CREATE POLICY "deny_anon_all" ON user_applications
-    FOR ALL TO anon USING (false);
-
-CREATE POLICY "deny_anon_all" ON research_progress
-    FOR ALL TO anon USING (false);
-
-CREATE POLICY "deny_anon_all" ON learning_reflections
-    FOR ALL TO anon USING (false);
-
--- =============================================
--- 驗證 RLS 狀態
--- =============================================
+-- 2. 驗證 RLS 狀態
 SELECT tablename, rowsecurity
 FROM pg_tables
 WHERE schemaname = 'public'
-  AND tablename IN (
-    'pediatric_evaluations',
-    'pediatric_users',
-    'user_applications',
-    'research_progress',
-    'learning_reflections'
-  );
+  AND tablename LIKE 'pediatric%'
+   OR tablename = 'user_applications';
