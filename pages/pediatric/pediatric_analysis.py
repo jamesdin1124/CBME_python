@@ -90,7 +90,7 @@ SKILL_GROUPS = {
 
 # ─── CCC 門檻標準（依年級分級）───
 # score_threshold: EPA 均分 & 會議報告均分的達標門檻
-# skill_pass_rate: 操作技術評核中 ≥3 分紀錄佔比的達標門檻（%）
+# skill_pass_rate: 16 項技能中達標項目佔比的門檻（%）
 LEVEL_THRESHOLDS = {
     'PGY2': {'score_threshold': 2.5, 'skill_pass_rate': 30},
     'R1':   {'score_threshold': 2.5, 'skill_pass_rate': 30},
@@ -867,13 +867,12 @@ def show_resident_cards(all_status, df):
                     st.caption(f"{epa_icon} 門檻 ≥{th['score_threshold']}")
                 with c2:
                     tech_rate = info['technical']['pass_rate']
-                    pass_cnt = info['technical']['pass_count']
-                    total_cnt = info['technical']['total_count']
+                    done = info['technical']['completed_skills']
+                    total = info['technical']['total_skills']
                     st.metric("技能達標率", f"{tech_rate:.0f}%" if tech_rate is not None else "—")
                     tech_icon = _status_emoji(info['technical']['status'])
                     st.caption(f"{tech_icon} 門檻 ≥{th['skill_pass_rate']}%")
-                    if total_cnt > 0:
-                        st.caption(f"({pass_cnt}/{total_cnt} 筆≥3分)")
+                    st.caption(f"({done}/{total} 項達標)")
                 with c3:
                     mtg_val = info['meeting']['avg_score']
                     st.metric("會議報告均分", f"{mtg_val:.1f}" if mtg_val is not None else "—")
@@ -899,7 +898,7 @@ def show_resident_cards(all_status, df):
 def show_comparison_bar_chart(all_status):
     """並排長條圖：三維度百分化後對比（含年級門檻標註）"""
     st.subheader("📊 訓練完成度並排比較")
-    st.caption("技能達標率 = ≥3分評核佔比 ｜ EPA/會議 = 均分÷5×100%。門檻依年級：PGY2/R1→2.5分/30%, R2→3.0分/60%, R3→3.5分/90%")
+    st.caption("技能達標率 = 達標項目÷16項×100% ｜ EPA/會議 = 均分÷5×100%。門檻依年級：PGY2/R1→2.5分/30%, R2→3.0分/60%, R3→3.5分/90%")
 
     names = list(all_status.keys())
     tech_rates  = []
@@ -1297,7 +1296,7 @@ def show_individual_analysis():
             tech_rate = status['technical']['pass_rate']
             tech_emoji = _status_emoji(status['technical']['status'])
             tech_val = f"{tech_rate:.0f}%" if tech_rate is not None else "N/A"
-            st.caption(f"≥3分佔比 {tech_val}　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
+            st.caption(f"達標率 {tech_val}（{completed_skills}/{total_skills}項）　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
             if unfinished:
                 st.caption(f"⚠️ 尚有 {len(unfinished)} 項未達標，詳見下方「操作技術」區塊")
         else:
@@ -1951,17 +1950,12 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
             return 'FAIL'
         return 'PASS' if value >= threshold else 'FAIL'
 
-    # ── 維度 1：技能達標率（所有操作技術評核中 ≥3 分的比例）──
+    # ── 維度 1：技能達標率（16 項技能中，達標項目的佔比）──
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'] if '評核項目' in resident_data.columns else pd.DataFrame()
-    if not technical_data.empty and '可信賴程度_數值' in technical_data.columns:
-        all_scores = technical_data['可信賴程度_數值'].dropna()
-        total_count = len(all_scores)
-        pass_count = int((all_scores >= 3).sum())
-        tech_rate = pass_count / total_count * 100 if total_count > 0 else None
-    else:
-        tech_rate = None
-        total_count = 0
-        pass_count = 0
+    skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
+    total_skills = len(PEDIATRIC_SKILL_REQUIREMENTS)
+    completed_skills = sum(1 for d in skill_counts.values() if d['completed'] >= d['required'])
+    tech_rate = completed_skills / total_skills * 100 if total_skills > 0 else None
     tech_status = _pass_fail(tech_rate, skill_pass_rate)
 
     # ── 維度 2：EPA 均分 ──
@@ -1993,7 +1987,7 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
         'overall': overall,
         'thresholds': th,
         'technical': {'status': tech_status, 'pass_rate': tech_rate,
-                      'pass_count': pass_count, 'total_count': total_count},
+                      'completed_skills': completed_skills, 'total_skills': total_skills},
         'epa':       {'status': epa_status,  'avg_score': epa_avg},
         'meeting':   {'status': meeting_status, 'avg_score': meeting_avg},
     }
@@ -2033,7 +2027,7 @@ def show_skill_progress(skill_counts, resident_name):
         st.markdown("---")
 
 def show_grouped_skill_progress(skill_counts, technical_data=None):
-    """技能分組堆疊長條圖：依可信賴程度分數著色（紅<2 / 黃2~<4 / 綠4~5），按三組呈現"""
+    """技能分組堆疊長條圖：依可信賴程度分數著色（紅<2.5 / 黃2.5~<3 / 綠≥3），按三組呈現"""
     import plotly.graph_objects as go
 
     # 從 technical_data 統計每項技能的分數分佈
@@ -2051,12 +2045,12 @@ def show_grouped_skill_progress(skill_counts, technical_data=None):
                 if '可信賴程度_數值' in technical_data.columns:
                     score = technical_data.loc[idx, '可信賴程度_數值']
                 if pd.notna(score):
-                    if score < 2:
-                        red += 1
-                    elif score < 4:
+                    if score >= 3:
+                        green += 1
+                    elif score >= 2.5:
                         yellow += 1
                     else:
-                        green += 1
+                        red += 1
                 else:
                     no_score += 1
         return red, yellow, green, no_score
@@ -2100,26 +2094,26 @@ def show_grouped_skill_progress(skill_counts, technical_data=None):
 
         fig = go.Figure()
 
-        # 紅色：< 2 分
+        # 紅色：< 2.5 分
         fig.add_trace(go.Bar(
-            y=text_labels, x=red_vals, name='< 2 分',
+            y=text_labels, x=red_vals, name='< 2.5 分',
             orientation='h',
             marker_color='#e74c3c',
-            hovertemplate='%{y}<br><2分: %{x}次<extra></extra>'
+            hovertemplate='%{y}<br><2.5分: %{x}次<extra></extra>'
         ))
-        # 黃色：2~<4 分
+        # 黃色：2.5~<3 分
         fig.add_trace(go.Bar(
-            y=text_labels, x=yellow_vals, name='2~<4 分',
+            y=text_labels, x=yellow_vals, name='2.5~<3 分',
             orientation='h',
             marker_color='#f39c12',
-            hovertemplate='%{y}<br>2~<4分: %{x}次<extra></extra>'
+            hovertemplate='%{y}<br>2.5~<3分: %{x}次<extra></extra>'
         ))
-        # 綠色：4~5 分
+        # 綠色：≥ 3 分
         fig.add_trace(go.Bar(
-            y=text_labels, x=green_vals, name='4~5 分',
+            y=text_labels, x=green_vals, name='≥ 3 分',
             orientation='h',
             marker_color='#27ae60',
-            hovertemplate='%{y}<br>4~5分: %{x}次<extra></extra>'
+            hovertemplate='%{y}<br>≥3分: %{x}次<extra></extra>'
         ))
 
         # X 軸上限
