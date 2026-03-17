@@ -162,31 +162,20 @@ def show_pediatric_evaluation_section():
             else:
                 st.error("❌ 無法連線 Supabase，請檢查 `.env` 中的 `SUPABASE_URL` 和 `SUPABASE_KEY` 設定。")
     else:
-        # 非住院醫師（教師/管理員）：完整 tabs
-        tab_labels = ["🏆 CCC 總覽", "📋 個別深入分析", "📊 資料概覽", "⚙️ 資料管理"]
+        # 非住院醫師（教師/管理員）：完整 tabs，評核表單放第一
+        tab_labels = []
         if can_submit_forms:
             tab_labels.append("✏️ 評核表單")
+        tab_labels += ["🏆 CCC 總覽", "📋 個別深入分析", "📊 資料概覽", "⚙️ 資料管理"]
         if can_manage_users:
             tab_labels.append("👥 帳號管理")
 
         tabs = st.tabs(tab_labels)
+        idx = 0
 
-        with tabs[0]:
-            show_ccc_overview()
-
-        with tabs[1]:
-            show_individual_analysis()
-
-        with tabs[2]:
-            show_data_overview()
-
-        with tabs[3]:
-            show_data_management()
-
-        # 評核表單（教師/管理員限定）
-        next_idx = 4
-        if can_submit_forms and len(tabs) > next_idx:
-            with tabs[next_idx]:
+        # 評核表單（教師/管理員限定）— 第一個 tab
+        if can_submit_forms:
+            with tabs[idx]:
                 conn = _get_supabase_conn()
                 if conn:
                     from pages.pediatric.pediatric_forms import show_evaluation_forms_tab
@@ -195,11 +184,27 @@ def show_pediatric_evaluation_section():
                 else:
                     st.error("❌ 無法連線 Supabase，請檢查 `.env` 中的 `SUPABASE_URL` 和 `SUPABASE_KEY` 設定。")
                     st.info("評核表單需要 Supabase 資料庫連線才能使用。")
-            next_idx += 1
+            idx += 1
+
+        with tabs[idx]:
+            show_ccc_overview()
+        idx += 1
+
+        with tabs[idx]:
+            show_individual_analysis()
+        idx += 1
+
+        with tabs[idx]:
+            show_data_overview()
+        idx += 1
+
+        with tabs[idx]:
+            show_data_management()
+        idx += 1
 
         # 帳號管理（管理員限定）
-        if can_manage_users and len(tabs) > next_idx:
-            with tabs[next_idx]:
+        if can_manage_users:
+            with tabs[idx]:
                 conn = _get_supabase_conn()
                 if conn:
                     from pages.pediatric.pediatric_user_management import show_pediatric_user_management
@@ -759,6 +764,10 @@ def show_ccc_overview():
     data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
     department_filter = selected_dept if data_source == 'supabase' else None
 
+    if st.button("🔄 重新載入 Supabase 資料", key="reload_ccc"):
+        st.session_state.pop('pediatric_data', None)
+        st.rerun()
+
     df, _ = load_pediatric_data(department=department_filter)
     if df is None or df.empty:
         st.warning("無法載入資料，請檢查 Google 表單連接")
@@ -1095,6 +1104,10 @@ def show_data_overview():
     data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
     department_filter = selected_dept if data_source == 'supabase' else None
 
+    if st.button("🔄 重新載入 Supabase 資料", key="reload_overview"):
+        st.session_state.pop('pediatric_data', None)
+        st.rerun()
+
     # 載入資料
     df, sheet_titles = load_pediatric_data(department=department_filter)
     
@@ -1144,12 +1157,17 @@ def show_individual_analysis():
     st.markdown("---")
 
     # 讀取資料（優先從 session_state，避免重複 API 調用）
+    reload_col, _ = st.columns([1, 4])
+    with reload_col:
+        if st.button("🔄 重新載入 Supabase 資料", key="reload_individual"):
+            st.session_state.pop('pediatric_data', None)
+            st.rerun()
+
     if 'pediatric_data' in st.session_state and st.session_state['pediatric_data'] is not None:
         df = st.session_state['pediatric_data']
-        st.info("📦 使用快取資料")
+        st.caption("📦 使用快取資料")
     else:
         df, _ = load_pediatric_data(department=department_filter)
-        st.success("🔄 從 Supabase 重新載入資料")
         if df is not None:
             st.session_state['pediatric_data'] = df
 
@@ -1835,6 +1853,10 @@ def show_data_management():
     """顯示資料管理（含門檻設定 UI）"""
     st.subheader("⚙️ 資料管理")
 
+    if st.button("🔄 重新載入 Supabase 資料", key="reload_management"):
+        st.session_state.pop('pediatric_data', None)
+        st.rerun()
+
     # ─── 門檻設定 UI（管理員專用）───
     from modules.auth import check_permission
     user_role = st.session_state.get('role', 'resident')
@@ -1844,7 +1866,7 @@ def show_data_management():
         st.markdown("---")
 
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.markdown("### 📥 資料匯入")
         if st.button("重新載入Google表單資料", type="primary"):
