@@ -1550,12 +1550,18 @@ def show_individual_analysis():
                            '可信賴程度', '操作技術教師回饋']
             avail = [c for c in display_cols if c in technical_data.columns]
             if avail:
-                with st.container(border=True, height=500):
-                    st.dataframe(
-                        technical_data[avail].sort_values('評核日期', ascending=False),
-                        width="stretch",
-                        hide_index=True
-                    )
+                for group_name, group_skills in SKILL_GROUPS.items():
+                    # 篩選屬於該分類的記錄
+                    group_mask = technical_data['評核技術項目'].apply(
+                        lambda x: any(skill in str(x) for skill in group_skills)
+                    ) if '評核技術項目' in technical_data.columns else pd.Series(False, index=technical_data.index)
+                    group_df = technical_data[group_mask][avail].sort_values('評核日期', ascending=False)
+                    label = f"**{group_name}**（{len(group_df)} 筆）"
+                    with st.expander(label, expanded=True):
+                        if not group_df.empty:
+                            st.dataframe(group_df, width="stretch", hide_index=True)
+                        else:
+                            st.caption("尚無此類別評核記錄")
         else:
             st.info("無操作技術評核記錄")
 
