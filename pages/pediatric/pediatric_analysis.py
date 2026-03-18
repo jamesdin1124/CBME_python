@@ -109,6 +109,18 @@ def _get_level_thresholds(level):
     """取得年級對應的門檻，不認識的年級 fallback 到 R1"""
     return LEVEL_THRESHOLDS.get(str(level), LEVEL_THRESHOLDS['R1'])
 
+def _filter_recent_6_months(data):
+    """過濾資料，僅保留近半年（180天）的記錄"""
+    if data.empty or '評核日期' not in data.columns:
+        return data
+    try:
+        from datetime import date, timedelta
+        cutoff = date.today() - timedelta(days=180)
+        dates = pd.to_datetime(data['評核日期'], errors='coerce').dt.date
+        return data[dates >= cutoff].copy()
+    except Exception:
+        return data
+
 def show_pediatric_evaluation_section():
     """顯示小兒部住院醫師評核分頁"""
     st.title("🏥 小兒部住院醫師評核系統")
@@ -1238,10 +1250,14 @@ def show_individual_analysis():
         unique_teachers = len(resident_data['評核教師'].unique()) if '評核教師' in resident_data.columns else 0
         st.metric("評核教師數", unique_teachers)
 
-    # 預先分離三類資料
+    # 預先分離三類資料（EPA 與會議報告僅取近半年）
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
-    meeting_data   = resident_data[resident_data['評核項目'] == '會議報告'].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
-    epa_data       = resident_data[resident_data['評核項目'].astype(str).str.contains('EPA', na=False)].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
+    meeting_data   = _filter_recent_6_months(
+        resident_data[resident_data['評核項目'] == '會議報告'].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
+    )
+    epa_data       = _filter_recent_6_months(
+        resident_data[resident_data['評核項目'].astype(str).str.contains('EPA', na=False)].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
+    )
 
     # ═══ Section A：能力儀表盤（三欄並排，無 expander）═══
     resident_level = _get_resident_level(df, selected_resident)
@@ -1252,6 +1268,7 @@ def show_individual_analysis():
     overall_emoji = _status_emoji(status['overall'])
     overall_label = _status_label(status['overall'])
     st.markdown(f"### 能力儀表盤　`{resident_level}`　{overall_emoji} {overall_label}")
+    st.caption("📅 EPA 及會議報告均分以**近半年（180天）**資料計算；技能完成進度累計全期記錄")
 
     # ═══ 2×2 格局 ═══
     row1_left, row1_right = st.columns(2)
@@ -2066,8 +2083,9 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
     tech_rate = completed_sessions / TOTAL_REQUIRED_SESSIONS * 100
     tech_status = _pass_fail(tech_rate, skill_pass_rate)
 
-    # ── 維度 2：EPA 均分 ──
-    epa_data = resident_data[resident_data['評核項目'].astype(str).str.contains('EPA', na=False)] if '評核項目' in resident_data.columns else pd.DataFrame()
+    # ── 維度 2：EPA 均分（近半年）──
+    epa_data_all = resident_data[resident_data['評核項目'].astype(str).str.contains('EPA', na=False)] if '評核項目' in resident_data.columns else pd.DataFrame()
+    epa_data = _filter_recent_6_months(epa_data_all)
     if not epa_data.empty and 'EPA可信賴程度_數值' in epa_data.columns:
         epa_avg = epa_data['EPA可信賴程度_數值'].dropna().mean()
         epa_avg = float(epa_avg) if pd.notna(epa_avg) else None
@@ -2075,8 +2093,10 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
         epa_avg = None
     epa_status = _pass_fail(epa_avg, score_threshold)
 
-    # ── 維度 3：會議報告均分 ──
-    meeting_data = resident_data[resident_data['評核項目'] == '會議報告'] if '評核項目' in resident_data.columns else pd.DataFrame()
+    # ── 維度 3：會議報告均分（近半年）──
+    meeting_data = _filter_recent_6_months(
+        resident_data[resident_data['評核項目'] == '會議報告'] if '評核項目' in resident_data.columns else pd.DataFrame()
+    )
     meeting_score_cols = ['內容是否充分_數值', '辯證資料的能力_數值', '口條、呈現方式是否清晰_數值',
                           '是否具開創、建設性的想法_數值', '回答提問是否具邏輯、有條有理_數值']
     available_score_cols = [c for c in meeting_score_cols if c in meeting_data.columns] if not meeting_data.empty else []
