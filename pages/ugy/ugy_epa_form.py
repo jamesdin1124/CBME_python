@@ -145,14 +145,7 @@ def show_ugy_epa_form():
             key='ugy_teacher_level'
         )
 
-        # 顯示對應分數
         level_score = EPA_LEVEL_MAPPING.get(teacher_level, 0)
-        if level_score >= 4:
-            st.success(f"對應等級分數：**{level_score}**（高度信賴）")
-        elif level_score >= 3:
-            st.info(f"對應等級分數：**{level_score}**（可獨立執行）")
-        else:
-            st.warning(f"對應等級分數：**{level_score}**（需要監督）")
 
         # 學員自評（選填）
         st.markdown("#### 學員自評 EPA 等級（選填）")
@@ -183,7 +176,8 @@ def show_ugy_epa_form():
                                         placeholder="此回饋僅教學部可見...")
 
         # ── 教師簽名 ──
-        teacher_name = st.text_input("教師姓名 *", value=current_user, key='ugy_teacher')
+        st.text_input("教師姓名", value=current_user, disabled=True, key='ugy_teacher_display')
+        teacher_name = current_user
 
         # ── 提交 ──
         submitted = st.form_submit_button("提交 EPA 評核", type="primary")
