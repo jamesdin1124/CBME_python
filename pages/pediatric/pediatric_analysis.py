@@ -889,12 +889,12 @@ def show_resident_cards(all_status, df):
                     tech_rate = info['technical']['pass_rate']
                     done = info['technical']['completed_skills']
                     total = info['technical']['total_skills']
-                    st.metric("技能達標率", f"{tech_rate:.0f}%" if tech_rate is not None else "—")
+                    st.metric("技能完成進度", f"{tech_rate:.0f}%" if tech_rate is not None else "—")
                     tech_icon = _status_emoji(info['technical']['status'])
                     st.caption(f"{tech_icon} 門檻 ≥{th['skill_pass_rate']}%")
                     sess_done = info['technical'].get('completed_sessions', done)
-                    sess_total = info['technical'].get('total_required_sessions', total)
-                    st.caption(f"({sess_done}/{sess_total} 次，{done}/{total} 項達標)")
+                    sess_total = info['technical'].get('total_required_sessions', 40)
+                    st.caption(f"({sess_done}/40 次，{done}/{total} 項完成)")
                 with c3:
                     mtg_val = info['meeting']['avg_score']
                     st.metric("會議報告均分", f"{mtg_val:.1f}" if mtg_val is not None else "—")
@@ -920,7 +920,7 @@ def show_resident_cards(all_status, df):
 def show_comparison_bar_chart(all_status):
     """並排長條圖：三維度百分化後對比（含年級門檻標註）"""
     st.subheader("📊 訓練完成度並排比較")
-    st.caption("技能達標率 = 達標項目÷16項×100% ｜ EPA/會議 = 均分÷5×100%。門檻依年級：PGY2/R1→2.5分/30%, R2→3.0分/60%, R3→3.5分/100%")
+    st.caption("技能完成進度 = 有效次數÷40次×100%（每技能上限為最低要求次數）｜ EPA/會議 = 均分÷5×100%。門檻依年級：PGY2/R1→2.5分/30%, R2→3.0分/60%, R3→3.5分/100%")
 
     names = list(all_status.keys())
     tech_rates  = []
@@ -934,7 +934,7 @@ def show_comparison_bar_chart(all_status):
         mtg_rates.append(info['meeting']['avg_score'] / 5 * 100 if info['meeting']['avg_score'] is not None else 0)
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(name='技能達標率 (≥2.5分且達次數%)',   x=names, y=tech_rates, marker_color='#4A90D9'))
+    fig.add_trace(go.Bar(name='技能完成進度 (%)',   x=names, y=tech_rates, marker_color='#4A90D9'))
     fig.add_trace(go.Bar(name='EPA均分 (%)',    x=names, y=epa_rates,  marker_color='#50C878'))
     fig.add_trace(go.Bar(name='會議報告均分 (%)', x=names, y=mtg_rates,  marker_color='#F5A623'))
 
@@ -1421,7 +1421,7 @@ def show_individual_analysis():
             tech_rate = status['technical']['pass_rate']
             tech_emoji = _status_emoji(status['technical']['status'])
             tech_val = f"{tech_rate:.0f}%" if tech_rate is not None else "N/A"
-            st.caption(f"達標率 {tech_val}（{done_sessions}/{total_req_sessions}次）　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
+            st.caption(f"完成進度 {tech_val}（{done_sessions}/40次）　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
             if unfinished:
                 st.caption(f"⚠️ 尚有 {len(unfinished)} 項未達標，詳見下方「操作技術」區塊")
         else:
@@ -2050,8 +2050,9 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
             return 'FAIL'
         return 'PASS' if value >= threshold else 'FAIL'
 
-    # ── 維度 1：技能達標率（各技能有效次數 / 所有技能最低需求次數加總）──
+    # ── 維度 1：技能完成進度（各技能有效次數 / 固定分母40次）──
     # 每技能有效次數上限為該技能最低要求次數（超過不重複計算）
+    TOTAL_REQUIRED_SESSIONS = 40  # 所有技能最低次數加總固定值
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'] if '評核項目' in resident_data.columns else pd.DataFrame()
     skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
     total_skills = len(PEDIATRIC_SKILL_REQUIREMENTS)
@@ -2060,11 +2061,9 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
         if (d['required'] > 0 and d['completed'] >= d['required'])
         or (d['required'] == 0 and d['completed'] > 0)
     )
-    total_required_sessions = sum(d['required'] for d in skill_counts.values()) if skill_counts else sum(
-        v['minimum'] for v in PEDIATRIC_SKILL_REQUIREMENTS.values()
-    )
+    total_required_sessions = TOTAL_REQUIRED_SESSIONS
     completed_sessions = sum(d['capped'] for d in skill_counts.values()) if skill_counts else 0
-    tech_rate = completed_sessions / total_required_sessions * 100 if total_required_sessions > 0 else None
+    tech_rate = completed_sessions / TOTAL_REQUIRED_SESSIONS * 100
     tech_status = _pass_fail(tech_rate, skill_pass_rate)
 
     # ── 維度 2：EPA 均分 ──
