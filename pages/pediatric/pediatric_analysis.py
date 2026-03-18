@@ -1529,7 +1529,35 @@ def show_individual_analysis():
         else:
             st.info("研究進度功能需要 Supabase 連線")
 
-    # ═══ Section 2：技能分類進度（左右兩欄）═══
+    # ═══ Section 2：EPA 趨勢分析（左右兩欄）═══
+    st.markdown("### EPA 趨勢分析")
+
+    if not epa_data.empty and 'EPA項目' in epa_data.columns and '評核日期' in epa_data.columns:
+        col_left, col_right = st.columns([1.2, 0.8])
+
+        with col_left:
+            st.markdown("**信賴程度月度趨勢**")
+            st.caption("各 EPA 項目每月平均可信賴程度變化（近半年）")
+            show_epa_trend_chart(epa_data, selected_resident, resident_level)
+
+        with col_right:
+            st.markdown("**詳細記錄**")
+            display_cols = ['評核日期', '評核教師', 'EPA項目',
+                           'EPA可信賴程度', 'EPA質性回饋']
+            avail = [c for c in display_cols if c in epa_data.columns]
+            if avail:
+                with st.container(border=True, height=500):
+                    st.dataframe(
+                        epa_data[avail].sort_values('評核日期', ascending=False),
+                        width="stretch",
+                        hide_index=True
+                    )
+            else:
+                st.info("無 EPA 詳細記錄")
+    else:
+        st.info("無 EPA 評核記錄")
+
+    # ═══ Section 3：技能分類進度（左右兩欄）═══
     st.markdown("### 技能分類進度")
     with st.expander("📖 可信賴程度分數說明（9 級制，1.5–5.0 分）"):
         st.markdown("""
@@ -1581,7 +1609,7 @@ def show_individual_analysis():
                 st.markdown(f"**{group_name} 詳細記錄**")
                 st.info("無操作技術評核記錄")
 
-    # ═══ Section 3：會議報告分析（左右兩欄）═══
+    # ═══ Section 4：會議報告分析（左右兩欄）═══
     st.markdown("### 會議報告分析")
     col_left, col_right = st.columns([1.2, 0.8])
 
@@ -1648,34 +1676,6 @@ def show_individual_analysis():
                     )
         else:
             st.info("無會議報告評核記錄")
-
-    # ═══ Section 4：EPA 趨勢分析（左右兩欄）═══
-    st.markdown("### EPA 趨勢分析")
-
-    if not epa_data.empty and 'EPA項目' in epa_data.columns and '評核日期' in epa_data.columns:
-        col_left, col_right = st.columns([1.2, 0.8])
-
-        with col_left:
-            st.markdown("**信賴程度月度趨勢**")
-            st.caption("各 EPA 項目每月平均可信賴程度變化")
-            show_epa_trend_chart(epa_data, selected_resident, resident_level)
-
-        with col_right:
-            st.markdown("**詳細記錄**")
-            display_cols = ['評核日期', '評核教師', 'EPA項目',
-                           'EPA可信賴程度', 'EPA質性回饋']
-            avail = [c for c in display_cols if c in epa_data.columns]
-            if avail:
-                with st.container(border=True, height=500):
-                    st.dataframe(
-                        epa_data[avail].sort_values('評核日期', ascending=False),
-                        width="stretch",
-                        hide_index=True
-                    )
-            else:
-                st.info("無 EPA 詳細記錄")
-    else:
-        st.info("無 EPA 評核記錄")
 
     # ═══ Section 5：研究進度（若有 Supabase 連線）═══
     conn = _get_supabase_conn()
