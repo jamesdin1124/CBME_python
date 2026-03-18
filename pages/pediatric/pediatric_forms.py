@@ -48,8 +48,8 @@ PEDIATRIC_SKILL_REQUIREMENTS = {
     '心臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     '腹部超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     '腎臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
-    'APLS': {'minimum': 3, 'description': '訓練期間最少3次'},
-    'NRP': {'minimum': 5, 'description': '訓練期間最少5次'},
+    'APLS': {'minimum': 1, 'description': '訓練期間最少1次'},
+    'NRP': {'minimum': 1, 'description': '訓練期間最少1次'},
 }
 
 PEDIATRIC_EPA_ITEMS = [
