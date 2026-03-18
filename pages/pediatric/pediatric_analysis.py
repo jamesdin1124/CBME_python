@@ -488,7 +488,17 @@ def convert_reliability_to_numeric(reliability_text):
 
     # 兒科評核表單對應（主要）
     reliability_mapping = {
-        # 9級量表（兒科表單標準選項，從1.5分開始）
+        # 新格式：五分制小數點顯示（符合學會規範）
+        '1.5 — 允許住院醫師在旁觀察': 1.5,
+        '2.0 — 教師在旁逐步共同操作': 2.0,
+        '2.5 — 教師在旁必要時協助': 2.5,
+        '3.0 — 教師可立即到場協助，事後逐項確認': 3.0,
+        '3.3 — 教師可立即到場協助，事後重點確認': 3.3,
+        '3.6 — 教師可稍後到場協助，必要時事後確認': 3.6,
+        '4.0 — 教師on call提供監督': 4.0,
+        '4.5 — 教師不需on call，事後提供回饋及監督': 4.5,
+        '5.0 — 學員可對其他資淺的學員進行監督與教學': 5.0,
+        # 舊格式向後相容
         '允許住院醫師在旁觀察': 1.5,
         '教師在旁逐步共同操作': 2.0,
         '教師在旁必要時協助': 2.5,
@@ -920,7 +930,7 @@ def show_comparison_bar_chart(all_status):
         mtg_rates.append(info['meeting']['avg_score'] / 5 * 100 if info['meeting']['avg_score'] is not None else 0)
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(name='技能達標率 (≥3分%)',   x=names, y=tech_rates, marker_color='#4A90D9'))
+    fig.add_trace(go.Bar(name='技能達標率 (≥2.5分且達次數%)',   x=names, y=tech_rates, marker_color='#4A90D9'))
     fig.add_trace(go.Bar(name='EPA均分 (%)',    x=names, y=epa_rates,  marker_color='#50C878'))
     fig.add_trace(go.Bar(name='會議報告均分 (%)', x=names, y=mtg_rates,  marker_color='#F5A623'))
 

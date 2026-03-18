@@ -530,6 +530,7 @@ def filter_data_by_permission(data, user_role, user_department, data_type):
 def show_login_page():
     """顯示登入頁面"""
     st.title("臨床教師評核系統 - 登入")
+    st.info("💡 登入後如需修改密碼，請點選左側側邊欄的「🔑 修改密碼」按鈕。")
 
     with st.form("login_form"):
         username = st.text_input("使用者名稱")
@@ -579,7 +580,7 @@ def show_user_management():
     with st.expander("新增使用者"):
         with st.form("add_user_form"):
             new_username = st.text_input("使用者名稱")
-            new_password = st.text_input("密碼", type="password")
+            new_password = st.text_input("密碼", type="password", help="留空則使用帳號（大寫）作為預設密碼")
             new_name = st.text_input("姓名")
             new_role = st.selectbox(
                 "權限",
@@ -602,11 +603,13 @@ def show_user_management():
             submitted = st.form_submit_button("新增")
 
             if submitted:
-                if not new_username or not new_password or not new_name:
-                    st.error("請填寫帳號、密碼、姓名")
+                if not new_username or not new_name:
+                    st.error("請填寫帳號、姓名")
                 else:
+                    # 預設密碼為帳號（大寫），例如 DOC31024 → DOC31024
+                    effective_password = new_password if new_password else new_username.upper()
                     success, message = create_user(
-                        new_username, new_password, new_role, new_name,
+                        new_username, effective_password, new_role, new_name,
                         student_id=new_student_id,
                         department=new_department if new_department else None,
                         email=new_email if new_email else None,
