@@ -1729,7 +1729,7 @@ def show_epa_item_bar(item_df, epa_item, resident_level='R1'):
     fig.add_trace(go.Scatter(
         x=dates, y=scores,
         mode='lines',
-        line=dict(color='#cccccc', width=1.5),
+        line=dict(color='#222222', width=1.5),
         showlegend=False,
         hoverinfo='skip',
     ))
