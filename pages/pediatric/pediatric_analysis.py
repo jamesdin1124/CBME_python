@@ -178,7 +178,8 @@ def show_pediatric_evaluation_section():
         tab_labels = []
         if can_submit_forms:
             tab_labels.append("✏️ 評核表單")
-        tab_labels += ["🏆 CCC 總覽", "📋 個別深入分析", "📊 資料概覽", "⚙️ 資料管理"]
+        tab_labels += ["🏆 CCC 總覽", "📋 個別深入分析"]
+        # tab_labels += ["📊 資料概覽", "⚙️ 資料管理"]  # 暫時隱藏
         if can_manage_users:
             tab_labels.append("👥 帳號管理")
 
@@ -206,13 +207,13 @@ def show_pediatric_evaluation_section():
             show_individual_analysis()
         idx += 1
 
-        with tabs[idx]:
-            show_data_overview()
-        idx += 1
-
-        with tabs[idx]:
-            show_data_management()
-        idx += 1
+        # 資料概覽與資料管理暫時隱藏
+        # with tabs[idx]:
+        #     show_data_overview()
+        # idx += 1
+        # with tabs[idx]:
+        #     show_data_management()
+        # idx += 1
 
         # 帳號管理（管理員限定）
         if can_manage_users:
