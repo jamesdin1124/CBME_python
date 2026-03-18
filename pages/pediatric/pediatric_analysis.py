@@ -817,11 +817,26 @@ def show_ccc_overview():
             st.warning("資料中沒有找到受評核人員")
             return
 
+    # 預先批次查詢所有人的研究記錄（R3 判斷用）
+    conn_ccc = _get_supabase_conn()
+    research_published_map = {}
+    if conn_ccc:
+        try:
+            all_research = conn_ccc.fetch_research_progress()
+            for rec in (all_research or []):
+                rname = rec.get('resident_name', '')
+                if rec.get('current_status') in ('接受', '發表'):
+                    research_published_map[rname] = research_published_map.get(rname, 0) + 1
+        except Exception:
+            pass
+
     all_status = {}  # {姓名: status_dict}
     for name in residents:
         res_df = df[df['受評核人員'] == name]
         level = _get_resident_level(df, name)
-        all_status[name] = calculate_resident_status(res_df, df, resident_level=level)
+        pub_count = research_published_map.get(name, 0)
+        all_status[name] = calculate_resident_status(res_df, df, resident_level=level,
+                                                      research_published=pub_count)
         all_status[name]['level'] = level
 
     # ── Section B：摘要卡片 ──
@@ -913,20 +928,27 @@ def show_resident_cards(all_status, df):
                     mtg_icon = _status_emoji(info['meeting']['status'])
                     st.caption(f"{mtg_icon} 門檻 ≥{th['score_threshold']}")
 
-                # 研究進度簡要顯示（若有 Supabase 連線）
-                conn = _get_supabase_conn()
-                if conn:
-                    try:
-                        research_records = conn.fetch_research_progress(filters={'resident_name': name})
-                        if research_records:
-                            st.divider()
-                            st.caption(f"📚 研究進度：{len(research_records)} 項")
-                            # 顯示最新一筆
-                            latest = research_records[0]
-                            status_emoji = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
-                            st.caption(f"{status_emoji.get(latest['current_status'], '📝')} {latest['research_title']} — {latest['current_status']}")
-                    except Exception:
-                        pass  # 靜默失敗，不影響主頁面
+                # R3 文章發表狀態
+                research_info = info.get('research', {})
+                if research_info.get('status') is not None:  # 僅 R3
+                    st.divider()
+                    pub_n = research_info.get('published_count', 0)
+                    res_icon = _status_emoji(research_info['status'])
+                    st.caption(f"📄 文章發表 {res_icon} {pub_n} 篇（R3 需 ≥1 篇）")
+                else:
+                    # 非 R3 顯示研究進度筆數
+                    conn = _get_supabase_conn()
+                    if conn:
+                        try:
+                            research_records = conn.fetch_research_progress(filters={'resident_name': name})
+                            if research_records:
+                                st.divider()
+                                st.caption(f"📚 研究進度：{len(research_records)} 項")
+                                latest = research_records[0]
+                                status_emoji_map = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
+                                st.caption(f"{status_emoji_map.get(latest['current_status'], '📝')} {latest['research_title']} — {latest['current_status']}")
+                        except Exception:
+                            pass
 
 
 def show_comparison_bar_chart(all_status):
@@ -1262,7 +1284,17 @@ def show_individual_analysis():
     # ═══ Section A：能力儀表盤（三欄並排，無 expander）═══
     resident_level = _get_resident_level(df, selected_resident)
     th = _get_level_thresholds(resident_level)
-    status = calculate_resident_status(resident_data, df, resident_level=resident_level)
+    # 查詢該住院醫師已接受/發表的文章數（R3 達標判斷用）
+    _conn_ind = _get_supabase_conn()
+    _pub_count = 0
+    if _conn_ind and str(resident_level) == 'R3':
+        try:
+            _recs = _conn_ind.fetch_research_progress(filters={'resident_name': selected_resident})
+            _pub_count = sum(1 for r in (_recs or []) if r.get('current_status') in ('接受', '發表'))
+        except Exception:
+            pass
+    status = calculate_resident_status(resident_data, df, resident_level=resident_level,
+                                        research_published=_pub_count)
 
     # 年級 + 達標狀態
     overall_emoji = _status_emoji(status['overall'])
@@ -1446,21 +1478,27 @@ def show_individual_analysis():
 
     # ── [2,2] 研究進度摘要 ──
     with row2_right:
-        st.markdown("**📚 研究進度**")
+        # R3 顯示「文章發表」達標狀態；其他年級顯示研究進度
+        research_info = status.get('research', {})
+        if research_info.get('status') is not None:  # R3
+            pub_n = research_info.get('published_count', 0)
+            res_icon = _status_emoji(research_info['status'])
+            st.markdown(f"**📄 文章發表**　{res_icon} {pub_n} / 1 篇")
+            st.caption("R3 達標需至少 1 篇接受/發表")
+        else:
+            st.markdown("**📚 研究進度**")
         conn = _get_supabase_conn()
         if conn:
             try:
                 research_records = conn.fetch_research_progress(filters={'resident_name': selected_resident})
                 if research_records:
-                    status_emoji_map = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
+                    status_emoji_map = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅', '發表': '📰'}
                     status_counts = {}
                     for rec in research_records:
                         s = rec.get('current_status', '構思中')
                         status_counts[s] = status_counts.get(s, 0) + 1
-                    # 摘要列
                     summary_parts = [f"{status_emoji_map.get(k, '📝')} {k} {v}" for k, v in status_counts.items()]
-                    st.markdown(f"共 **{len(research_records)}** 項研究　{'　'.join(summary_parts)}")
-                    # 簡易清單
+                    st.markdown(f"共 **{len(research_records)}** 項　{'　'.join(summary_parts)}")
                     for rec in research_records:
                         emoji = status_emoji_map.get(rec.get('current_status', ''), '📝')
                         title = rec.get('research_title', '（未命名）')
@@ -2052,10 +2090,11 @@ def calculate_skill_counts(resident_data):
     
     return skill_counts
 
-def calculate_resident_status(resident_data, full_df, resident_level='R1'):
+def calculate_resident_status(resident_data, full_df, resident_level='R1', research_published=0):
     """計算住院醫師的達標狀態（依年級分級門檻）
-    判定維度：技能達標率、EPA均分、會議報告均分
-    取三個維度中最差者為 overall 狀態（二級制：PASS / FAIL）
+    判定維度：技能完成進度、EPA均分、會議報告均分
+    R3 額外加入：文章發表（≥1篇）
+    取所有維度中最差者為 overall 狀態（二級制：PASS / FAIL）
     無資料的維度視為 FAIL
     """
     th = _get_level_thresholds(resident_level)
@@ -2108,8 +2147,17 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
         meeting_avg = None
     meeting_status = _pass_fail(meeting_avg, score_threshold)
 
-    # ── overall：三維度中有任一 FAIL 則 FAIL ──
-    overall = 'PASS' if all(s == 'PASS' for s in [tech_status, epa_status, meeting_status]) else 'FAIL'
+    # ── 維度 4（R3 專屬）：文章發表（至少 1 篇接受/發表）──
+    if str(resident_level) == 'R3':
+        research_status = 'PASS' if research_published >= 1 else 'FAIL'
+    else:
+        research_status = None  # 非 R3 不列入判斷
+
+    # ── overall：所有適用維度中有任一 FAIL 則 FAIL ──
+    dimensions = [tech_status, epa_status, meeting_status]
+    if research_status is not None:
+        dimensions.append(research_status)
+    overall = 'PASS' if all(s == 'PASS' for s in dimensions) else 'FAIL'
 
     return {
         'overall': overall,
@@ -2119,6 +2167,7 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
                       'completed_sessions': completed_sessions, 'total_required_sessions': total_required_sessions},
         'epa':       {'status': epa_status,  'avg_score': epa_avg},
         'meeting':   {'status': meeting_status, 'avg_score': meeting_avg},
+        'research':  {'status': research_status, 'published_count': research_published},
     }
 
 def show_skill_progress(skill_counts, resident_name):
