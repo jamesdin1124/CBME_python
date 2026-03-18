@@ -589,10 +589,12 @@ def show_skill_completion_overview(df):
             '完成率': 0.0
         }
         
-        # 計算完成狀況
+        # 計算完成狀況（minimum=0 的項目需至少有1筆記錄才算完成）
         completed_skills = 0
         for skill, data in skill_counts.items():
-            if data['completed'] >= data['required']:
+            if data['required'] > 0 and data['completed'] >= data['required']:
+                completed_skills += 1
+            elif data['required'] == 0 and data['completed'] > 0:
                 completed_skills += 1
         
         resident_summary['已完成技能數'] = completed_skills
@@ -975,7 +977,8 @@ def show_skill_heatmap(df):
                 # 僅記錄項目（APLS/NRP）：有紀錄就算達標（綠色）
                 row_z.append(1.0 if c > 0 else 0.5)
                 row_text.append(f"{c}/記錄")
-                completed_n += 1  # minimum=0 永遠算達標
+                if c > 0:
+                    completed_n += 1  # 僅記錄項目：有記錄才算達標
             else:
                 row_z.append(min(c / r, 1.5))  # cap at 1.5 for color
                 row_text.append(f"{c}/{r}")
@@ -1402,11 +1405,15 @@ def show_individual_analysis():
         st.markdown("**臨床技術 完成度**")
         skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
         if skill_counts:
-            completed_skills = sum(1 for d in skill_counts.values() if d['completed'] >= d['required'])
+            completed_skills = sum(
+                1 for d in skill_counts.values()
+                if (d['required'] > 0 and d['completed'] >= d['required'])
+                or (d['required'] == 0 and d['completed'] > 0)
+            )
             total_skills = len(skill_counts)
             rate = completed_skills / total_skills
             st.progress(min(rate, 1.0), text=f"已完成 {completed_skills} / {total_skills} 項")
-            unfinished = [name for name, d in skill_counts.items() if d['completed'] < d['required']]
+            unfinished = [name for name, d in skill_counts.items() if d['required'] > 0 and d['completed'] < d['required']]
             tech_rate = status['technical']['pass_rate']
             tech_emoji = _status_emoji(status['technical']['status'])
             tech_val = f"{tech_rate:.0f}%" if tech_rate is not None else "N/A"
@@ -2041,7 +2048,11 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'] if '評核項目' in resident_data.columns else pd.DataFrame()
     skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
     total_skills = len(PEDIATRIC_SKILL_REQUIREMENTS)
-    completed_skills = sum(1 for d in skill_counts.values() if d['completed'] >= d['required'])
+    completed_skills = sum(
+        1 for d in skill_counts.values()
+        if (d['required'] > 0 and d['completed'] >= d['required'])
+        or (d['required'] == 0 and d['completed'] > 0)
+    )
     tech_rate = completed_skills / total_skills * 100 if total_skills > 0 else None
     tech_status = _pass_fail(tech_rate, skill_pass_rate)
 
@@ -2256,9 +2267,13 @@ def show_skill_completion_stats(skill_counts):
     """顯示技能完成度統計"""
     st.subheader("技能完成度統計")
     
-    # 計算統計資料
+    # 計算統計資料（minimum=0 的項目需至少1筆記錄才算完成）
     total_skills = len(skill_counts)
-    completed_skills = sum(1 for data in skill_counts.values() if data['completed'] >= data['required'])
+    completed_skills = sum(
+        1 for data in skill_counts.values()
+        if (data['required'] > 0 and data['completed'] >= data['required'])
+        or (data['required'] == 0 and data['completed'] > 0)
+    )
     in_progress_skills = total_skills - completed_skills
     
     # 顯示統計卡片
