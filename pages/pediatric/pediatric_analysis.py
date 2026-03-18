@@ -70,8 +70,8 @@ PEDIATRIC_SKILL_REQUIREMENTS = {
     '心臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     '腹部超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
     '腎臟超音波': {'minimum': 5, 'description': '訓練期間最少5次'},
-    'APLS': {'minimum': 0, 'description': '僅記錄，不設最低門檻'},
-    'NRP': {'minimum': 0, 'description': '僅記錄，不設最低門檻'},
+    'APLS': {'minimum': 1, 'description': '訓練期間最少1次（可信賴程度≥2.5）'},
+    'NRP': {'minimum': 1, 'description': '訓練期間最少1次（可信賴程度≥2.5）'},
 }
 
 # 兒科 EPA 信賴等級評估項目（表單 Q18）
