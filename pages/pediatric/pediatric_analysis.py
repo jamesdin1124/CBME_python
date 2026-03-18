@@ -1553,7 +1553,7 @@ def show_individual_analysis():
                 if avail_epa and not item_df.empty:
                     st.dataframe(
                         item_df[avail_epa].sort_values('評核日期', ascending=False),
-                        width="stretch", hide_index=True
+                        width="stretch", hide_index=True, height=280
                     )
                 else:
                     st.caption("尚無此項目評核記錄")
@@ -1754,7 +1754,7 @@ def show_epa_item_bar(item_df, epa_item, resident_level='R1'):
                   annotation_position='top right')
 
     fig.update_layout(
-        height=200,
+        height=280,
         margin=dict(l=5, r=5, t=30, b=5),
         xaxis=dict(title='', tickformat='%m/%d'),
         yaxis=dict(range=[1, 5.3], dtick=1, title=''),
