@@ -1205,20 +1205,9 @@ def show_individual_analysis():
     data_source = st.session_state.get('pediatric_data_source', 'google_sheets')
     department_filter = selected_dept if data_source == 'supabase' else None
 
-
-
-    st.markdown("---")
-
     # 讀取資料（優先從 session_state，避免重複 API 調用）
-    reload_col, _ = st.columns([1, 4])
-    with reload_col:
-        if st.button("🔄 重新載入 Supabase 資料", key="reload_individual"):
-            st.session_state.pop('pediatric_data', None)
-            st.rerun()
-
     if 'pediatric_data' in st.session_state and st.session_state['pediatric_data'] is not None:
         df = st.session_state['pediatric_data']
-        st.caption("📦 使用快取資料")
     else:
         df, _ = load_pediatric_data(department=department_filter)
         if df is not None:
@@ -1255,26 +1244,28 @@ def show_individual_analysis():
     else:
         default_index = 0
 
-    selected_resident = st.selectbox("選擇受評核人員", available_residents, index=default_index)
+    # 選人 + 重新載入同排
+    sel_col, reload_col = st.columns([4, 1])
+    with sel_col:
+        selected_resident = st.selectbox("選擇受評核人員", available_residents,
+                                         index=default_index, label_visibility="collapsed")
+    with reload_col:
+        if st.button("🔄 重新載入", key="reload_individual", use_container_width=True):
+            st.session_state.pop('pediatric_data', None)
+            st.rerun()
 
     if not selected_resident:
         return
 
     resident_data = df[df['受評核人員'] == selected_resident].copy()
 
-    # ── 基本統計帶（小型）──
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("總評核次數", len(resident_data))
-    with col2:
-        unique_items = len(resident_data['評核項目'].unique()) if '評核項目' in resident_data.columns else 0
-        st.metric("評核項目種類", unique_items)
-    with col3:
-        if '評核日期' in resident_data.columns:
-            st.metric("評核期間", f"{resident_data['評核日期'].min()} ~ {resident_data['評核日期'].max()}")
-    with col4:
-        unique_teachers = len(resident_data['評核教師'].unique()) if '評核教師' in resident_data.columns else 0
-        st.metric("評核教師數", unique_teachers)
+    # ── 基本統計：單行 caption ──
+    total_evals = len(resident_data)
+    unique_teachers = len(resident_data['評核教師'].unique()) if '評核教師' in resident_data.columns else 0
+    date_range = ""
+    if '評核日期' in resident_data.columns and not resident_data.empty:
+        date_range = f"　{resident_data['評核日期'].min()} ～ {resident_data['評核日期'].max()}"
+    st.caption(f"共 {total_evals} 筆評核　教師 {unique_teachers} 位{date_range}")
 
     # 預先分離三類資料（EPA 與會議報告僅取近半年）
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'].copy() if '評核項目' in resident_data.columns else pd.DataFrame()
@@ -1536,30 +1527,44 @@ def show_individual_analysis():
 
     if not epa_data.empty and 'EPA項目' in epa_data.columns:
         epa_display_cols = ['評核日期', '評核教師', 'EPA可信賴程度', 'EPA質性回饋']
+        _item_min_disp = status['epa'].get('item_min', 3)
+        _item_counts_disp = status['epa'].get('item_counts', {})
 
+        # 短標籤（tab 用）
+        short_labels = {
+            '門診表現(OPD)':      'OPD',
+            '一般病人照護（WARD）': 'WARD',
+            '緊急處置（ED, DR）':  'ED/DR',
+            '重症照護（PICU, NICU）': 'PICU/NICU',
+            '病歷書寫':           '病歷書寫',
+        }
+        tab_titles = []
         for epa_item in PEDIATRIC_EPA_ITEMS:
-            item_mask = _match_epa_item(epa_data['EPA項目'], epa_item)
-            item_df = epa_data[item_mask].copy()
-            col_left, col_right = st.columns([1.2, 0.8])
+            cnt = _item_counts_disp.get(epa_item, 0)
+            warn = '' if cnt >= _item_min_disp else ' ⚠️'
+            tab_titles.append(f"{short_labels.get(epa_item, epa_item)} ({cnt}){warn}")
 
-            with col_left:
-                show_epa_item_bar(item_df, epa_item, resident_level)
+        epa_tabs = st.tabs(tab_titles)
+        for tab, epa_item in zip(epa_tabs, PEDIATRIC_EPA_ITEMS):
+            with tab:
+                item_mask = _match_epa_item(epa_data['EPA項目'], epa_item)
+                item_df = epa_data[item_mask].copy()
+                col_left, col_right = st.columns([1.2, 0.8])
+                with col_left:
+                    show_epa_item_bar(item_df, epa_item, resident_level)
+                with col_right:
+                    cnt = len(item_df)
+                    warn = '' if cnt >= _item_min_disp else f' ⚠️（{cnt}/{_item_min_disp}次）'
+                    st.markdown(f"**詳細記錄**{warn}")
+                    avail_epa = [c for c in epa_display_cols if c in item_df.columns]
+                    if avail_epa and not item_df.empty:
+                        st.dataframe(
+                            item_df[avail_epa].sort_values('評核日期', ascending=False),
+                            width="stretch", hide_index=True, height=280
+                        )
+                    else:
+                        st.caption("尚無此項目評核記錄")
 
-            with col_right:
-                cnt = len(item_df)
-                _item_min_disp = status['epa'].get('item_min', 3)
-                warn = '' if cnt >= _item_min_disp else f' ⚠️（{cnt}/{_item_min_disp}次）'
-                st.markdown(f"**{epa_item} 詳細記錄**{warn}")
-                avail_epa = [c for c in epa_display_cols if c in item_df.columns]
-                if avail_epa and not item_df.empty:
-                    st.dataframe(
-                        item_df[avail_epa].sort_values('評核日期', ascending=False),
-                        width="stretch", hide_index=True, height=280
-                    )
-                else:
-                    st.caption("尚無此項目評核記錄")
-
-        # 月度趨勢折線圖（摺疊）
         with st.expander("📈 月度趨勢折線圖（各項目平均）"):
             if '評核日期' in epa_data.columns:
                 show_epa_trend_chart(epa_data, selected_resident, resident_level)
