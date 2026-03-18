@@ -911,7 +911,10 @@ def show_resident_cards(all_status, df):
                     epa_val = info['epa']['avg_score']
                     st.metric("EPA均分", f"{epa_val:.1f}" if epa_val is not None else "—")
                     epa_icon = _status_emoji(info['epa']['status'])
-                    st.caption(f"{epa_icon} 門檻 ≥{th['score_threshold']}")
+                    epa_item_counts = info['epa'].get('item_counts', {})
+                    epa_item_min = info['epa'].get('item_min', 3)
+                    min_cnt = min(epa_item_counts.values()) if epa_item_counts else 0
+                    st.caption(f"{epa_icon} 均分≥{th['score_threshold']}，各項≥{epa_item_min}次（最少{min_cnt}次）")
                 with c2:
                     tech_rate = info['technical']['pass_rate']
                     done = info['technical']['completed_skills']
@@ -1337,9 +1340,18 @@ def show_individual_analysis():
                     else:
                         peer_scores[item] = 1.0
 
+            # 取 status 中各項目次數，在 theta 標籤標示（N/3）
+            _item_counts = status['epa'].get('item_counts', {})
+            _item_min = status['epa'].get('item_min', 3)
             categories = list(epa_scores.keys())
+            # 雷達軸標籤：項目名稱 + 次數（不足時加 ⚠️）
+            categories_labeled = []
+            for k in categories:
+                cnt = _item_counts.get(k, 0)
+                warn = '' if cnt >= _item_min else ' ⚠️'
+                categories_labeled.append(f"{k}\n({cnt}/{_item_min}){warn}")
             values_self = [epa_scores[k] for k in categories]
-            categories_closed = categories + [categories[0]]
+            categories_closed = categories_labeled + [categories_labeled[0]]
             values_self_closed = values_self + [values_self[0]]
 
             fig_epa = go.Figure()
@@ -1350,7 +1362,7 @@ def show_individual_analysis():
                     r=values_peer_closed, theta=categories_closed,
                     fill='toself', name=f'同儕平均（{resident_level}）',
                     line=dict(color='rgba(128,128,128,1)', width=2),
-                    fillcolor='rgba(128,128,128,0.12)'
+                    fillcolor='rgba(128,128,128,0.12)',
                 ))
             fig_epa.add_trace(go.Scatterpolar(
                 r=values_self_closed, theta=categories_closed,
@@ -1368,7 +1380,12 @@ def show_individual_analysis():
             epa_avg = status['epa']['avg_score']
             epa_emoji = _status_emoji(status['epa']['status'])
             epa_val = f"{epa_avg:.1f}" if epa_avg is not None else "N/A"
-            st.caption(f"均分 {epa_val}　{epa_emoji} 門檻 ≥{th['score_threshold']}")
+            st.caption(f"均分 {epa_val}　{epa_emoji} 門檻 ≥{th['score_threshold']}　｜　各項目近半年需 ≥{_item_min} 次")
+            short_labels = {'門診表現(OPD)': 'OPD', '一般病人照護（WARD）': 'WARD',
+                            '緊急處置（ED, DR）': 'ED/DR', '重症照護（PICU, NICU）': 'PICU/NICU', '病歷書寫': '病歷'}
+            lacking = [f"{short_labels.get(k, k)}({v}次)" for k, v in _item_counts.items() if v < _item_min]
+            if lacking:
+                st.caption(f"⚠️ 次數不足項目：{'、'.join(lacking)}")
         else:
             st.info("無 EPA 評核記錄")
 
@@ -2127,7 +2144,8 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1', resea
     tech_rate = completed_sessions / TOTAL_REQUIRED_SESSIONS * 100
     tech_status = _pass_fail(tech_rate, skill_pass_rate)
 
-    # ── 維度 2：EPA 均分（近半年）──
+    # ── 維度 2：EPA 均分（近半年）+ 各項目次數（各 ≥3 次）──
+    EPA_ITEM_MIN = 3  # 每項目近半年最低評核次數
     epa_data_all = resident_data[resident_data['評核項目'].astype(str).str.contains('EPA', na=False)] if '評核項目' in resident_data.columns else pd.DataFrame()
     epa_data = _filter_recent_6_months(epa_data_all)
     if not epa_data.empty and 'EPA可信賴程度_數值' in epa_data.columns:
@@ -2135,7 +2153,19 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1', resea
         epa_avg = float(epa_avg) if pd.notna(epa_avg) else None
     else:
         epa_avg = None
-    epa_status = _pass_fail(epa_avg, score_threshold)
+    # 計算各項目近半年次數
+    epa_item_counts = {}
+    if not epa_data.empty and 'EPA項目' in epa_data.columns:
+        for item in PEDIATRIC_EPA_ITEMS:
+            epa_item_counts[item] = int(epa_data[_match_epa_item(epa_data['EPA項目'], item)].shape[0])
+    else:
+        epa_item_counts = {item: 0 for item in PEDIATRIC_EPA_ITEMS}
+    all_items_enough = all(c >= EPA_ITEM_MIN for c in epa_item_counts.values())
+    # 均分達標 且 所有項目各 ≥3 次，才算 EPA PASS
+    if epa_avg is not None and epa_avg >= score_threshold and all_items_enough:
+        epa_status = 'PASS'
+    else:
+        epa_status = 'FAIL'
 
     # ── 維度 3：會議報告均分（近半年）──
     meeting_data = _filter_recent_6_months(
@@ -2170,7 +2200,8 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1', resea
         'technical': {'status': tech_status, 'pass_rate': tech_rate,
                       'completed_skills': completed_skills, 'total_skills': total_skills,
                       'completed_sessions': completed_sessions, 'total_required_sessions': total_required_sessions},
-        'epa':       {'status': epa_status,  'avg_score': epa_avg},
+        'epa':       {'status': epa_status, 'avg_score': epa_avg,
+                      'item_counts': epa_item_counts, 'item_min': EPA_ITEM_MIN},
         'meeting':   {'status': meeting_status, 'avg_score': meeting_avg},
         'research':  {'status': research_status, 'published_count': research_published},
     }
