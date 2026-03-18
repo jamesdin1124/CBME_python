@@ -1695,75 +1695,75 @@ def show_individual_analysis():
 
 
 def show_epa_item_bar(item_df, epa_item, resident_level='R1'):
-    """單一 EPA 項目的分數分布橫向堆疊長條圖（紅/黃/綠），含個別得分散點"""
+    """單一 EPA 項目：時間折線圖，點以分數著色（紅/黃/綠），顯示趨勢"""
     import plotly.graph_objects as go
 
     th = _get_level_thresholds(resident_level)
     score_col = 'EPA可信賴程度_數值'
 
-    # 統計分數分布
-    red = yellow = green = 0
-    scores = []
-    if not item_df.empty and score_col in item_df.columns:
-        for s in item_df[score_col].dropna():
-            scores.append(float(s))
-            if s >= 3.5:
-                green += 1
-            elif s >= 2.5:
-                yellow += 1
-            else:
-                red += 1
+    if item_df.empty or score_col not in item_df.columns or '評核日期' not in item_df.columns:
+        st.caption("尚無此項目評核記錄")
+        return
 
-    total = red + yellow + green
-    avg = sum(scores) / len(scores) if scores else None
+    plot_df = item_df[['評核日期', score_col, '評核教師']].dropna(subset=[score_col]).copy()
+    plot_df['評核日期'] = pd.to_datetime(plot_df['評核日期'], errors='coerce')
+    plot_df = plot_df.dropna(subset=['評核日期']).sort_values('評核日期')
+
+    if plot_df.empty:
+        st.caption("尚無此項目評核記錄")
+        return
+
+    scores = plot_df[score_col].tolist()
+    dates  = plot_df['評核日期'].tolist()
+    teachers = plot_df['評核教師'].tolist() if '評核教師' in plot_df.columns else [''] * len(scores)
+
+    # 點的顏色依分數
+    point_colors = ['#27ae60' if s >= 3.5 else ('#f39c12' if s >= 2.5 else '#e74c3c') for s in scores]
+
+    avg = sum(scores) / len(scores)
+    total = len(scores)
 
     fig = go.Figure()
 
-    # 堆疊橫條（只有一行：該 EPA 項目）
-    label = epa_item
-    fig.add_trace(go.Bar(
-        y=[label], x=[red], name='< 2.5 分', orientation='h',
-        marker_color='#e74c3c',
-        hovertemplate='<2.5分: %{x}次<extra></extra>'
-    ))
-    fig.add_trace(go.Bar(
-        y=[label], x=[yellow], name='2.5~<3.5 分', orientation='h',
-        marker_color='#f39c12',
-        hovertemplate='2.5~<3.5分: %{x}次<extra></extra>'
-    ))
-    fig.add_trace(go.Bar(
-        y=[label], x=[green], name='≥ 3.5 分', orientation='h',
-        marker_color='#27ae60',
-        hovertemplate='≥3.5分: %{x}次<extra></extra>'
-    ))
-
-    # 個別得分散點（疊加在長條上）
-    if scores:
-        fig.add_trace(go.Scatter(
-            y=[label] * len(scores),
-            x=scores,
-            mode='markers',
-            marker=dict(color='white', size=10, symbol='circle',
-                        line=dict(color='#333', width=1.5)),
-            name='個別評分',
-            hovertemplate='評分: %{x}<extra></extra>'
-        ))
-
-    # 門檻垂直線
-    fig.add_vline(x=th['score_threshold'], line_dash='dash', line_color='red',
-                  annotation_text=f"門檻 {th['score_threshold']}", annotation_position='top right')
-
-    avg_text = f"均分 {avg:.2f}" if avg is not None else "無資料"
-    fig.update_layout(
-        barmode='stack',
-        height=130,
-        margin=dict(l=5, r=5, t=28, b=5),
-        xaxis=dict(title='', range=[0, max(total + 0.5, th['score_threshold'] + 0.5, 5)]),
-        yaxis=dict(visible=False),
+    # 連線（淺灰，僅連接趨勢）
+    fig.add_trace(go.Scatter(
+        x=dates, y=scores,
+        mode='lines',
+        line=dict(color='#cccccc', width=1.5),
         showlegend=False,
-        title=dict(text=f"{avg_text}　共 {total} 次", font=dict(size=13), x=0),
+        hoverinfo='skip',
+    ))
+
+    # 個別評分散點（依分數著色）
+    for color, label_text in [('#e74c3c', '< 2.5'), ('#f39c12', '2.5~<3.5'), ('#27ae60', '≥ 3.5')]:
+        mask = [c == color for c in point_colors]
+        if any(mask):
+            fig.add_trace(go.Scatter(
+                x=[d for d, m in zip(dates, mask) if m],
+                y=[s for s, m in zip(scores, mask) if m],
+                mode='markers',
+                name=label_text,
+                marker=dict(color=color, size=11, line=dict(color='white', width=1.5)),
+                customdata=[[t] for t, m in zip(teachers, mask) if m],
+                hovertemplate='%{x|%Y-%m-%d}　%{y} 分　評核：%{customdata[0]}<extra></extra>',
+            ))
+
+    # 門檻水平線
+    fig.add_hline(y=th['score_threshold'], line_dash='dash', line_color='red',
+                  annotation_text=f"門檻 {th['score_threshold']}",
+                  annotation_position='top right')
+
+    fig.update_layout(
+        height=200,
+        margin=dict(l=5, r=5, t=30, b=5),
+        xaxis=dict(title='', tickformat='%m/%d'),
+        yaxis=dict(range=[1, 5.3], dtick=1, title=''),
+        showlegend=True,
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='left', x=0,
+                    font=dict(size=11)),
+        title=dict(text=f"均分 {avg:.2f}　共 {total} 次", font=dict(size=12), x=0),
     )
-    st.plotly_chart(fig, width="stretch", key=f"epa_bar_{epa_item}_{resident_level}")
+    st.plotly_chart(fig, width="stretch", key=f"epa_line_{epa_item}_{resident_level}")
 
 
 def show_epa_trend_chart(epa_data, resident_name, resident_level='R1'):
