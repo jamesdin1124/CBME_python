@@ -892,7 +892,9 @@ def show_resident_cards(all_status, df):
                     st.metric("技能達標率", f"{tech_rate:.0f}%" if tech_rate is not None else "—")
                     tech_icon = _status_emoji(info['technical']['status'])
                     st.caption(f"{tech_icon} 門檻 ≥{th['skill_pass_rate']}%")
-                    st.caption(f"({done}/{total} 項達標)")
+                    sess_done = info['technical'].get('completed_sessions', done)
+                    sess_total = info['technical'].get('total_required_sessions', total)
+                    st.caption(f"({sess_done}/{sess_total} 次，{done}/{total} 項達標)")
                 with c3:
                     mtg_val = info['meeting']['avg_score']
                     st.metric("會議報告均分", f"{mtg_val:.1f}" if mtg_val is not None else "—")
@@ -1411,13 +1413,15 @@ def show_individual_analysis():
                 or (d['required'] == 0 and d['completed'] > 0)
             )
             total_skills = len(skill_counts)
-            rate = completed_skills / total_skills
+            total_req_sessions = sum(d['required'] for d in skill_counts.values())
+            done_sessions = sum(d['capped'] for d in skill_counts.values())
+            rate = done_sessions / total_req_sessions if total_req_sessions > 0 else 0
             st.progress(min(rate, 1.0), text=f"已完成 {completed_skills} / {total_skills} 項")
             unfinished = [name for name, d in skill_counts.items() if d['required'] > 0 and d['completed'] < d['required']]
             tech_rate = status['technical']['pass_rate']
             tech_emoji = _status_emoji(status['technical']['status'])
             tech_val = f"{tech_rate:.0f}%" if tech_rate is not None else "N/A"
-            st.caption(f"達標率 {tech_val}（{completed_skills}/{total_skills}項）　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
+            st.caption(f"達標率 {tech_val}（{done_sessions}/{total_req_sessions}次）　{tech_emoji} 門檻 ≥{th['skill_pass_rate']}%")
             if unfinished:
                 st.caption(f"⚠️ 尚有 {len(unfinished)} 項未達標，詳見下方「操作技術」區塊")
         else:
@@ -2020,11 +2024,13 @@ def calculate_skill_counts(resident_data):
                     else:
                         count += 1
             
+            req = PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum']
             skill_counts[skill] = {
                 'completed': count,
-                'required': PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'],
+                'required': req,
+                'capped': min(count, req) if req > 0 else (1 if count > 0 else 0),
                 'description': PEDIATRIC_SKILL_REQUIREMENTS[skill]['description'],
-                'progress': min(count / PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'] * 100, 100) if PEDIATRIC_SKILL_REQUIREMENTS[skill]['minimum'] > 0 else (100.0 if count > 0 else 0.0)
+                'progress': min(count / req * 100, 100) if req > 0 else (100.0 if count > 0 else 0.0)
             }
     
     return skill_counts
@@ -2044,7 +2050,8 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
             return 'FAIL'
         return 'PASS' if value >= threshold else 'FAIL'
 
-    # ── 維度 1：技能達標率（16 項技能中，達標項目的佔比）──
+    # ── 維度 1：技能達標率（各技能有效次數 / 所有技能最低需求次數加總）──
+    # 每技能有效次數上限為該技能最低要求次數（超過不重複計算）
     technical_data = resident_data[resident_data['評核項目'] == '操作技術'] if '評核項目' in resident_data.columns else pd.DataFrame()
     skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
     total_skills = len(PEDIATRIC_SKILL_REQUIREMENTS)
@@ -2053,7 +2060,11 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
         if (d['required'] > 0 and d['completed'] >= d['required'])
         or (d['required'] == 0 and d['completed'] > 0)
     )
-    tech_rate = completed_skills / total_skills * 100 if total_skills > 0 else None
+    total_required_sessions = sum(d['required'] for d in skill_counts.values()) if skill_counts else sum(
+        v['minimum'] for v in PEDIATRIC_SKILL_REQUIREMENTS.values()
+    )
+    completed_sessions = sum(d['capped'] for d in skill_counts.values()) if skill_counts else 0
+    tech_rate = completed_sessions / total_required_sessions * 100 if total_required_sessions > 0 else None
     tech_status = _pass_fail(tech_rate, skill_pass_rate)
 
     # ── 維度 2：EPA 均分 ──
@@ -2085,7 +2096,8 @@ def calculate_resident_status(resident_data, full_df, resident_level='R1'):
         'overall': overall,
         'thresholds': th,
         'technical': {'status': tech_status, 'pass_rate': tech_rate,
-                      'completed_skills': completed_skills, 'total_skills': total_skills},
+                      'completed_skills': completed_skills, 'total_skills': total_skills,
+                      'completed_sessions': completed_sessions, 'total_required_sessions': total_required_sessions},
         'epa':       {'status': epa_status,  'avg_score': epa_avg},
         'meeting':   {'status': meeting_status, 'avg_score': meeting_avg},
     }
