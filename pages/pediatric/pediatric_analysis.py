@@ -1530,40 +1530,39 @@ def show_individual_analysis():
 
 > ≥ 2.5 分（黃燈以上）= 計入技能完成次數 ｜ 綠燈固定 ≥ 3.5 分，黃燈 ≥ 2.5 分
 """)
-    col_left, col_right = st.columns([1.2, 0.8])
+    # 準備技能計數資料
+    _sk_data = skill_counts if skill_counts else (
+        calculate_skill_counts(technical_data) if not technical_data.empty else {}
+    )
+    display_cols = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '操作技術教師回饋']
+    avail = [c for c in display_cols if c in technical_data.columns] if not technical_data.empty else []
 
-    with col_left:
-        st.markdown("**各類別技能進度**")
-        if skill_counts:
-            show_grouped_skill_progress(skill_counts, technical_data, resident_level)
-        else:
-            _sk = calculate_skill_counts(technical_data) if not technical_data.empty else {}
-            if _sk:
-                show_grouped_skill_progress(_sk, technical_data, resident_level)
+    # 每個技能分組各自一排，左邊進度圖 / 右邊詳細記錄表格
+    for group_name, group_skills in SKILL_GROUPS.items():
+        col_left, col_right = st.columns([1.2, 0.8])
+
+        with col_left:
+            if _sk_data:
+                show_grouped_skill_progress(_sk_data, technical_data, resident_level,
+                                            target_group=group_name)
             else:
                 st.info("無操作技術評核記錄")
 
-    with col_right:
-        st.markdown("**詳細記錄**")
-        if not technical_data.empty:
-            display_cols = ['評核日期', '評核教師', '評核技術項目',
-                           '可信賴程度', '操作技術教師回饋']
-            avail = [c for c in display_cols if c in technical_data.columns]
-            if avail:
-                for group_name, group_skills in SKILL_GROUPS.items():
-                    # 篩選屬於該分類的記錄
-                    group_mask = technical_data['評核技術項目'].apply(
-                        lambda x: any(skill in str(x) for skill in group_skills)
-                    ) if '評核技術項目' in technical_data.columns else pd.Series(False, index=technical_data.index)
-                    group_df = technical_data[group_mask][avail].sort_values('評核日期', ascending=False)
-                    label = f"**{group_name}**（{len(group_df)} 筆）"
-                    with st.expander(label, expanded=True):
-                        if not group_df.empty:
-                            st.dataframe(group_df, width="stretch", hide_index=True)
-                        else:
-                            st.caption("尚無此類別評核記錄")
-        else:
-            st.info("無操作技術評核記錄")
+        with col_right:
+            if avail and not technical_data.empty:
+                group_mask = technical_data['評核技術項目'].apply(
+                    lambda x: any(skill in str(x) for skill in group_skills)
+                ) if '評核技術項目' in technical_data.columns else pd.Series(False, index=technical_data.index)
+                group_df = technical_data[group_mask][avail].sort_values('評核日期', ascending=False)
+                # 與左欄標題對齊的間距
+                st.markdown(f"**{group_name} 詳細記錄**（{len(group_df)} 筆）")
+                if not group_df.empty:
+                    st.dataframe(group_df, width="stretch", hide_index=True)
+                else:
+                    st.caption("尚無此類別評核記錄")
+            else:
+                st.markdown(f"**{group_name} 詳細記錄**")
+                st.info("無操作技術評核記錄")
 
     # ═══ Section 3：會議報告分析（左右兩欄）═══
     st.markdown("### 會議報告分析")
@@ -2210,8 +2209,9 @@ def show_skill_progress(skill_counts, resident_name):
         # 添加分隔線
         st.markdown("---")
 
-def show_grouped_skill_progress(skill_counts, technical_data=None, resident_level='R1'):
-    """技能分組堆疊長條圖：固定著色（綠≥3.5 / 黃≥2.5 / 紅<2.5），按三組呈現"""
+def show_grouped_skill_progress(skill_counts, technical_data=None, resident_level='R1', target_group=None):
+    """技能分組堆疊長條圖：固定著色（綠≥3.5 / 黃≥2.5 / 紅<2.5），按三組呈現
+    target_group: 若指定，只渲染該分組名稱（用於左右對齊佈局）"""
     import plotly.graph_objects as go
     green_threshold = 3.5  # 固定門檻，不隨年級變動
 
@@ -2241,6 +2241,8 @@ def show_grouped_skill_progress(skill_counts, technical_data=None, resident_leve
         return red, yellow, green, no_score
 
     for group_name, group_skills in SKILL_GROUPS.items():
+        if target_group is not None and group_name != target_group:
+            continue
         st.markdown(f"**{group_name}**")
 
         skills_list = []
