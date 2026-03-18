@@ -1529,31 +1529,41 @@ def show_individual_analysis():
         else:
             st.info("研究進度功能需要 Supabase 連線")
 
-    # ═══ Section 2：EPA 趨勢分析（左右兩欄）═══
-    st.markdown("### EPA 趨勢分析")
+    # ═══ Section 2：EPA 評核分析 ═══
+    st.markdown("### EPA 評核分析")
+    st.caption("📅 以近半年（180天）資料為準；各項目需 ≥3 次且均分達標")
 
-    if not epa_data.empty and 'EPA項目' in epa_data.columns and '評核日期' in epa_data.columns:
-        col_left, col_right = st.columns([1.2, 0.8])
+    if not epa_data.empty and 'EPA項目' in epa_data.columns:
+        epa_display_cols = ['評核日期', '評核教師', 'EPA可信賴程度', 'EPA質性回饋']
 
-        with col_left:
-            st.markdown("**信賴程度月度趨勢**")
-            st.caption("各 EPA 項目每月平均可信賴程度變化（近半年）")
-            show_epa_trend_chart(epa_data, selected_resident, resident_level)
+        for epa_item in PEDIATRIC_EPA_ITEMS:
+            item_mask = _match_epa_item(epa_data['EPA項目'], epa_item)
+            item_df = epa_data[item_mask].copy()
+            col_left, col_right = st.columns([1.2, 0.8])
 
-        with col_right:
-            st.markdown("**詳細記錄**")
-            display_cols = ['評核日期', '評核教師', 'EPA項目',
-                           'EPA可信賴程度', 'EPA質性回饋']
-            avail = [c for c in display_cols if c in epa_data.columns]
-            if avail:
-                with st.container(border=True, height=500):
+            with col_left:
+                show_epa_item_bar(item_df, epa_item, resident_level)
+
+            with col_right:
+                cnt = len(item_df)
+                _item_min_disp = status['epa'].get('item_min', 3)
+                warn = '' if cnt >= _item_min_disp else f' ⚠️（{cnt}/{_item_min_disp}次）'
+                st.markdown(f"**{epa_item} 詳細記錄**{warn}")
+                avail_epa = [c for c in epa_display_cols if c in item_df.columns]
+                if avail_epa and not item_df.empty:
                     st.dataframe(
-                        epa_data[avail].sort_values('評核日期', ascending=False),
-                        width="stretch",
-                        hide_index=True
+                        item_df[avail_epa].sort_values('評核日期', ascending=False),
+                        width="stretch", hide_index=True
                     )
+                else:
+                    st.caption("尚無此項目評核記錄")
+
+        # 月度趨勢折線圖（摺疊）
+        with st.expander("📈 月度趨勢折線圖（各項目平均）"):
+            if '評核日期' in epa_data.columns:
+                show_epa_trend_chart(epa_data, selected_resident, resident_level)
             else:
-                st.info("無 EPA 詳細記錄")
+                st.info("缺少日期欄位，無法繪製趨勢圖")
     else:
         st.info("無 EPA 評核記錄")
 
@@ -1682,6 +1692,78 @@ def show_individual_analysis():
     if conn:
         st.markdown("### 📚 研究進度")
         show_resident_research_progress(conn, selected_resident)
+
+
+def show_epa_item_bar(item_df, epa_item, resident_level='R1'):
+    """單一 EPA 項目的分數分布橫向堆疊長條圖（紅/黃/綠），含個別得分散點"""
+    import plotly.graph_objects as go
+
+    th = _get_level_thresholds(resident_level)
+    score_col = 'EPA可信賴程度_數值'
+
+    # 統計分數分布
+    red = yellow = green = 0
+    scores = []
+    if not item_df.empty and score_col in item_df.columns:
+        for s in item_df[score_col].dropna():
+            scores.append(float(s))
+            if s >= 3.5:
+                green += 1
+            elif s >= 2.5:
+                yellow += 1
+            else:
+                red += 1
+
+    total = red + yellow + green
+    avg = sum(scores) / len(scores) if scores else None
+
+    fig = go.Figure()
+
+    # 堆疊橫條（只有一行：該 EPA 項目）
+    label = epa_item
+    fig.add_trace(go.Bar(
+        y=[label], x=[red], name='< 2.5 分', orientation='h',
+        marker_color='#e74c3c',
+        hovertemplate='<2.5分: %{x}次<extra></extra>'
+    ))
+    fig.add_trace(go.Bar(
+        y=[label], x=[yellow], name='2.5~<3.5 分', orientation='h',
+        marker_color='#f39c12',
+        hovertemplate='2.5~<3.5分: %{x}次<extra></extra>'
+    ))
+    fig.add_trace(go.Bar(
+        y=[label], x=[green], name='≥ 3.5 分', orientation='h',
+        marker_color='#27ae60',
+        hovertemplate='≥3.5分: %{x}次<extra></extra>'
+    ))
+
+    # 個別得分散點（疊加在長條上）
+    if scores:
+        fig.add_trace(go.Scatter(
+            y=[label] * len(scores),
+            x=scores,
+            mode='markers',
+            marker=dict(color='white', size=10, symbol='circle',
+                        line=dict(color='#333', width=1.5)),
+            name='個別評分',
+            hovertemplate='評分: %{x}<extra></extra>'
+        ))
+
+    # 門檻垂直線
+    fig.add_vline(x=th['score_threshold'], line_dash='dash', line_color='red',
+                  annotation_text=f"門檻 {th['score_threshold']}", annotation_position='top right')
+
+    avg_text = f"均分 {avg:.2f}" if avg is not None else "無資料"
+    fig.update_layout(
+        barmode='stack',
+        height=130,
+        margin=dict(l=5, r=5, t=28, b=5),
+        xaxis=dict(title='', range=[0, max(total + 0.5, th['score_threshold'] + 0.5, 5)]),
+        yaxis=dict(visible=False),
+        showlegend=False,
+        title=dict(text=f"{avg_text}　共 {total} 次", font=dict(size=13), x=0),
+    )
+    st.plotly_chart(fig, width="stretch", key=f"epa_bar_{epa_item}_{resident_level}")
 
 
 def show_epa_trend_chart(epa_data, resident_name, resident_level='R1'):
