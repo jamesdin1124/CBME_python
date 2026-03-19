@@ -1888,13 +1888,17 @@ def show_individual_analysis():
         with mtg_tab:
             if mt == '全部':
                 mt_data = meeting_data
+                # 同儕：同一年級、所有會議類型
+                mt_peer = peer_meeting
             else:
                 mt_data = meeting_data[meeting_data['會議名稱'] == mt].copy() if not meeting_data.empty and '會議名稱' in meeting_data.columns else pd.DataFrame()
+                # 同儕：同一年級 & 同一會議類型
+                mt_peer = peer_meeting[peer_meeting['會議名稱'] == mt].copy() if not peer_meeting.empty and '會議名稱' in peer_meeting.columns else pd.DataFrame()
 
             col_left, col_right = st.columns([1.2, 0.8])
             with col_left:
                 _mt_safe = re.sub(r'[^A-Za-z0-9\u4e00-\u9fff]', '_', str(mt))
-                show_meeting_radar_large(mt_data, peer_meeting, selected_resident, resident_level,
+                show_meeting_radar_large(mt_data, mt_peer, selected_resident, resident_level,
                                          chart_key=f"mtg_radar_{_mt_safe}_{selected_resident}")
 
             with col_right:
