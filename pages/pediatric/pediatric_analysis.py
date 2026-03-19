@@ -157,15 +157,18 @@ def show_pediatric_evaluation_section():
     can_manage_users = check_permission(user_role, 'can_manage_users')
     is_resident = (user_role == 'resident')
 
-    # 動態建立 tabs（住院醫師只顯示「個別深入分析」和「我的表單」）
+    # 動態建立 tabs（住院醫師顯示「CCC 總覽」、「個別深入分析」和「我的表單」）
     if is_resident:
-        tab_labels = ["📋 個別深入分析", "📝 我的表單"]
+        tab_labels = ["🏆 CCC 總覽", "📋 個別深入分析", "📝 我的表單"]
         tabs = st.tabs(tab_labels)
 
         with tabs[0]:
-            show_individual_analysis()
+            show_ccc_overview()
 
         with tabs[1]:
+            show_individual_analysis()
+
+        with tabs[2]:
             conn = _get_supabase_conn()
             if conn:
                 from pages.pediatric.pediatric_resident_forms import show_resident_forms_tab

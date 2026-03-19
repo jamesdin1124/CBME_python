@@ -21,7 +21,7 @@ from pages.ugy.ugy_peers import show_UGY_peer_analysis_section
 from pages.ugy.ugy_overview import show_ugy_student_overview
 from pages.ugy.ugy_individual import show_ugy_student_analysis
 from pages.ugy.ugy_teacher_analysis import show_ugy_teacher_analysis
-from pages.ugy.ugy_epa_form import show_ugy_epa_form, show_ugy_epa_batch_form
+from pages.ugy.ugy_epa_form import show_ugy_epa_form
 from pages.ugy.ugy_student_portal import show_student_portal_for_logged_in
 from modules.ugy_student_manager import show_ugy_student_management
 from config.epa_constants import EPA_LEVEL_MAPPING
@@ -688,7 +688,7 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_tab_names = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單", "批次評核"]
+                            ugy_tab_names = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單"]
                             if st.session_state.get('role') in ['admin', 'department_admin']:
                                 ugy_tab_names.append("學生帳號管理")
                             ugy_subtabs = st.tabs(ugy_tab_names)
@@ -708,11 +708,8 @@ def main():
                             with ugy_subtabs[3]:
                                 show_ugy_epa_form()
 
-                            with ugy_subtabs[4]:
-                                show_ugy_epa_batch_form()
-
                             if st.session_state.get('role') in ['admin', 'department_admin']:
-                                with ugy_subtabs[5]:
+                                with ugy_subtabs[4]:
                                     show_ugy_student_management()
     else:
         # 為非學生角色準備 current_data
@@ -740,7 +737,7 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_tab_names2 = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單", "批次評核"]
+                            ugy_tab_names2 = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單"]
                             if st.session_state.get('role') in ['admin', 'department_admin']:
                                 ugy_tab_names2.append("學生帳號管理")
                             ugy_subtabs = st.tabs(ugy_tab_names2)
@@ -760,11 +757,8 @@ def main():
                             with ugy_subtabs[3]:
                                 show_ugy_epa_form()
 
-                            with ugy_subtabs[4]:
-                                show_ugy_epa_batch_form()
-
                             if st.session_state.get('role') in ['admin', 'department_admin']:
-                                with ugy_subtabs[5]:
+                                with ugy_subtabs[4]:
                                     show_ugy_student_management()
 
                 elif tab_name == "PGY":

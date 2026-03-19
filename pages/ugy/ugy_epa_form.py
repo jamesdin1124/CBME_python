@@ -54,6 +54,15 @@ def _get_ugy_student_names():
         return []
 
 
+def _get_ugy_student_options():
+    """從 Supabase 取得已註冊的 UGY 學生選項（姓名+學號）"""
+    try:
+        from modules.ugy_student_manager import get_ugy_student_options
+        return get_ugy_student_options()
+    except Exception:
+        return []
+
+
 def _submit_ugy_epa(data):
     """寫入 UGY EPA 紀錄到 Supabase"""
     try:
@@ -94,8 +103,10 @@ def show_ugy_epa_form():
 
     current_user = st.session_state.get('user_name', st.session_state.get('username', ''))
 
-    # 取得已註冊學生清單
-    registered_students = _get_ugy_student_names()
+    # 取得已註冊學生清單（含學號）
+    student_options = _get_ugy_student_options()
+    # 建立 display → student_option 的對照
+    display_list = [opt['display'] for opt in student_options]  # "姓名（學號）"
 
     with st.form("ugy_epa_form", clear_on_submit=True):
         # ── 第一列：學員資訊 ──
@@ -103,22 +114,29 @@ def show_ugy_epa_form():
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            # 學生姓名：下拉 + 手動輸入
-            if registered_students:
-                input_mode = st.radio(
-                    "輸入方式", ['從名單選擇', '手動輸入'],
-                    horizontal=True, key='ugy_name_mode'
+            # 學生選擇：可輸入部分姓名或學號搜尋
+            if student_options:
+                selected_display = st.selectbox(
+                    "學員姓名/學號 *（可輸入搜尋）",
+                    options=[''] + display_list,
+                    key='ugy_student_select',
+                    help="輸入部分姓名或學號即可搜尋，以學號為唯一辨識"
                 )
-                if input_mode == '從名單選擇':
-                    student_name = st.selectbox(
-                        "學員姓名 *",
-                        options=[''] + registered_students,
-                        key='ugy_student_select'
+                # 從選取結果反查學生資訊
+                if selected_display:
+                    matched = next(
+                        (opt for opt in student_options if opt['display'] == selected_display),
+                        None
                     )
+                    student_name = matched['full_name'] if matched else ''
+                    student_id_val = matched['student_id'] if matched else ''
                 else:
-                    student_name = st.text_input("學員姓名 *", key='ugy_student_manual')
+                    student_name = ''
+                    student_id_val = ''
             else:
-                student_name = st.text_input("學員姓名 *", key='ugy_student_manual')
+                st.warning("尚無已註冊學生，請先於帳號管理匯入學生名冊。")
+                student_name = ''
+                student_id_val = ''
 
         with col2:
             cohort = st.selectbox("階層 *", options=COHORT_OPTIONS, key='ugy_cohort')
@@ -196,6 +214,7 @@ def show_ugy_epa_form():
 
             record = {
                 '學員姓名': student_name,
+                '學號': student_id_val or None,
                 '階層': cohort,
                 '實習科部': department,
                 'EPA評核項目': epa_item,
@@ -215,106 +234,108 @@ def show_ugy_epa_form():
 
             result = _submit_ugy_epa(record)
             if result:
-                st.success(f"已提交 **{student_name}** 的 **{epa_item}** EPA 評核！")
+                st.success(f"已提交 **{student_name}**（{student_id_val}）的 **{epa_item}** EPA 評核！")
                 st.balloons()
             else:
                 st.error("提交失敗，請檢查網路連線或聯繫管理員。")
 
 
-def show_ugy_epa_batch_form():
-    """批次 EPA 評核（同一次評核多位學員）"""
-    st.subheader("📝 批次 UGY EPA 評核")
-    st.caption("一次評核同科同情境的多位學員。")
-
-    current_user = st.session_state.get('user_name', st.session_state.get('username', ''))
-    registered_students = _get_ugy_student_names()
-
-    with st.form("ugy_epa_batch_form", clear_on_submit=True):
-        # 共用欄位
-        st.markdown("### 共用資訊")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            department = st.selectbox("實習科部", options=DEPARTMENT_OPTIONS)
-            epa_item = st.selectbox("EPA 評核項目", options=EPA_ITEMS)
-        with col2:
-            location = st.text_input("地點")
-            difficulty = st.selectbox("病人難度", options=DIFFICULTY_OPTIONS, index=1)
-        with col3:
-            patient_id = st.text_input("病歷號（選填）")
-            clinical_scenario = st.text_input("臨床情境")
-
-        teacher_name = st.text_input("教師姓名", value=current_user)
-
-        st.markdown("---")
-        st.markdown("### 個別學員評核")
-
-        # 動態新增學員（最多 10 位）
-        num_students = st.number_input("評核學員人數", min_value=1, max_value=10, value=3)
-
-        student_entries = []
-        for i in range(int(num_students)):
-            st.markdown(f"**學員 {i+1}**")
-            cols = st.columns([2, 1, 2, 2])
-            with cols[0]:
-                if registered_students:
-                    sname = st.selectbox(
-                        f"姓名", options=[''] + registered_students,
-                        key=f'batch_name_{i}'
-                    )
-                else:
-                    sname = st.text_input(f"姓名", key=f'batch_name_{i}')
-            with cols[1]:
-                scohort = st.selectbox(f"階層", options=COHORT_OPTIONS, key=f'batch_cohort_{i}')
-            with cols[2]:
-                slevel = st.selectbox(
-                    f"EPA 等級", options=EPA_LEVEL_OPTIONS,
-                    index=3, key=f'batch_level_{i}'
-                )
-            with cols[3]:
-                sfeedback = st.text_input(f"回饋", key=f'batch_fb_{i}')
-
-            student_entries.append({
-                'name': sname, 'cohort': scohort,
-                'level': slevel, 'feedback': sfeedback
-            })
-
-        submitted = st.form_submit_button("批次提交", type="primary")
-
-        if submitted:
-            if not teacher_name:
-                st.error("請填寫教師姓名")
-                return
-
-            success_count = 0
-            for entry in student_entries:
-                if not entry['name']:
-                    continue
-
-                level_score = EPA_LEVEL_MAPPING.get(entry['level'], 0)
-                record = {
-                    '學員姓名': entry['name'],
-                    '階層': entry['cohort'],
-                    '實習科部': department,
-                    'EPA評核項目': epa_item,
-                    '地點': location or None,
-                    '教師評核EPA等級': entry['level'],
-                    '教師評核EPA等級_數值': level_score,
-                    '學員自評EPA等級': None,
-                    '病歷號': patient_id or None,
-                    '病人難度': difficulty,
-                    '臨床情境': clinical_scenario or None,
-                    '回饋': entry['feedback'] or 'Good',
-                    '給教學部的私下回饋': None,
-                    '教師': teacher_name,
-                    'evaluation_date': str(date.today()),
-                    '時間戳記': datetime.now().isoformat(),
-                }
-                result = _submit_ugy_epa(record)
-                if result:
-                    success_count += 1
-
-            if success_count > 0:
-                st.success(f"成功提交 {success_count} 筆 EPA 評核！")
-                st.balloons()
-            else:
-                st.error("提交失敗，請檢查資料。")
+# ═══════════════════════════════════════════════════════
+# 批次評核功能（已停用，保留程式碼備用）
+# ═══════════════════════════════════════════════════════
+# def show_ugy_epa_batch_form():
+#     """批次 EPA 評核（同一次評核多位學員）"""
+#     st.subheader("📝 批次 UGY EPA 評核")
+#     st.caption("一次評核同科同情境的多位學員。")
+#
+#     current_user = st.session_state.get('user_name', st.session_state.get('username', ''))
+#     registered_students = _get_ugy_student_names()
+#
+#     with st.form("ugy_epa_batch_form", clear_on_submit=True):
+#         # 共用欄位
+#         st.markdown("### 共用資訊")
+#         col1, col2, col3 = st.columns(3)
+#         with col1:
+#             department = st.selectbox("實習科部", options=DEPARTMENT_OPTIONS)
+#             epa_item = st.selectbox("EPA 評核項目", options=EPA_ITEMS)
+#         with col2:
+#             location = st.text_input("地點")
+#             difficulty = st.selectbox("病人難度", options=DIFFICULTY_OPTIONS, index=1)
+#         with col3:
+#             patient_id = st.text_input("病歷號（選填）")
+#             clinical_scenario = st.text_input("臨床情境")
+#
+#         teacher_name = st.text_input("教師姓名", value=current_user)
+#
+#         st.markdown("---")
+#         st.markdown("### 個別學員評核")
+#
+#         num_students = st.number_input("評核學員人數", min_value=1, max_value=10, value=3)
+#
+#         student_entries = []
+#         for i in range(int(num_students)):
+#             st.markdown(f"**學員 {i+1}**")
+#             cols = st.columns([2, 1, 2, 2])
+#             with cols[0]:
+#                 if registered_students:
+#                     sname = st.selectbox(
+#                         f"姓名", options=[''] + registered_students,
+#                         key=f'batch_name_{i}'
+#                     )
+#                 else:
+#                     sname = st.text_input(f"姓名", key=f'batch_name_{i}')
+#             with cols[1]:
+#                 scohort = st.selectbox(f"階層", options=COHORT_OPTIONS, key=f'batch_cohort_{i}')
+#             with cols[2]:
+#                 slevel = st.selectbox(
+#                     f"EPA 等級", options=EPA_LEVEL_OPTIONS,
+#                     index=3, key=f'batch_level_{i}'
+#                 )
+#             with cols[3]:
+#                 sfeedback = st.text_input(f"回饋", key=f'batch_fb_{i}')
+#
+#             student_entries.append({
+#                 'name': sname, 'cohort': scohort,
+#                 'level': slevel, 'feedback': sfeedback
+#             })
+#
+#         submitted = st.form_submit_button("批次提交", type="primary")
+#
+#         if submitted:
+#             if not teacher_name:
+#                 st.error("請填寫教師姓名")
+#                 return
+#
+#             success_count = 0
+#             for entry in student_entries:
+#                 if not entry['name']:
+#                     continue
+#
+#                 level_score = EPA_LEVEL_MAPPING.get(entry['level'], 0)
+#                 record = {
+#                     '學員姓名': entry['name'],
+#                     '階層': entry['cohort'],
+#                     '實習科部': department,
+#                     'EPA評核項目': epa_item,
+#                     '地點': location or None,
+#                     '教師評核EPA等級': entry['level'],
+#                     '教師評核EPA等級_數值': level_score,
+#                     '學員自評EPA等級': None,
+#                     '病歷號': patient_id or None,
+#                     '病人難度': difficulty,
+#                     '臨床情境': clinical_scenario or None,
+#                     '回饋': entry['feedback'] or 'Good',
+#                     '給教學部的私下回饋': None,
+#                     '教師': teacher_name,
+#                     'evaluation_date': str(date.today()),
+#                     '時間戳記': datetime.now().isoformat(),
+#                 }
+#                 result = _submit_ugy_epa(record)
+#                 if result:
+#                     success_count += 1
+#
+#             if success_count > 0:
+#                 st.success(f"成功提交 {success_count} 筆 EPA 評核！")
+#                 st.balloons()
+#             else:
+#                 st.error("提交失敗，請檢查資料。")

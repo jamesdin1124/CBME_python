@@ -47,12 +47,35 @@ def get_ugy_student_names():
 
 
 def search_ugy_students(query):
-    """模糊搜尋學生姓名"""
+    """模糊搜尋學生（支援姓名或學號）"""
     students = get_all_ugy_students()
     if not query:
         return students
-    query_lower = query.lower()
-    return [s for s in students if query_lower in s.get('full_name', '').lower()]
+    query_lower = query.lower().strip()
+    return [
+        s for s in students
+        if query_lower in s.get('full_name', '').lower()
+        or query_lower in str(s.get('student_id', '')).lower()
+    ]
+
+
+def get_ugy_student_options():
+    """取得 UGY 學生清單（供表單搜尋使用），回傳 list of dict
+    每筆包含 full_name, student_id，以學號為唯一標記
+    顯示格式：姓名（學號）
+    """
+    students = get_all_ugy_students()
+    options = []
+    for s in students:
+        name = s.get('full_name', '')
+        sid = s.get('student_id', '')
+        if name and sid:
+            options.append({
+                'full_name': name,
+                'student_id': sid,
+                'display': f"{name}（{sid}）",
+            })
+    return sorted(options, key=lambda x: x['full_name'])
 
 
 def create_ugy_student(national_id, student_id, full_name,
