@@ -1619,6 +1619,9 @@ def show_individual_analysis():
             cnt_g = 0
         skill_group_tab_labels.append(f"{gname} ({cnt_g}筆)")
     skill_group_tabs = st.tabs(skill_group_tab_labels)
+    # 以最大分組項目數為基準，固定所有分組圖表高度（與導管插管類對齊）
+    _max_skill_items = max(len(g) for g in SKILL_GROUPS.values())
+    _fixed_chart_h = max(_max_skill_items * 50, 160)
 
     for tab_g, (group_name, group_skills) in zip(skill_group_tabs, SKILL_GROUPS.items()):
         with tab_g:
@@ -1626,7 +1629,8 @@ def show_individual_analysis():
             with col_left:
                 if _sk_data:
                     show_grouped_skill_progress(_sk_data, technical_data, resident_level,
-                                                target_group=group_name)
+                                                target_group=group_name,
+                                                chart_height=_fixed_chart_h)
                 else:
                     st.info("無操作技術評核記錄")
             with col_right:
@@ -1685,7 +1689,9 @@ def show_individual_analysis():
 
             col_left, col_right = st.columns([1.2, 0.8])
             with col_left:
-                show_meeting_radar_large(mt_data, peer_meeting, selected_resident, resident_level)
+                _mt_safe = re.sub(r'[^A-Za-z0-9\u4e00-\u9fff]', '_', str(mt))
+                show_meeting_radar_large(mt_data, peer_meeting, selected_resident, resident_level,
+                                         chart_key=f"mtg_radar_{_mt_safe}_{selected_resident}")
 
             with col_right:
                 st.markdown("**教師回饋**")
@@ -1863,7 +1869,7 @@ def show_epa_trend_chart(epa_data, resident_name, resident_level='R1'):
     st.plotly_chart(fig, width="stretch", key=f"epa_trend_{resident_name}")
 
 
-def show_meeting_radar_large(meeting_data, peer_meeting, resident_name, resident_level):
+def show_meeting_radar_large(meeting_data, peer_meeting, resident_name, resident_level, chart_key=None):
     """
     放大版會議報告雷達圖（用於左右兩欄版面的左欄）
 
@@ -1872,6 +1878,7 @@ def show_meeting_radar_large(meeting_data, peer_meeting, resident_name, resident
         peer_meeting: 同級職同儕的會議報告資料
         resident_name: 住院醫師姓名
         resident_level: 住院醫師級職
+        chart_key: plotly_chart 的唯一 key（多次呼叫時需傳入不同值避免 duplicate key）
     """
     radar_text_cols = [
         ('內容是否充分',           '內容充分'),
@@ -1938,8 +1945,8 @@ def show_meeting_radar_large(meeting_data, peer_meeting, resident_name, resident
             margin=dict(l=30, r=30, t=30, b=50)
         )
 
-        st.plotly_chart(fig_mtg, width="stretch",
-                       key=f"mtg_radar_large_{resident_name}")
+        _chart_key = chart_key if chart_key else f"mtg_radar_large_{resident_name}"
+        st.plotly_chart(fig_mtg, width="stretch", key=_chart_key)
     else:
         st.info("無會議報告評核記錄")
 
@@ -2365,9 +2372,10 @@ def show_skill_progress(skill_counts, resident_name):
         # 添加分隔線
         st.markdown("---")
 
-def show_grouped_skill_progress(skill_counts, technical_data=None, resident_level='R1', target_group=None):
+def show_grouped_skill_progress(skill_counts, technical_data=None, resident_level='R1', target_group=None, chart_height=None):
     """技能分組堆疊長條圖：固定著色（綠≥3.5 / 黃≥2.5 / 紅<2.5），按三組呈現
-    target_group: 若指定，只渲染該分組名稱（用於左右對齊佈局）"""
+    target_group: 若指定，只渲染該分組名稱（用於左右對齊佈局）
+    chart_height:  指定固定圖表高度（用於跨分頁對齊）"""
     import plotly.graph_objects as go
     green_threshold = 3.5  # 固定門檻，不隨年級變動
 
@@ -2469,9 +2477,10 @@ def show_grouped_skill_progress(skill_counts, technical_data=None, resident_leve
         max_req = max(required_vals) if required_vals else 1
         x_max = max(max_total, max_req) + 1
 
+        _h = chart_height if chart_height is not None else max(len(skills_list) * 45, 150)
         fig.update_layout(
             barmode='stack',
-            height=max(len(skills_list) * 45, 150),
+            height=_h,
             margin=dict(l=10, r=10, t=5, b=5),
             xaxis=dict(title='評核次數', dtick=1, range=[0, x_max]),
             yaxis=dict(automargin=True),
