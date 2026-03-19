@@ -1576,9 +1576,8 @@ def show_individual_analysis():
 > ≥ 2.5 分（黃燈以上）= 計入技能完成次數 ｜ 綠燈固定 ≥ 3.5 分，黃燈 ≥ 2.5 分
 """)
     # 準備技能計數資料
-    _sk_data = skill_counts if skill_counts else (
-        calculate_skill_counts(technical_data) if not technical_data.empty else {}
-    )
+    skill_counts = calculate_skill_counts(technical_data) if not technical_data.empty else {}
+    _sk_data = skill_counts
     display_cols = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '操作技術教師回饋']
     avail = [c for c in display_cols if c in technical_data.columns] if not technical_data.empty else []
 
