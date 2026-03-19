@@ -845,22 +845,23 @@ def show_ccc_overview():
 
     st.divider()
 
-    # ── Section C：並排長條圖 ──
-    show_comparison_bar_chart(all_status)
+    # ── Section C：三大主視圖（EPA / 技能 / 會議報告）──
+    ccc_tab_epa, ccc_tab_skill, ccc_tab_meeting = st.tabs([
+        "📈 EPA 趨勢", "🎯 技能完成度", "📑 會議報告"
+    ])
+
+    with ccc_tab_epa:
+        show_ccc_epa_by_item(df)
+
+    with ccc_tab_skill:
+        show_skill_heatmap(df)
+
+    with ccc_tab_meeting:
+        show_ccc_meeting_comparison(df)
 
     st.divider()
 
-    # ── Section D：技能熱圖矩陣 ──
-    show_skill_heatmap(df)
-
-    st.divider()
-
-    # ── Section E：EPA 整體趨勢（所有住院醫師）──
-    show_overall_epa_trend(df)
-
-    st.divider()
-
-    # ── Section F：研究進度總覽（若有 Supabase 連線）──
+    # ── Section D：研究進度總覽（若有 Supabase 連線）──
     conn = _get_supabase_conn()
     if conn:
         show_research_progress_overview(conn, residents)
@@ -1066,6 +1067,209 @@ def show_skill_heatmap(df):
         margin=dict(l=100, r=30, t=30, b=100)
     )
     st.plotly_chart(fig, width="stretch")
+
+
+def show_ccc_epa_by_item(df):
+    """CCC EPA 總覽：各 EPA 項目獨立分頁，每頁顯示所有住院醫師近半年月度趨勢折線圖"""
+    st.subheader("📈 EPA 各項目 — 近半年趨勢（所有住院醫師）")
+
+    epa_raw = df[df['評核項目'].astype(str).str.contains('EPA', na=False)].copy() if '評核項目' in df.columns else pd.DataFrame()
+    if epa_raw.empty or 'EPA可信賴程度_數值' not in epa_raw.columns:
+        st.info("目前沒有 EPA 評核資料")
+        return
+
+    epa_data = _filter_recent_6_months(epa_raw)
+    if epa_data.empty:
+        st.info("近半年內沒有 EPA 評核資料")
+        return
+
+    epa_data['評核日期'] = pd.to_datetime(epa_data['評核日期'], errors='coerce')
+    epa_data = epa_data.dropna(subset=['評核日期'])
+    epa_data['年月'] = epa_data['評核日期'].dt.to_period('M').astype(str)
+
+    residents_list = sorted(epa_data['受評核人員'].unique()) if '受評核人員' in epa_data.columns else []
+    colors = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd',
+              '#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf']
+
+    short_labels = {
+        '門診表現(OPD)':      'OPD',
+        '一般病人照護（WARD）': 'WARD',
+        '緊急處置（ED, DR）':  'ED/DR',
+        '重症照護（PICU, NICU）': 'PICU/NICU',
+        '病歷書寫':           '病歷書寫',
+    }
+
+    # 計算各項目的全體近半年均分，用於 tab 標籤
+    item_tabs_labels = []
+    for epa_item in PEDIATRIC_EPA_ITEMS:
+        item_mask = _match_epa_item(epa_data['EPA項目'], epa_item) if 'EPA項目' in epa_data.columns else pd.Series(False, index=epa_data.index)
+        item_cnt = int(item_mask.sum())
+        lbl = short_labels.get(epa_item, epa_item)
+        item_tabs_labels.append(f"{lbl} ({item_cnt})")
+
+    epa_item_tabs = st.tabs(item_tabs_labels)
+
+    for tab_ei, epa_item in zip(epa_item_tabs, PEDIATRIC_EPA_ITEMS):
+        with tab_ei:
+            if 'EPA項目' not in epa_data.columns:
+                st.info("資料缺少 EPA項目 欄位")
+                continue
+
+            item_mask = _match_epa_item(epa_data['EPA項目'], epa_item)
+            item_df = epa_data[item_mask].copy()
+
+            if item_df.empty:
+                st.caption("近半年無此項目評核記錄")
+                continue
+
+            # 各住院醫師月度平均
+            monthly = item_df.groupby(['受評核人員', '年月'])['EPA可信賴程度_數值'].mean().reset_index()
+            monthly.rename(columns={'EPA可信賴程度_數值': '月均分'}, inplace=True)
+
+            fig = go.Figure()
+            for i, resident in enumerate(residents_list):
+                res_data = monthly[monthly['受評核人員'] == resident].sort_values('年月')
+                if res_data.empty:
+                    continue
+                fig.add_trace(go.Scatter(
+                    x=res_data['年月'],
+                    y=res_data['月均分'],
+                    mode='lines+markers',
+                    name=resident,
+                    line=dict(width=2.5, color=colors[i % len(colors)]),
+                    marker=dict(size=8),
+                    hovertemplate=f'{resident}<br>%{{x}}<br>均分 %{{y:.2f}}<extra></extra>'
+                ))
+
+            # 年級門檻線
+            fig.add_hline(y=3.5, line_dash='dot', line_color='#c0392b', line_width=1.2,
+                          annotation_text='R3 ≥3.5', annotation_position='top left',
+                          annotation_font_size=11)
+            fig.add_hline(y=3.0, line_dash='dot', line_color='#e67e22', line_width=1.2,
+                          annotation_text='R2 ≥3.0', annotation_position='top left',
+                          annotation_font_size=11)
+            fig.add_hline(y=2.5, line_dash='dot', line_color='#27ae60', line_width=1.2,
+                          annotation_text='R1 ≥2.5', annotation_position='bottom left',
+                          annotation_font_size=11)
+
+            fig.update_layout(
+                height=380,
+                margin=dict(l=10, r=10, t=30, b=10),
+                xaxis=dict(title='', tickangle=-30),
+                yaxis=dict(range=[0, 5.5], title='EPA 月均分', dtick=1),
+                hovermode='x unified',
+                legend=dict(orientation='v', yanchor='top', y=1, xanchor='left', x=1.02,
+                            bgcolor='rgba(255,255,255,0.8)', bordercolor='rgba(0,0,0,0.15)',
+                            borderwidth=1),
+                margin_r=140
+            )
+            st.plotly_chart(fig, width="stretch", key=f"ccc_epa_trend_{epa_item}")
+
+
+def show_ccc_meeting_comparison(df):
+    """CCC 會議報告：各住院醫師五維度近半年平均分 — 熱圖矩陣"""
+    st.subheader("📑 會議報告 — 各維度近半年平均分")
+
+    mtg_raw = df[df['評核項目'].astype(str).str.contains('會議報告', na=False)].copy() if '評核項目' in df.columns else pd.DataFrame()
+    if mtg_raw.empty:
+        st.info("目前沒有會議報告評核資料")
+        return
+
+    mtg_data = _filter_recent_6_months(mtg_raw)
+    if mtg_data.empty:
+        st.info("近半年內沒有會議報告評核資料")
+        return
+
+    dim_cols = [
+        ('內容是否充分_數值',           '內容充分'),
+        ('辯證資料的能力_數值',         '辯證資料'),
+        ('口條、呈現方式是否清晰_數值', '口條清晰'),
+        ('是否具開創、建設性的想法_數值','開創想法'),
+        ('回答提問是否具邏輯、有條有理_數值','邏輯回答'),
+    ]
+    avail_dims = [(col, lbl) for col, lbl in dim_cols if col in mtg_data.columns]
+
+    if not avail_dims:
+        # 嘗試未轉換的原始欄位
+        dim_raw = [
+            ('內容是否充分', '內容充分'), ('辯證資料的能力', '辯證資料'),
+            ('口條、呈現方式是否清晰', '口條清晰'), ('是否具開創、建設性的想法', '開創想法'),
+            ('回答提問是否具邏輯、有條有理', '邏輯回答'),
+        ]
+        for col, lbl in dim_raw:
+            if col in mtg_data.columns:
+                mtg_data[f'{col}_數值'] = mtg_data[col].apply(convert_score_to_numeric)
+        avail_dims = [(f'{col}_數值', lbl) for col, lbl in dim_raw if f'{col}_數值' in mtg_data.columns]
+
+    if not avail_dims:
+        st.info("找不到會議報告評分欄位")
+        return
+
+    residents_sorted = sorted(mtg_data['受評核人員'].unique()) if '受評核人員' in mtg_data.columns else []
+    dim_labels = [lbl for _, lbl in avail_dims]
+
+    # 計算各住院醫師各維度平均（Z 矩陣，行=住院醫師，列=維度）
+    z_matrix   = []
+    text_matrix = []
+    overall_avgs = []
+
+    for name in residents_sorted:
+        res_df = mtg_data[mtg_data['受評核人員'] == name]
+        row_z, row_text = [], []
+        for col, _ in avail_dims:
+            vals = res_df[col].dropna()
+            avg = float(vals.mean()) if len(vals) > 0 else None
+            row_z.append(avg if avg is not None else 0)
+            row_text.append(f"{avg:.1f}" if avg is not None else "—")
+        z_matrix.append(row_z)
+        text_matrix.append(row_text)
+        overall_avgs.append(sum(v for v in row_z if v > 0) / max(len([v for v in row_z if v > 0]), 1))
+
+    # 按整體均分由低到高排列（進度慢的在上）
+    order = sorted(range(len(residents_sorted)), key=lambda i: overall_avgs[i])
+    residents_sorted = [residents_sorted[i] for i in order]
+    z_matrix   = [z_matrix[i] for i in order]
+    text_matrix = [text_matrix[i] for i in order]
+
+    colorscale = [
+        [0.0,   '#FF6B6B'],   # 紅（0分）
+        [0.4,   '#FFD93D'],   # 黃（2.0分）
+        [0.6,   '#FFF3B0'],   # 淺黃（3.0分）
+        [0.8,   '#90EE90'],   # 淺綠（4.0分）
+        [1.0,   '#27ae60'],   # 綠（5.0分）
+    ]
+
+    fig = go.Figure(data=go.Heatmap(
+        z=z_matrix,
+        x=dim_labels,
+        y=residents_sorted,
+        text=text_matrix,
+        texttemplate='%{text}',
+        textfont={"size": 13, "color": "black"},
+        colorscale=colorscale,
+        zmin=0, zmax=5,
+        showscale=True,
+        colorbar=dict(title='分數', thickness=14, tickvals=[1,2,3,4,5]),
+        hovertemplate='住院醫師：%{y}<br>維度：%{x}<br>均分：%{text}<extra></extra>'
+    ))
+
+    fig.update_layout(
+        height=max(250, 60 * len(residents_sorted)),
+        xaxis=dict(tickfont=dict(size=12), side='top'),
+        yaxis=dict(tickfont=dict(size=13)),
+        margin=dict(l=100, r=60, t=60, b=30)
+    )
+    st.plotly_chart(fig, width="stretch", key="ccc_meeting_heatmap")
+
+    # 補充：各住院醫師整體均分排名
+    st.caption("📊 各住院醫師會議報告五維度整體均分（近半年）")
+    ranking_data = []
+    for i, name in enumerate(reversed(residents_sorted)):  # 由高到低
+        orig_idx = len(residents_sorted) - 1 - i
+        ov = sum(float(v) for v in z_matrix[orig_idx] if v > 0)
+        cnt = len([v for v in z_matrix[orig_idx] if v > 0])
+        ranking_data.append({'姓名': name, '五維度均分': round(ov / cnt, 2) if cnt else 0})
+    st.dataframe(pd.DataFrame(ranking_data), hide_index=True, use_container_width=True)
 
 
 def show_overall_epa_trend(df):
@@ -2904,79 +3108,194 @@ def show_resident_learning_reflections(conn, resident_name):
 
 def show_research_progress_overview(conn, residents):
     """
-    研究進度總覽區塊（CCC 總覽頁面）
-    顯示所有住院醫師的研究進度統計
+    研究進度總覽區塊（CCC 總覽頁面）：泳道圖呈現所有住院醫師的研究進度
     """
-    st.subheader("📚 住院醫師研究進度總覽")
+    st.subheader("📚 住院醫師研究進度泳道圖")
+
+    STAGES = ['構思中', '撰寫中', '投稿中', '接受', '發表']
+    STAGE_POS = {s: i for i, s in enumerate(STAGES)}
+    STAGE_COLORS = {
+        '構思中': '#74B9FF',
+        '撰寫中': '#A29BFE',
+        '投稿中': '#FDCB6E',
+        '接受':   '#55EFC4',
+        '發表':   '#27AE60',
+    }
+    STATUS_EMOJI = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅', '發表': '🏆'}
 
     try:
-        # 載入所有研究進度
         all_research = conn.fetch_research_progress()
         if not all_research:
             st.info("目前尚無住院醫師登記研究進度")
             return
 
-        # 統計各狀態數量
-        status_counts = {'構思中': 0, '撰寫中': 0, '投稿中': 0, '接受': 0}
-        resident_research_count = {r: 0 for r in residents}
-
+        # 統計摘要
+        status_counts = {s: 0 for s in STAGES}
         for rec in all_research:
-            status = rec.get('current_status', '構思中')
-            if status in status_counts:
-                status_counts[status] += 1
+            s = rec.get('current_status', '構思中')
+            if s in status_counts:
+                status_counts[s] += 1
 
-            res_name = rec.get('resident_name', '')
-            if res_name in resident_research_count:
-                resident_research_count[res_name] += 1
-
-        # 第一排：狀態統計卡片
-        st.markdown("#### 📊 研究狀態分布")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("💡 構思中", status_counts['構思中'])
-        with col2:
-            st.metric("✍️ 撰寫中", status_counts['撰寫中'])
-        with col3:
-            st.metric("📤 投稿中", status_counts['投稿中'])
-        with col4:
-            st.metric("✅ 接受", status_counts['接受'])
+        summary_cols = st.columns(len(STAGES))
+        for i, s in enumerate(STAGES):
+            summary_cols[i].metric(f"{STATUS_EMOJI[s]} {s}", status_counts[s])
 
         st.markdown("---")
 
-        # 第二排：住院醫師研究清單（以表格呈現）
-        st.markdown("#### 📋 各住院醫師研究清單")
-
-        # 整理資料供顯示
-        display_data = []
+        # 整理每位住院醫師的研究項目
+        resident_papers = {}
         for rec in all_research:
-            status_emoji = {'構思中': '💡', '撰寫中': '✍️', '投稿中': '📤', '接受': '✅'}
-            display_data.append({
-                '住院醫師': rec.get('resident_name', ''),
-                '級職': rec.get('resident_level', ''),
-                '研究名稱': rec.get('research_title', ''),
-                '類型': rec.get('research_type', ''),
-                '指導老師': rec.get('supervisor_name', '—'),
-                '進度': f"{status_emoji.get(rec.get('current_status', ''), '📝')} {rec.get('current_status', '')}",
-                '更新時間': rec.get('updated_at', '')[:10] if rec.get('updated_at') else ''
-            })
+            name = rec.get('resident_name', '未知')
+            resident_papers.setdefault(name, []).append(rec)
 
-        if display_data:
-            df = pd.DataFrame(display_data)
-            st.dataframe(df, width="stretch", hide_index=True)
+        sorted_residents = sorted(resident_papers.keys())
 
-        # 第三排：研究進度分布圖（圓餅圖）
-        with st.expander("📈 研究進度分布圖", expanded=False):
-            fig = go.Figure(data=[go.Pie(
-                labels=list(status_counts.keys()),
-                values=list(status_counts.values()),
-                marker=dict(colors=['#FFF3CD', '#D1ECF1', '#D4EDDA', '#C3E6CB']),
-                hole=0.3
-            )])
-            fig.update_layout(
-                title="研究進度狀態分布",
-                height=350
-            )
-            st.plotly_chart(fig, width="stretch")
+        # ── 泳道圖（Plotly Scatter，橫向進度條樣式）──
+        fig = go.Figure()
+
+        # X 軸網格線（每個 stage 位置）
+        for i in range(len(STAGES)):
+            fig.add_vline(x=i, line_dash='dot',
+                          line_color='rgba(180,180,180,0.5)', line_width=1)
+
+        # 為每個圖例項目只加一次（legend 去重）
+        added_legend = set()
+
+        # 逐住院醫師、逐研究項目建立泳道
+        total_rows = sum(len(papers) for papers in resident_papers.values())
+        y_tick_vals = []
+        y_tick_texts = []
+        y_separator_positions = []
+
+        y = total_rows - 1  # 從上往下畫
+        for resident in sorted_residents:
+            papers = resident_papers[resident]
+            resident_start_y = y
+
+            for j, paper in enumerate(papers):
+                status = paper.get('current_status', '構思中')
+                stage_x = STAGE_POS.get(status, 0)
+                color = STAGE_COLORS.get(status, '#95A5A6')
+                title = paper.get('research_title', '未命名')
+                title_short = title[:20] + '…' if len(title) > 20 else title
+                supervisor = paper.get('supervisor_name', '—')
+                res_type = paper.get('research_type', '—')
+
+                # 底部灰色完整進度條背景
+                fig.add_trace(go.Scatter(
+                    x=[-0.4, len(STAGES) - 0.6],
+                    y=[y, y],
+                    mode='lines',
+                    line=dict(color='rgba(220,220,220,0.6)', width=18),
+                    showlegend=False, hoverinfo='skip'
+                ))
+
+                # 進度條（從 0 到目前 stage）
+                if stage_x >= 0:
+                    fig.add_trace(go.Scatter(
+                        x=[-0.4, stage_x],
+                        y=[y, y],
+                        mode='lines',
+                        line=dict(color=color, width=18),
+                        showlegend=False, hoverinfo='skip',
+                        opacity=0.65
+                    ))
+
+                # 目前 stage 的標記圓點
+                show_in_legend = status not in added_legend
+                if show_in_legend:
+                    added_legend.add(status)
+                fig.add_trace(go.Scatter(
+                    x=[stage_x],
+                    y=[y],
+                    mode='markers',
+                    name=f"{STATUS_EMOJI[status]} {status}",
+                    marker=dict(size=18, color=color,
+                                symbol='circle',
+                                line=dict(color='white', width=2)),
+                    showlegend=show_in_legend,
+                    hovertemplate=(
+                        f"<b>{resident}</b><br>"
+                        f"📄 {title}<br>"
+                        f"狀態：{STATUS_EMOJI[status]} {status}<br>"
+                        f"類型：{res_type}<br>"
+                        f"指導老師：{supervisor}"
+                        "<extra></extra>"
+                    )
+                ))
+
+                # 研究題目標籤（圓點右側）
+                fig.add_annotation(
+                    x=stage_x + 0.35, y=y,
+                    text=title_short,
+                    showarrow=False,
+                    xanchor='left', yanchor='middle',
+                    font=dict(size=11, color='#2C3E50'),
+                    bgcolor='rgba(255,255,255,0.7)',
+                )
+
+                # Y 軸標籤（只在每位住院醫師的第一筆顯示姓名）
+                y_tick_vals.append(y)
+                y_tick_texts.append(f"<b>{resident}</b>" if j == 0 else "　└")
+
+                y -= 1
+
+            # 住院醫師之間的分隔線
+            if resident != sorted_residents[-1]:
+                y_separator_positions.append(y + 0.5)
+
+        for sep_y in y_separator_positions:
+            fig.add_hline(y=sep_y, line_color='rgba(100,100,100,0.25)', line_width=1)
+
+        fig.update_layout(
+            height=max(320, 52 * total_rows + 100),
+            xaxis=dict(
+                tickvals=list(range(len(STAGES))),
+                ticktext=[f"<b>{s}</b>" for s in STAGES],
+                range=[-0.6, len(STAGES) - 0.4],
+                tickfont=dict(size=13),
+                side='top',
+                showgrid=False,
+                zeroline=False,
+            ),
+            yaxis=dict(
+                tickvals=y_tick_vals,
+                ticktext=y_tick_texts,
+                tickfont=dict(size=12),
+                showgrid=False,
+                zeroline=False,
+                range=[-0.7, total_rows - 0.3],
+            ),
+            plot_bgcolor='rgba(248,249,250,1)',
+            paper_bgcolor='white',
+            showlegend=True,
+            legend=dict(
+                orientation='h', yanchor='bottom', y=-0.08,
+                xanchor='center', x=0.5,
+                bgcolor='rgba(255,255,255,0.9)',
+                bordercolor='rgba(0,0,0,0.15)', borderwidth=1,
+                font=dict(size=12)
+            ),
+            margin=dict(l=90, r=30, t=60, b=60),
+        )
+
+        st.plotly_chart(fig, width="stretch", key="ccc_research_swimlane")
+
+        # 詳細清單（expander）
+        with st.expander("📋 詳細研究清單"):
+            display_data = []
+            for rec in all_research:
+                s = rec.get('current_status', '')
+                display_data.append({
+                    '住院醫師': rec.get('resident_name', ''),
+                    '研究名稱': rec.get('research_title', ''),
+                    '類型': rec.get('research_type', ''),
+                    '指導老師': rec.get('supervisor_name', '—'),
+                    '進度': f"{STATUS_EMOJI.get(s, '📝')} {s}",
+                    '更新時間': rec.get('updated_at', '')[:10] if rec.get('updated_at') else '',
+                })
+            if display_data:
+                st.dataframe(pd.DataFrame(display_data), hide_index=True, use_container_width=True)
 
     except Exception as e:
         st.warning(f"載入研究進度總覽時發生錯誤：{str(e)}")
