@@ -840,11 +840,6 @@ def show_ccc_overview():
                                                       research_published=pub_count)
         all_status[name]['level'] = level
 
-    # ── Section B：摘要卡片 ──
-    show_resident_cards(all_status, df)
-
-    st.divider()
-
     # ── Section C：三大主視圖（EPA / 技能 / 會議報告）──
     ccc_tab_epa, ccc_tab_skill, ccc_tab_meeting = st.tabs([
         "📈 EPA 趨勢", "🎯 技能完成度", "📑 會議報告"
