@@ -1549,13 +1549,23 @@ def show_individual_analysis():
             with tab:
                 item_mask = _match_epa_item(epa_data['EPA項目'], epa_item)
                 item_df = epa_data[item_mask].copy()
+                cnt = len(item_df)
+                score_col_epa = 'EPA可信賴程度_數值'
+                # 強調顯示均分與次數
+                m1, m2, m3 = st.columns([1, 1, 4])
+                if not item_df.empty and score_col_epa in item_df.columns:
+                    avg_score_epa = item_df[score_col_epa].dropna().mean()
+                    threshold_epa = _get_level_thresholds(resident_level)['score_threshold']
+                    delta_epa = round(avg_score_epa - threshold_epa, 2) if pd.notna(avg_score_epa) else None
+                    m1.metric("均分", f"{avg_score_epa:.2f}", delta=f"{delta_epa:+.2f}" if delta_epa is not None else None)
+                else:
+                    m1.metric("均分", "—")
+                warn_cnt = '' if cnt >= _item_min_disp else ' ⚠️'
+                m2.metric("評核次數", f"{cnt} 次{warn_cnt}", help=f"近半年需 ≥{_item_min_disp} 次")
                 col_left, col_right = st.columns([1.2, 0.8])
                 with col_left:
                     show_epa_item_bar(item_df, epa_item, resident_level)
                 with col_right:
-                    cnt = len(item_df)
-                    warn = '' if cnt >= _item_min_disp else f' ⚠️（{cnt}/{_item_min_disp}次）'
-                    st.markdown(f"**詳細記錄**{warn}")
                     avail_epa = [c for c in epa_display_cols if c in item_df.columns]
                     if avail_epa and not item_df.empty:
                         st.dataframe(
@@ -1598,75 +1608,94 @@ def show_individual_analysis():
     display_cols = ['評核日期', '評核教師', '評核技術項目', '可信賴程度', '操作技術教師回饋']
     avail = [c for c in display_cols if c in technical_data.columns] if not technical_data.empty else []
 
-    # 每個技能分組各自一排，左邊進度圖 / 右邊詳細記錄表格
-    for group_name, group_skills in SKILL_GROUPS.items():
-        col_left, col_right = st.columns([1.2, 0.8])
+    # 技能分組用 tabs
+    skill_group_names = list(SKILL_GROUPS.keys())
+    skill_group_tab_labels = []
+    for gname, gskills in SKILL_GROUPS.items():
+        if avail and not technical_data.empty and '評核技術項目' in technical_data.columns:
+            gmask = technical_data['評核技術項目'].apply(lambda x: any(s in str(x) for s in gskills))
+            cnt_g = int(gmask.sum())
+        else:
+            cnt_g = 0
+        skill_group_tab_labels.append(f"{gname} ({cnt_g}筆)")
+    skill_group_tabs = st.tabs(skill_group_tab_labels)
 
-        with col_left:
-            if _sk_data:
-                show_grouped_skill_progress(_sk_data, technical_data, resident_level,
-                                            target_group=group_name)
-            else:
-                st.info("無操作技術評核記錄")
-
-        with col_right:
-            if avail and not technical_data.empty:
-                group_mask = technical_data['評核技術項目'].apply(
-                    lambda x: any(skill in str(x) for skill in group_skills)
-                ) if '評核技術項目' in technical_data.columns else pd.Series(False, index=technical_data.index)
-                group_df = technical_data[group_mask][avail].sort_values('評核日期', ascending=False)
-                # 與左欄標題對齊的間距
-                st.markdown(f"**{group_name} 詳細記錄**（{len(group_df)} 筆）")
-                if not group_df.empty:
-                    st.dataframe(group_df, width="stretch", hide_index=True)
+    for tab_g, (group_name, group_skills) in zip(skill_group_tabs, SKILL_GROUPS.items()):
+        with tab_g:
+            col_left, col_right = st.columns([1.2, 0.8])
+            with col_left:
+                if _sk_data:
+                    show_grouped_skill_progress(_sk_data, technical_data, resident_level,
+                                                target_group=group_name)
                 else:
-                    st.caption("尚無此類別評核記錄")
-            else:
-                st.markdown(f"**{group_name} 詳細記錄**")
-                st.info("無操作技術評核記錄")
+                    st.info("無操作技術評核記錄")
+            with col_right:
+                if avail and not technical_data.empty:
+                    group_mask = technical_data['評核技術項目'].apply(
+                        lambda x: any(skill in str(x) for skill in group_skills)
+                    ) if '評核技術項目' in technical_data.columns else pd.Series(False, index=technical_data.index)
+                    group_df = technical_data[group_mask][avail].sort_values('評核日期', ascending=False)
+                    st.markdown(f"**{group_name} 詳細記錄**（{len(group_df)} 筆）")
+                    if not group_df.empty:
+                        st.dataframe(group_df, width="stretch", hide_index=True)
+                    else:
+                        st.caption("尚無此類別評核記錄")
+                else:
+                    st.markdown(f"**{group_name} 詳細記錄**")
+                    st.info("無操作技術評核記錄")
 
-    # ═══ Section 4：會議報告分析（左右兩欄）═══
+    # ═══ Section 4：會議報告分析（分頁，各會議類型）═══
     st.markdown("### 會議報告分析")
-    col_left, col_right = st.columns([1.2, 0.8])
+    # 查詢同儕資料（全局）
+    resident_level = _get_resident_level(df, selected_resident)
+    all_meeting = df[df['評核項目'].astype(str).str.contains('會議報告', na=False)].copy() if '評核項目' in df.columns else pd.DataFrame()
+    peer_meeting = all_meeting[
+        (all_meeting['受評核人員'] != selected_resident) &
+        (all_meeting['評核時級職'].astype(str) == str(resident_level))
+    ] if not all_meeting.empty and '受評核人員' in all_meeting.columns and '評核時級職' in all_meeting.columns else pd.DataFrame()
 
-    with col_left:
-        st.markdown("**各維度評分分析**")
-        # 查詢同儕資料
-        resident_level = _get_resident_level(df, selected_resident)
-        all_meeting = df[df['評核項目'].astype(str).str.contains('會議報告', na=False)].copy() if '評核項目' in df.columns else pd.DataFrame()
-        peer_meeting = all_meeting[
-            (all_meeting['受評核人員'] != selected_resident) &
-            (all_meeting['評核時級職'].astype(str) == str(resident_level))
-        ] if not all_meeting.empty and '受評核人員' in all_meeting.columns and '評核時級職' in all_meeting.columns else pd.DataFrame()
+    # 取得所有會議類型
+    mtg_types_list = []
+    if not meeting_data.empty and '會議名稱' in meeting_data.columns:
+        mtg_types_list = sorted(meeting_data['會議名稱'].dropna().unique().tolist())
 
-        show_meeting_radar_large(meeting_data, peer_meeting, selected_resident, resident_level)
+    # 建立 tab 標籤（全部 + 各類型）
+    mtg_all_types = ['全部'] + mtg_types_list
+    mtg_tab_labels = []
+    for mt in mtg_all_types:
+        if mt == '全部':
+            mtg_tab_labels.append(f"全部 ({len(meeting_data)})")
+        else:
+            cnt_mt = int((meeting_data['會議名稱'] == mt).sum()) if not meeting_data.empty and '會議名稱' in meeting_data.columns else 0
+            mtg_tab_labels.append(f"{mt} ({cnt_mt})")
 
-    with col_right:
-        st.markdown("**詳細記錄與回饋**")
+    mtg_tabs_list = st.tabs(mtg_tab_labels)
+    feedback_col = '會議報告教師回饋'
+    mtg_display_cols = ['評核日期', '評核教師', '會議名稱',
+                        '內容是否充分', '辯證資料的能力', '口條、呈現方式是否清晰',
+                        '是否具開創、建設性的想法', '回答提問是否具邏輯、有條有理',
+                        '會議報告教師回饋']
 
-        # 質性回饋（最新 3 筆直接展開）
-        feedback_col = '會議報告教師回饋'
-        if not meeting_data.empty and feedback_col in meeting_data.columns:
-            feedback_rows = meeting_data[meeting_data[feedback_col].notna() &
-                                        (meeting_data[feedback_col].astype(str).str.strip() != '')]
-            if '評核日期' in feedback_rows.columns:
-                feedback_rows = feedback_rows.sort_values('評核日期', ascending=False)
+    for mtg_tab, mt in zip(mtg_tabs_list, mtg_all_types):
+        with mtg_tab:
+            if mt == '全部':
+                mt_data = meeting_data
+            else:
+                mt_data = meeting_data[meeting_data['會議名稱'] == mt].copy() if not meeting_data.empty and '會議名稱' in meeting_data.columns else pd.DataFrame()
 
-            if not feedback_rows.empty:
-                st.caption("**最新教師回饋**")
-                for _, row in feedback_rows.head(3).iterrows():
-                    with st.container(border=True):
-                        d = row.get('評核日期', '')
-                        if hasattr(d, 'strftime'):
-                            d = d.strftime('%Y-%m-%d')
-                        teacher = row.get('評核教師', '')
-                        st.caption(f"{d} | {teacher}")
-                        st.write(str(row.get(feedback_col, '')))
+            col_left, col_right = st.columns([1.2, 0.8])
+            with col_left:
+                show_meeting_radar_large(mt_data, peer_meeting, selected_resident, resident_level)
 
-                # 全部回饋（expander）
-                if len(feedback_rows) > 3:
-                    with st.expander(f"查看全部回饋（共 {len(feedback_rows)} 筆）"):
-                        for _, row in feedback_rows.iloc[3:].iterrows():
+            with col_right:
+                st.markdown("**教師回饋**")
+                if not mt_data.empty and feedback_col in mt_data.columns:
+                    feedback_rows = mt_data[mt_data[feedback_col].notna() &
+                                           (mt_data[feedback_col].astype(str).str.strip() != '')]
+                    if '評核日期' in feedback_rows.columns:
+                        feedback_rows = feedback_rows.sort_values('評核日期', ascending=False)
+                    if not feedback_rows.empty:
+                        for _, row in feedback_rows.head(3).iterrows():
                             with st.container(border=True):
                                 d = row.get('評核日期', '')
                                 if hasattr(d, 'strftime'):
@@ -1674,24 +1703,33 @@ def show_individual_analysis():
                                 teacher = row.get('評核教師', '')
                                 st.caption(f"{d} | {teacher}")
                                 st.write(str(row.get(feedback_col, '')))
+                        if len(feedback_rows) > 3:
+                            with st.expander(f"查看全部回饋（共 {len(feedback_rows)} 筆）"):
+                                for _, row in feedback_rows.iloc[3:].iterrows():
+                                    with st.container(border=True):
+                                        d = row.get('評核日期', '')
+                                        if hasattr(d, 'strftime'):
+                                            d = d.strftime('%Y-%m-%d')
+                                        teacher = row.get('評核教師', '')
+                                        st.caption(f"{d} | {teacher}")
+                                        st.write(str(row.get(feedback_col, '')))
+                    else:
+                        st.caption("尚無教師回饋")
+                else:
+                    st.info("無會議報告評核記錄")
 
-        # 詳細記錄表格
-        st.caption("**完整評核記錄**")
-        if not meeting_data.empty:
-            display_cols = ['評核日期', '評核教師', '會議名稱',
-                           '內容是否充分', '辯證資料的能力', '口條、呈現方式是否清晰',
-                           '是否具開創、建設性的想法', '回答提問是否具邏輯、有條有理',
-                           '會議報告教師回饋', '病歷號']
-            avail = [c for c in display_cols if c in meeting_data.columns]
-            if avail:
-                with st.container(border=True, height=300):
-                    st.dataframe(
-                        meeting_data[avail].sort_values('評核日期', ascending=False),
-                        width="stretch",
-                        hide_index=True
-                    )
-        else:
-            st.info("無會議報告評核記錄")
+                # 完整記錄表格
+                st.caption("**完整評核記錄**")
+                if not mt_data.empty:
+                    avail_mtg = [c for c in mtg_display_cols if c in mt_data.columns]
+                    if avail_mtg:
+                        with st.container(border=True, height=250):
+                            st.dataframe(
+                                mt_data[avail_mtg].sort_values('評核日期', ascending=False),
+                                width="stretch", hide_index=True
+                            )
+                else:
+                    st.info("無會議報告評核記錄")
 
     # ═══ Section 5：研究進度（若有 Supabase 連線）═══
     conn = _get_supabase_conn()
@@ -1767,7 +1805,6 @@ def show_epa_item_bar(item_df, epa_item, resident_level='R1'):
         showlegend=True,
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='left', x=0,
                     font=dict(size=11)),
-        title=dict(text=f"均分 {avg:.2f}　共 {total} 次", font=dict(size=12), x=0),
     )
     st.plotly_chart(fig, width="stretch", key=f"epa_line_{epa_item}_{resident_level}")
 
