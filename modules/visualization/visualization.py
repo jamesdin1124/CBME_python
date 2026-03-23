@@ -173,16 +173,15 @@ def plot_epa_trend_px(df, x_col, y_col, group_col=None, title="EPA 趨勢圖",
         
         # 處理學生模式
         if student_mode and student_id is not None:
-            # 檢查學生資料
-            if 'ID' not in df.columns and '學號' not in df.columns:
-                st.warning(f"[plot_epa_trend_px] 缺少學生識別欄位")
-                return default_fig
-                
-            # 確定學生ID欄位
-            id_column = 'ID' if 'ID' in df.columns else '學號'
-            
-            # 篩選該學生資料
-            student_df = df[df[id_column].astype(str) == str(student_id)]
+            # 嘗試多種欄位查找學生（支援學號或姓名）
+            student_df = pd.DataFrame()
+            for id_col in ['ID', '學號', '學員姓名', '姓名']:
+                if id_col in df.columns:
+                    matched = df[df[id_col].astype(str) == str(student_id)]
+                    if not matched.empty:
+                        student_df = matched
+                        break
+
             if student_df.empty:
                 st.warning(f"[plot_epa_trend_px] 找不到學生 {student_id} 的資料")
                 return default_fig
