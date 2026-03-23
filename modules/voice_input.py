@@ -85,24 +85,34 @@ def _remaining_quota(action: str, limit: int) -> int:
 # ─── OpenAI 客戶端 ────────────────────────────────────────
 
 def _get_openai_client():
-    """取得 OpenAI 客戶端（共用 new_dashboard 的初始化邏輯）"""
+    """取得 OpenAI 客戶端（支援 .env / Streamlit secrets / 環境變數）"""
     if 'openai_client' in st.session_state and st.session_state.openai_client:
         return st.session_state.openai_client
 
+    api_key = ""
+
+    # 1) 嘗試 dotenv
     try:
-        from openai import OpenAI
         from dotenv import load_dotenv
         load_dotenv(override=True)
+    except ImportError:
+        pass
 
-        api_key = os.getenv("OPENAI_API_KEY", "").strip().strip('"').strip("'")
-        if not api_key:
-            try:
-                api_key = st.secrets["OPENAI_API_KEY"].strip().strip('"').strip("'")
-            except (KeyError, FileNotFoundError, Exception):
-                pass
-        if not api_key:
-            return None
+    # 2) 環境變數
+    api_key = os.getenv("OPENAI_API_KEY", "").strip().strip('"').strip("'")
 
+    # 3) Streamlit secrets（Streamlit Cloud 部署用）
+    if not api_key:
+        try:
+            api_key = st.secrets["OPENAI_API_KEY"].strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    if not api_key:
+        return None
+
+    try:
+        from openai import OpenAI
         client = OpenAI(api_key=api_key)
         st.session_state.openai_client = client
         return client
