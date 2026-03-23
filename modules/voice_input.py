@@ -101,15 +101,31 @@ def _get_openai_client():
     # 2) 環境變數
     api_key = os.getenv("OPENAI_API_KEY", "").strip().strip('"').strip("'")
 
-    # 3) Streamlit secrets（Streamlit Cloud 部署用）
+    # 3) Streamlit secrets（多種格式相容）
     if not api_key:
+        # 嘗試頂層 key
         try:
-            api_key = st.secrets["OPENAI_API_KEY"].strip().strip('"').strip("'")
+            api_key = str(st.secrets["OPENAI_API_KEY"]).strip().strip('"').strip("'")
+        except Exception:
+            pass
+    if not api_key:
+        # 嘗試 [openai] 區塊
+        try:
+            api_key = str(st.secrets["openai"]["api_key"]).strip().strip('"').strip("'")
+        except Exception:
+            pass
+    if not api_key:
+        # 嘗試 [general] 區塊
+        try:
+            api_key = str(st.secrets["general"]["OPENAI_API_KEY"]).strip().strip('"').strip("'")
         except Exception:
             pass
 
     if not api_key:
         return None
+
+    # 同步到環境變數，讓其他模組也能用
+    os.environ["OPENAI_API_KEY"] = api_key
 
     try:
         from openai import OpenAI

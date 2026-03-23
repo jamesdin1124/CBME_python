@@ -134,7 +134,10 @@ def _show_voice_section(key: str):
                         icon_size="1x",
                         key=f"recorder_{key}",
                     )
-                    if audio_bytes:
+                    # 防止重複處理同一段錄音
+                    prev_key = f"_prev_audio_{key}"
+                    if audio_bytes and audio_bytes != st.session_state.get(prev_key):
+                        st.session_state[prev_key] = audio_bytes
                         with st.spinner("🔄 語音辨識中..."):
                             transcribed = _transcribe_audio(audio_bytes)
                         if transcribed:
