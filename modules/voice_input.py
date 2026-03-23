@@ -109,6 +109,14 @@ def _get_openai_client():
             pass
 
     if not api_key:
+        # Debug: 顯示嘗試過的來源
+        env_val = os.getenv("OPENAI_API_KEY", "")
+        secrets_val = ""
+        try:
+            secrets_val = st.secrets["OPENAI_API_KEY"][:10] + "..." if "OPENAI_API_KEY" in st.secrets else "NOT_FOUND"
+        except Exception as e:
+            secrets_val = f"ERROR: {e}"
+        st.error(f"🔑 Debug: env={bool(env_val)}, secrets={secrets_val}")
         return None
 
     try:
