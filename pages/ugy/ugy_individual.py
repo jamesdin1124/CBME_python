@@ -405,9 +405,26 @@ def show_individual_student_analysis(df):
             else:
                 st.metric("平均分數", "N/A")
         
-        # 顯示該學生的資料（與原始版本一致）
+        # 顯示該學生的評核資料表格
         with st.expander("學生評核資料", expanded=True):
-            st.dataframe(student_data)
+            # 選擇要顯示的欄位，確保學號正確
+            display_cols = []
+            for col in ['時間戳記', '學號', '學員姓名', '階層', '實習科部',
+                         'EPA評核項目', '教師評核EPA等級', '教師評核EPA等級_數值',
+                         '病歷號', '地點', '回饋', '教師', '梯次']:
+                if col in student_data.columns:
+                    display_cols.append(col)
+            # 若學號欄位為空或不存在，嘗試從 username 補充
+            if '學號' not in student_data.columns or student_data['學號'].isna().all():
+                if 'username' in student_data.columns:
+                    student_data = student_data.copy()
+                    student_data['學號'] = student_data['username']
+                    if '學號' not in display_cols:
+                        display_cols.insert(1, '學號')
+            if display_cols:
+                st.dataframe(student_data[display_cols], use_container_width=True, hide_index=True)
+            else:
+                st.dataframe(student_data, use_container_width=True, hide_index=True)
         
         # 雷達圖功能已移除
         
