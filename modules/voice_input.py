@@ -25,32 +25,42 @@ MAX_AUDIO_SIZE_MB = 5          # 單次音檔大小上限（MB）
 ALLOWED_ROLES = ('admin', 'department_admin', 'teacher')  # 可使用語音的角色
 
 # ─── 醫學專有名詞提示（幫助 Whisper 正確辨識）───────────────
+# 情境：臨床教師在病房/門診指導實習醫學生照護病人後，口述回饋評語
 MEDICAL_PROMPT = (
-    "這是一段臨床醫學教學評核的口頭回饋，可能包含中英文醫學專有名詞。"
-    "常見詞彙包括：EPA, OSCE, CBME, CCC, PGY, intubation, lumbar puncture, "
-    "CVC, central venous catheter, PICC, chest tube, arterial line, "
-    "ultrasound, echocardiography, APLS, NRP, PICU, NICU, "
-    "住院醫師, 主治醫師, 可信賴程度, entrustment, "
-    "鑑別診斷, differential diagnosis, sepsis, pneumonia, meningitis, "
-    "CBC, CRP, CXR, EKG, ABG, ventilator, CPAP, BiPAP, ECMO, "
-    "endotracheal tube, nasogastric tube, Foley catheter, "
-    "抽血, 靜脈注射, IV, bolus, infusion, monitor, vital signs, "
-    "SpO2, heart rate, blood pressure, respiratory rate, "
-    "問診, 身體檢查, physical examination, auscultation, percussion, "
-    "衛教, informed consent, 病歷書寫, SOAP note, "
-    "Morning meeting, journal club, case presentation, grand round"
+    "這是一位臨床教師在教學醫院指導實習醫學生（clerk）照護病人後，"
+    "對學生的臨床表現給予口頭回饋評語。內容通常包括：病史詢問、身體檢查、"
+    "鑑別診斷、處置計畫、病歷書寫、醫病溝通等面向的評價與建議。"
+    "語言以繁體中文為主，夾雜英文醫學術語。\n"
+    "常見詞彙：EPA, clerk, 實習醫學生, 住院醫師, 主治醫師, "
+    "問診, history taking, 病史, chief complaint, present illness, "
+    "review of systems, past history, family history, "
+    "身體檢查, physical examination, PE, vital signs, "
+    "auscultation, percussion, palpation, inspection, "
+    "鑑別診斷, differential diagnosis, DDx, impression, assessment, "
+    "CBC, CRP, CXR, EKG, ABG, BMP, electrolyte, "
+    "CT, MRI, ultrasound, echo, X-ray, "
+    "sepsis, pneumonia, UTI, cellulitis, meningitis, DKA, "
+    "GI bleeding, bowel obstruction, appendicitis, "
+    "抽血, IV, NG tube, Foley, on call, admission, discharge, "
+    "SOAP note, progress note, admission note, order, "
+    "informed consent, 衛教, 交班, handoff, "
+    "Morning meeting, ward round, 查房, bedside teaching, "
+    "表現不錯, 需要加強, 建議改進, 可以獨立執行, 需要指導"
 )
 
 # GPT 系統提示：潤飾醫學教學回饋
 GPT_SYSTEM_PROMPT = (
-    "你是醫學教育領域的文字編輯助手，專門整理臨床教師對住院醫師的口頭回饋。"
+    "你是醫學教育領域的文字編輯助手，專門整理臨床教師對實習醫學生（clerk）"
+    "在照護病人時的臨床表現口頭回饋。"
+    "情境是教學醫院中，老師觀察學生接診、查房、值班後給予的評語。\n"
     "請依照以下規則處理：\n"
-    "1. 使用繁體中文，但保留英文醫學專有名詞（如 CVC、PICC、intubation 等）\n"
-    "2. 修正口語辨識錯誤和錯別字\n"
-    "3. 適當分段，使評語更有條理\n"
-    "4. 保持原意，不增加原文沒有的評價\n"
+    "1. 使用繁體中文，但保留英文醫學專有名詞（如 PE、DDx、SOAP note 等）\n"
+    "2. 修正語音辨識的錯別字和斷句錯誤\n"
+    "3. 適當分段，使評語更有條理（例如：優點、待改進、建議）\n"
+    "4. 保持原意，不增加原文沒有的評價或判斷\n"
     "5. 如果辨識文字中有明顯的醫學術語辨識錯誤，請修正為正確的專有名詞\n"
-    "6. 直接返回修改後的文字，不需要其他說明或前綴"
+    "6. 口語化的表達可以適度書面化，但保持教師的語氣\n"
+    "7. 直接返回修改後的文字，不需要其他說明或前綴"
 )
 
 

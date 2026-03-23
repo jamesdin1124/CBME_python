@@ -122,35 +122,35 @@ def _show_voice_section(key: str):
         if trans_left <= 0:
             st.warning(f"⚠️ 今日語音轉錄額度已用完（{DAILY_TRANSCRIBE_LIMIT} 次/天），請直接打字輸入")
         else:
-            rec_col, upload_col, action_col = st.columns([1, 2, 1])
+            try:
+                from audio_recorder_streamlit import audio_recorder
+                st.markdown("#### 🎤 點擊麥克風開始錄音")
+                audio_bytes = audio_recorder(
+                    text="",
+                    recording_color="#e74c3c",
+                    neutral_color="#4CAF50",
+                    icon_size="3x",
+                    sample_rate=44100,
+                    key=f"recorder_{key}",
+                )
+                prev_key = f"_prev_audio_{key}"
+                if audio_bytes and audio_bytes != st.session_state.get(prev_key):
+                    st.session_state[prev_key] = audio_bytes
+                    with st.spinner("🔄 語音辨識中..."):
+                        transcribed = _transcribe_audio(audio_bytes)
+                    if transcribed:
+                        current = st.session_state.get(text_key, "")
+                        sep = "\n" if current.strip() else ""
+                        st.session_state[text_key] = current + sep + transcribed
+                        st.success("✅ 辨識完成，再次點擊麥克風可接續錄音")
+            except ImportError:
+                st.info("💡 安裝 `audio_recorder_streamlit` 即可使用即時錄音")
 
-            with rec_col:
-                try:
-                    from audio_recorder_streamlit import audio_recorder
-                    audio_bytes = audio_recorder(
-                        text="錄音",
-                        recording_color="#e74c3c",
-                        neutral_color="#6c757d",
-                        icon_size="1x",
-                        sample_rate=44100,
-                        key=f"recorder_{key}",
-                    )
-                    prev_key = f"_prev_audio_{key}"
-                    if audio_bytes and audio_bytes != st.session_state.get(prev_key):
-                        st.session_state[prev_key] = audio_bytes
-                        with st.spinner("🔄 語音辨識中..."):
-                            transcribed = _transcribe_audio(audio_bytes)
-                        if transcribed:
-                            current = st.session_state.get(text_key, "")
-                            sep = "\n" if current.strip() else ""
-                            st.session_state[text_key] = current + sep + transcribed
-                            st.success("✅ 辨識完成，再次錄音可接續")
-                except ImportError:
-                    st.info("💡 安裝 `audio_recorder_streamlit` 即可使用即時錄音")
-
-            with upload_col:
+            # 上傳音檔 + AI 潤飾
+            action_col1, action_col2 = st.columns(2)
+            with action_col1:
                 uploaded = st.file_uploader(
-                    "上傳錄音檔",
+                    "或上傳錄音檔",
                     type=["wav", "mp3", "m4a", "ogg", "webm"],
                     key=f"upload_{key}",
                     label_visibility="collapsed",
@@ -164,9 +164,9 @@ def _show_voice_section(key: str):
                         st.session_state[text_key] = current + sep + transcribed
                         st.success("✅ 辨識完成")
 
-            with action_col:
+            with action_col2:
                 if st.session_state.get(text_key, "").strip() and refine_left > 0:
-                    if st.button("✨ AI 潤飾", key=f"refine_{key}", help="修正醫學用語、改善語句"):
+                    if st.button("✨ AI 潤飾（修正醫學用語）", key=f"refine_{key}"):
                         with st.spinner("🔄 AI 潤飾中..."):
                             refined = _refine_with_gpt(st.session_state[text_key])
                             st.session_state[text_key] = refined
