@@ -56,13 +56,15 @@ def _date_range_filter(df: pd.DataFrame) -> pd.DataFrame:
     with col2:
         end_date = st.date_input("結束日期", value=max_date, key="overview_end_date")
 
-    # 篩選梯次在日期範圍內
+    # 篩選梯次在日期範圍內（保留未知梯次的資料）
     def batch_in_range(batch_str):
+        if not batch_str or batch_str in ('未知梯次', 'None', 'nan'):
+            return True  # 保留無法解析的資料
         try:
             bd = pd.to_datetime(batch_str)
             return start_date <= bd.date() <= end_date
         except Exception:
-            return False
+            return True  # 無法解析的也保留
 
     mask = df['梯次'].apply(batch_in_range)
     return df[mask].copy()
@@ -163,7 +165,12 @@ def show_ugy_student_overview():
         with st.spinner("載入中..."):
             df = ds.refresh(include_google_sheets=True, filter_teacher=filter_teacher)
         if df is not None:
+            # 清除篩選器 widget state，讓 default 重新計算
+            for wkey in ['overview_layers', 'overview_dept', 'overview_epa',
+                         'overview_start_date', 'overview_end_date']:
+                st.session_state.pop(wkey, None)
             st.success(f"✅ 載入完成，共 {len(df)} 筆資料")
+            st.rerun()
         else:
             st.error("載入失敗")
 
