@@ -142,7 +142,12 @@ def show_ugy_epa_form():
             cohort = st.selectbox("階層 *", options=COHORT_OPTIONS, key='ugy_cohort')
 
         with col3:
-            department = st.selectbox("實習科部 *", options=DEPARTMENT_OPTIONS, key='ugy_dept')
+            # 預設選擇該教師所屬科部
+            user_dept = st.session_state.get('user_department', '')
+            dept_index = 0
+            if user_dept and user_dept in DEPARTMENT_OPTIONS:
+                dept_index = DEPARTMENT_OPTIONS.index(user_dept)
+            department = st.selectbox("實習科部 *", options=DEPARTMENT_OPTIONS, index=dept_index, key='ugy_dept')
 
         # ── 第二列：EPA 評核 ──
         st.markdown("---")
