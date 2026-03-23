@@ -41,6 +41,34 @@ def _fetch_supabase_epa_records():
     except Exception:
         return None
 
+
+def _build_name_to_student_id_map():
+    """從 Supabase 學生名冊建立 姓名→學號 對照表"""
+    try:
+        from modules.supabase_connection import SupabaseConnection
+        conn = SupabaseConnection()
+        result = conn.client.table('pediatric_users').select(
+            'username, full_name'
+        ).eq('user_type', 'student').eq('is_active', True).execute()
+        if result.data:
+            return {r['full_name']: r['username'] for r in result.data if r.get('full_name')}
+        return {}
+    except Exception:
+        return {}
+
+
+def _fix_student_ids(df):
+    """用學生名冊修正 DataFrame 中的學號欄位"""
+    name_col = '學員姓名' if '學員姓名' in df.columns else ('姓名' if '姓名' in df.columns else None)
+    if not name_col:
+        return df
+    mapping = _build_name_to_student_id_map()
+    if not mapping:
+        return df
+    df = df.copy()
+    df['學號'] = df[name_col].map(mapping).fillna(df.get('學號', ''))
+    return df
+
 def show_diagnostic(message, level="info"):
     """顯示診斷訊息"""
     if SHOW_DIAGNOSTICS:
@@ -743,6 +771,9 @@ def show_ugy_student_overview():
                     else:
                         st.warning(batch_info.get('error', "梯次資料處理時發生未知問題"))
                     
+                    # 用學生名冊修正學號
+                    current_processed_df = _fix_student_ids(current_processed_df)
+
                     proceeded_EPA_df = current_processed_df # 更新全域變數
                     st.session_state['processed_df'] = current_processed_df # 更新 session_state
                     show_diagnostic(f"成功處理 {len(proceeded_EPA_df)} 筆EPA資料！", "success")
@@ -764,6 +795,7 @@ def show_ugy_student_overview():
                 show_diagnostic(f"載入系統內評核 {len(supabase_df)} 筆", "success")
                 current_processed_df = process_data(supabase_df.copy())
                 if current_processed_df is not None and not current_processed_df.empty:
+                    current_processed_df = _fix_student_ids(current_processed_df)
                     proceeded_EPA_df = current_processed_df
                     st.session_state['processed_df'] = current_processed_df
                     show_diagnostic(f"成功處理 {len(proceeded_EPA_df)} 筆EPA資料！", "success")
