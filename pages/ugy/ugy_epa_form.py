@@ -242,6 +242,42 @@ def show_ugy_epa_form():
             else:
                 st.error("提交失敗，請檢查網路連線或聯繫管理員。")
 
+    # ── 最近提交紀錄 ──
+    _show_recent_submissions(current_user)
+
+
+def _show_recent_submissions(teacher_name, limit=10):
+    """在表單下方顯示該教師最近提交的 EPA 評核紀錄"""
+    st.markdown("---")
+    st.subheader("📋 最近提交紀錄")
+    try:
+        conn = _get_supabase_conn()
+        result = conn.client.table('ugy_epa_records').select(
+            '時間戳記, 學員姓名, 學號, 階層, 實習科部, EPA評核項目, 病歷號, 教師評核EPA等級_數值, 回饋, 教師'
+        ).eq('教師', teacher_name).order('時間戳記', desc=True).limit(limit).execute()
+
+        if result.data:
+            import pandas as pd
+            df = pd.DataFrame(result.data)
+            # 格式化時間
+            df['時間戳記'] = pd.to_datetime(df['時間戳記']).dt.strftime('%m/%d %H:%M')
+            # 回饋截斷
+            df['回饋'] = df['回饋'].apply(lambda x: (x[:30] + '...') if x and len(x) > 30 else x)
+            # 重新命名欄位
+            display_df = df.rename(columns={
+                '時間戳記': '時間',
+                '學員姓名': '學員',
+                '教師評核EPA等級_數值': 'EPA等級',
+            })
+            display_cols = ['時間', '學員', '學號', '階層', '實習科部', 'EPA評核項目', '病歷號', 'EPA等級', '回饋']
+            display_cols = [c for c in display_cols if c in display_df.columns]
+            st.dataframe(display_df[display_cols], use_container_width=True, hide_index=True)
+            st.caption(f"顯示最近 {len(df)} 筆（由您提交）")
+        else:
+            st.info("尚無提交紀錄。")
+    except Exception as e:
+        st.warning(f"無法載入最近紀錄：{str(e)}")
+
 
 # ═══════════════════════════════════════════════════════
 # 批次評核功能（已停用，保留程式碼備用）
