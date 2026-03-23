@@ -53,57 +53,49 @@ epa_level_mapping = {
 }
 
 def convert_date_to_batch(date_str):
-    """將日期字串轉換為梯次編號（以兩週為一梯）
-    
+    """將日期字串轉換為梯次編號（每兩週一梯，以星期一開始）
+
+    邏輯：
+    1. 找到該日期所在那一週的星期一
+    2. 用一個固定的基準星期一（2020-06-29，星期一）計算週數差
+    3. 每 2 週為一梯，取該梯起始星期一的日期作為梯次名稱
+
     Args:
-        date_str (str): 日期字串，格式為 'YYYY/MM/DD' 或 'YYYY-MM-DD'
-        
+        date_str: 日期字串 'YYYY/MM/DD' 或 'YYYY-MM-DD'，或 datetime 物件
+
     Returns:
-        str: 梯次名稱，使用該梯第一個星期一的日期
+        str: 梯次名稱，格式 'YYYY/MM/DD'（該梯第一個星期一）
     """
     try:
-        # 處理可能的日期格式
+        # 解析日期
         if isinstance(date_str, str):
-            date_str = date_str.replace('/', '-')
+            date_str = date_str.replace('/', '-').strip()
+            # 處理 datetime ISO 格式（如 2026-03-23T06:53:57）
+            if 'T' in date_str:
+                date_str = date_str.split('T')[0]
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
         elif isinstance(date_str, datetime):
             date_obj = date_str
+        elif hasattr(date_str, 'year'):  # date 物件
+            date_obj = datetime(date_str.year, date_str.month, date_str.day)
         else:
             return '未知梯次'
 
-        # 計算與基準日期（2020-07-01）的天數差
-        base_date = datetime(2020, 7, 1)
-        days_diff = (date_obj - base_date).days
-        
-        # 計算屬於第幾個兩週期（每14天一個週期）
-        two_week_period = days_diff // 14
-        
-        # 計算該梯次的起始日期
-        period_start = base_date + pd.Timedelta(days=two_week_period * 14)
-        
-        # 找出該梯次的第一個星期一
-        days_until_monday = (7 - period_start.weekday()) % 7
-        if days_until_monday == 0:  # 如果已經是星期一
-            first_monday = period_start
-        else:
-            first_monday = period_start + pd.Timedelta(days=days_until_monday)
-            
-        # 檢查日期是否落在下一個星期一之前
-        next_period_monday = first_monday + pd.Timedelta(days=14)
-        
-        # 如果日期超過了這一梯的第一個星期一，但還沒到下一梯的第一個星期一
-        # 就算在這一梯
-        if date_obj >= first_monday and date_obj < next_period_monday:
-            return first_monday.strftime('%Y/%m/%d')
-        
-        # 如果日期在這一梯的第一個星期一之前，要算入前一梯
-        if date_obj < first_monday:
-            prev_monday = first_monday - pd.Timedelta(days=14)
-            return prev_monday.strftime('%Y/%m/%d')
-            
-        # 返回格式化的日期字串
-        return first_monday.strftime('%Y/%m/%d')
-        
+        # 基準日：2020-06-29（星期一）
+        base_monday = datetime(2020, 6, 29)
+
+        # 找到該日期所在那一週的星期一（weekday: 0=Mon, 6=Sun）
+        this_monday = date_obj - pd.Timedelta(days=date_obj.weekday())
+
+        # 計算與基準星期一相差幾週
+        weeks_diff = (this_monday - base_monday).days // 7
+
+        # 每 2 週一梯，取該梯的起始星期一
+        batch_index = weeks_diff // 2
+        batch_monday = base_monday + pd.Timedelta(weeks=batch_index * 2)
+
+        return batch_monday.strftime('%Y/%m/%d')
+
     except Exception as e:
         print(f"日期轉換錯誤: {e}")
         return '未知梯次'
