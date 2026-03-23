@@ -1,485 +1,175 @@
 """
-UGY 個別學生分析模組
-提供個別學生分析功能（雷達圖功能已移除）
+UGY 個別學生分析
+精簡版：資料從 ugy_data_service 取得，圖表用 ugy_chart_helpers 統一繪製。
+核心概念：自己 vs 同儕比較。
 """
 
-import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-import re
-import plotly.express as px
-import numpy as np
-from pages.ugy.ugy_data.ugy_epa_google_sheets import display_student_data
+import streamlit as st
 
-def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
-    """用於自然排序的鍵函數"""
-    return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, s)]
+from pages.ugy import ugy_data_service as ds
+from pages.ugy.ugy_chart_helpers import (
+    create_peer_comparison_radar,
+    create_peer_comparison_trend,
+)
 
-def convert_level_to_score(value):
-    """將 LEVEL 轉換為數值分數"""
-    if pd.isna(value):
-        return 0
-    
-    # 如果已經是數字，直接返回
-    if isinstance(value, (int, float)) and 1 <= value <= 5:
-        return value
-    
-    # 嘗試直接轉換為數字
-    try:
-        num_value = float(value)
-        if 1 <= num_value <= 5:
-            return num_value
-    except (ValueError, TypeError):
-        pass
-    
-    # 轉換為大寫並移除空白
-    value = str(value).upper().strip()
-    
-    # 定義轉換對照表
-    level_map = {
-        'LEVEL I': 1,
-        'LEVEL II': 2,
-        'LEVEL III': 3,
-        'LEVEL IV': 4,
-        'LEVEL V': 5,
-        'Level I': 1,
-        'Level II': 2, 
-        'Level III': 3,
-        'Level IV': 4,
-        'Level V': 5,
-        'level i': 1,
-        'level ii': 2,
-        'level iii': 3,
-        'level iv': 4,
-        'level v': 5,
-        'I': 1,
-        'II': 2,
-        'III': 3,
-        'IV': 4,
-        'V': 5,
-        'i': 1,
-        'ii': 2,
-        'iii': 3,
-        'iv': 4,
-        'v': 5,
-        'LEVEL 1': 1,
-        'LEVEL 2': 2,
-        'LEVEL 3': 3,
-        'LEVEL 4': 4,
-        'LEVEL 5': 5,
-        'Level 1': 1,
-        'Level 2': 2,
-        'Level 3': 3,
-        'Level 4': 4,
-        'Level 5': 5,
-        'level 1': 1,
-        'level 2': 2,
-        'level 3': 3,
-        'level 4': 4,
-        'level 5': 5,
-        '1': 1,
-        '2': 2,
-        '3': 3,
-        '4': 4,
-        '5': 5
-    }
-    
-    return level_map.get(value, 0)
 
-# create_individual_radar_chart 函數已移除
+# ═══════════════════════════════════════════════════════
+# 個別學生顯示
+# ═══════════════════════════════════════════════════════
 
-def create_student_trend_chart(student_data, student_name):
-    """創建學生梯次分數趨勢圖"""
-    try:
-        if student_data.empty:
-            return None
-        
-        # 檢查是否有梯次和分數資料
-        if '梯次' not in student_data.columns:
-            st.warning("沒有找到梯次資料，無法創建趨勢圖")
-            return None
-        
-        # 找出 EPA 相關欄位
-        epa_columns = [col for col in student_data.columns if 'EPA' in col and '等級' in col]
-        if not epa_columns:
-            st.warning("沒有找到 EPA 評核資料，無法創建趨勢圖")
-            return None
-        
-        # 準備趨勢圖資料
-        trend_data = []
-        
-        for _, row in student_data.iterrows():
-            batch = row.get('梯次', '')
-            for col in epa_columns:
-                score = convert_level_to_score(row[col])
-                if score > 0:
-                    epa_name = col.replace('教師評核', '').replace('EPA等級', '').replace('_數值', '')
-                    trend_data.append({
-                        '梯次': batch,
-                        'EPA項目': epa_name,
-                        '分數': score
-                    })
-        
-        if not trend_data:
-            st.warning("沒有找到有效的分數資料")
-            return None
-        
-        trend_df = pd.DataFrame(trend_data)
-        
-        # 創建折線圖
-        fig = px.line(
-            trend_df,
-            x='梯次',
-            y='分數',
-            color='EPA項目',
-            title=f"{student_name} - EPA評核分數趨勢圖",
-            markers=True,
-            line_shape='linear'
-        )
-        
-        # 更新布局
-        fig.update_layout(
-            height=500,
-            xaxis_title="梯次",
-            yaxis_title="評核分數",
-            yaxis=dict(range=[0, 5.5]),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5
+def _show_student_detail(student_data: pd.DataFrame, all_data: pd.DataFrame,
+                         student_name: str):
+    """顯示單一學生的完整分析"""
+    if student_data.empty:
+        st.warning("沒有找到該學生的資料")
+        return
+
+    # ── 標題 ──
+    student_id = ''
+    if '學號' in student_data.columns:
+        sid = student_data['學號'].iloc[0]
+        if pd.notna(sid) and str(sid) != student_name:
+            student_id = str(sid)
+
+    if student_id:
+        st.subheader(f"學生: {student_name} ({student_id})")
+    else:
+        st.subheader(f"學生: {student_name}")
+
+    # ── 基本統計 ──
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("總評核數", len(student_data))
+    with col2:
+        n_items = student_data['EPA評核項目'].nunique() if 'EPA評核項目' in student_data.columns else 0
+        st.metric("EPA 項目數", n_items)
+    with col3:
+        n_batches = student_data['梯次'].nunique() if '梯次' in student_data.columns else 0
+        st.metric("梯次數", n_batches)
+    with col4:
+        if '教師評核EPA等級_數值' in student_data.columns:
+            avg = student_data['教師評核EPA等級_數值'].mean()
+            st.metric("平均分數", f"{avg:.2f}")
+        else:
+            st.metric("平均分數", "N/A")
+
+    # ── 評核資料表格 ──
+    with st.expander("📋 學生評核資料", expanded=True):
+        display_cols = [c for c in [
+            '學號', '學員姓名', '階層', '實習科部', 'EPA評核項目',
+            '教師評核EPA等級', '教師評核EPA等級_數值', '病歷號',
+            '地點', '回饋', '教師', '梯次'
+        ] if c in student_data.columns]
+        if display_cols:
+            st.dataframe(student_data[display_cols], use_container_width=True, hide_index=True)
+        else:
+            st.dataframe(student_data, use_container_width=True, hide_index=True)
+
+    # ── 圖表：自己 vs 同儕 ──
+    chart_col1, chart_col2 = st.columns(2)
+
+    with chart_col1:
+        st.caption("🎯 EPA 雷達圖（個人 vs 同儕）")
+        radar_fig = create_peer_comparison_radar(student_data, all_data, student_name)
+        st.plotly_chart(radar_fig, use_container_width=True,
+                        key=f"individual_radar_{student_name}")
+
+    with chart_col2:
+        st.caption("📈 EPA 趨勢圖（個人 vs 同儕）")
+        trend_fig = create_peer_comparison_trend(student_data, all_data, student_name)
+        st.plotly_chart(trend_fig, use_container_width=True,
+                        key=f"individual_trend_{student_name}")
+
+    # ── 評核回饋詳情 ──
+    with st.expander("💬 評核回饋詳情", expanded=False):
+        feedback_cols = [c for c in ['梯次', 'EPA評核項目', '教師評核EPA等級',
+                                      '回饋', '教師', '實習科部']
+                         if c in student_data.columns]
+        if feedback_cols:
+            fb_df = student_data[feedback_cols].sort_values(
+                '梯次' if '梯次' in feedback_cols else feedback_cols[0]
             )
-        )
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"創建趨勢圖時發生錯誤：{str(e)}")
-        return None
+            st.dataframe(fb_df, use_container_width=True, hide_index=True)
 
-def display_teacher_comments(student_data, student_name):
-    """顯示老師評語"""
-    try:
-        if student_data.empty:
-            st.warning("沒有找到學生資料")
-            return
-        
-        # 尋找評語相關欄位
-        comment_columns = [col for col in student_data.columns if any(keyword in col for keyword in ['評語', '回饋', '建議', 'comment', 'feedback'])]
-        
-        if not comment_columns:
-            st.info("沒有找到老師評語欄位")
-            return
-        
-        # 顯示評語
-        for col in comment_columns:
-            comments = student_data[col].dropna().unique()
-            if len(comments) > 0:
-                st.write(f"**{col}：**")
-                for comment in comments:
-                    if str(comment).strip() and str(comment) != 'nan':
-                        st.write(f"- {comment}")
-                st.write("---")
-        
-        # 如果沒有找到任何評語
-        if not any(student_data[col].dropna().unique().size > 0 for col in comment_columns):
-            st.info("目前沒有老師評語")
-            
-    except Exception as e:
-        st.error(f"顯示老師評語時發生錯誤：{str(e)}")
+    # ── 各項目統計 ──
+    if 'EPA評核項目' in student_data.columns and '教師評核EPA等級_數值' in student_data.columns:
+        with st.expander("📊 各項目評核統計", expanded=False):
+            stats = student_data.groupby('EPA評核項目')['教師評核EPA等級_數值'].agg(
+                平均分='mean', 最高分='max', 最低分='min', 評核數='count'
+            ).round(2).reset_index().sort_values('評核數', ascending=False)
+            st.dataframe(stats, use_container_width=True, hide_index=True)
 
-# create_comparison_radar_chart 函數已移除
 
-def calculate_average_scores_by_level_and_epa(df):
-    """計算所有學生按階層和EPA項目的平均分數"""
-    try:
-        if df.empty:
-            return None
-        
-        # 檢查必要的欄位
-        required_columns = ['階層', '教師評核EPA等級_數值']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            st.warning(f"缺少必要欄位：{missing_columns}")
-            return None
-        
-        # 找出所有EPA相關欄位
-        epa_columns = [col for col in df.columns if 'EPA' in col and '等級' in col and '_數值' in col]
-        
-        if not epa_columns:
-            st.warning("沒有找到EPA評核數值欄位")
-            return None
-        
-        # 準備資料
-        results = []
-        
-        for _, row in df.iterrows():
-            level = row.get('階層', '')
-            if pd.isna(level) or level == '':
-                continue
-                
-            for epa_col in epa_columns:
-                score = row[epa_col]
-                if pd.isna(score) or score == 0:
-                    continue
-                
-                # 提取EPA項目名稱
-                epa_name = epa_col.replace('教師評核', '').replace('EPA等級_數值', '').replace('_數值', '')
-                
-                results.append({
-                    '階層': level,
-                    'EPA項目': epa_name,
-                    '分數': score
-                })
-        
-        if not results:
-            st.warning("沒有找到有效的分數資料")
-            return None
-        
-        # 轉換為DataFrame並計算平均分數
-        results_df = pd.DataFrame(results)
-        average_df = results_df.groupby(['階層', 'EPA項目'])['分數'].agg(['mean', 'count']).reset_index()
-        average_df.columns = ['階層', 'EPA項目', '平均分數', '評核次數']
-        average_df['平均分數'] = average_df['平均分數'].round(2)
-        
-        return average_df
-        
-    except Exception as e:
-        st.error(f"計算平均分數時發生錯誤：{str(e)}")
-        return None
+# ═══════════════════════════════════════════════════════
+# 主函數
+# ═══════════════════════════════════════════════════════
 
-def display_average_scores_table(df):
-    """顯示所有學生各階層各EPA項目的平均分數表格"""
-    try:
-        st.subheader("📊 所有學生各階層EPA平均分數")
-        
-        # 計算平均分數
-        average_df = calculate_average_scores_by_level_and_epa(df)
-        
-        if average_df is None or average_df.empty:
-            st.warning("無法計算平均分數")
-            return
-        
-        # 顯示統計資訊
-        total_records = len(average_df)
-        unique_levels = average_df['階層'].nunique()
-        unique_epas = average_df['EPA項目'].nunique()
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("總記錄數", total_records)
-        with col2:
-            st.metric("階層數", unique_levels)
-        with col3:
-            st.metric("EPA項目數", unique_epas)
-        
-        # 創建樞紐表格格式
-        pivot_df = average_df.pivot(index='EPA項目', columns='階層', values='平均分數')
-        
-        # 填補NaN值
-        pivot_df = pivot_df.fillna('-')
-        
-        # 顯示表格
-        st.dataframe(
-            pivot_df,
-            width="stretch",
-            height=400
-        )
-        
-        # 顯示詳細資料
-        with st.expander("📋 詳細資料", expanded=False):
-            st.dataframe(average_df, width="stretch")
-        
-        # 顯示階層統計
-        st.subheader("📈 階層統計")
-        level_stats = average_df.groupby('階層').agg({
-            '平均分數': ['mean', 'min', 'max', 'count'],
-            '評核次數': 'sum'
-        }).round(2)
-        
-        level_stats.columns = ['平均分數_平均', '平均分數_最低', '平均分數_最高', 'EPA項目數', '總評核次數']
-        st.dataframe(level_stats, width="stretch")
-        
-    except Exception as e:
-        st.error(f"顯示平均分數表格時發生錯誤：{str(e)}")
+def show_individual_student_analysis(df: pd.DataFrame):
+    """顯示個別學生分析（接收已篩選的 DataFrame）"""
+    st.markdown("<h1 style='color:#1E90FF; font-size:32px;'>個別學生分析</h1>",
+                unsafe_allow_html=True)
 
-def show_individual_student_analysis(df):
-    """顯示個別學生分析的主要函數"""
-    
-    st.markdown("<h1 style='color:#1E90FF; font-size:32px;'>個別學生分析</h1>", unsafe_allow_html=True)
-
-    # 直接使用原始資料，不進行篩選
-    student_filter_df = df.copy()
-    
-    # 檢查資料
-    if student_filter_df.empty:
+    if df.empty:
         st.warning("沒有可用的資料")
         return
-    
-    # 顯示資料統計
-    st.info(f"共找到 {len(student_filter_df)} 筆資料")
-    
-    # 直接顯示個別學生分析，移除分析模式選擇
-    
-    # 檢查可用的學生識別欄位
-    if '學員姓名' in student_filter_df.columns:
-        student_name_column = '學員姓名'
-    elif '姓名' in student_filter_df.columns:
-        student_name_column = '姓名'
-    else:
-        st.error("資料中沒有找到學生姓名欄位")
+
+    # 判斷姓名欄位
+    name_col = '學員姓名' if '學員姓名' in df.columns else (
+        '姓名' if '姓名' in df.columns else None
+    )
+    if not name_col:
+        st.error("資料中找不到學生姓名欄位")
         return
-    
-    all_students = sorted(student_filter_df[student_name_column].unique().tolist())
-    
+
+    all_students = sorted(df[name_col].dropna().unique().tolist())
     if not all_students:
         st.warning("沒有找到學生資料")
         return
-    
-    # 根據使用者角色決定學生選擇方式
-    user_role = st.session_state.get('role', None)
-    logged_in_user_name = st.session_state.get('user_name', None)
-    
-    # 學生選擇邏輯
+
+    st.info(f"共 {len(df)} 筆資料，{len(all_students)} 位學生")
+
+    # ── 學生選擇 ──
+    user_role = st.session_state.get('role')
+    logged_in_name = st.session_state.get('user_name')
+
     if user_role == 'student':
-        # 學生帳號只能看到自己的資料
-        if logged_in_user_name and logged_in_user_name in all_students:
-            selected_student = logged_in_user_name
-            st.info(f"學生帳號：已自動選擇您的資料 - {selected_student}")
+        # 學生只能看自己
+        if logged_in_name and logged_in_name in all_students:
+            selected_student = logged_in_name
+            st.info(f"學生帳號：已自動選擇 {selected_student}")
         else:
-            st.warning(f"找不到您的資料，登入姓名：{logged_in_user_name}")
+            st.warning(f"找不到您的資料（{logged_in_name}）")
             return
     else:
-        # 住院醫師、主治醫師、管理員可以自由選擇學生
-        st.subheader("請選擇要分析的學生")
-        
-        # 添加搜尋功能
-        search_term = st.text_input("搜尋學生姓名", placeholder="輸入學生姓名進行搜尋...")
-        
-        # 根據搜尋條件過濾學生名單
-        if search_term:
-            filtered_students = [student for student in all_students 
-                               if search_term.lower() in student.lower()]
+        # 教師/管理員可搜尋選擇
+        search = st.text_input("搜尋學生姓名", placeholder="輸入姓名搜尋...",
+                                key="individual_search")
+        if search:
+            filtered = [s for s in all_students if search.lower() in s.lower()]
         else:
-            filtered_students = all_students
-        
-        if not filtered_students:
+            filtered = all_students
+
+        if not filtered:
             st.warning("沒有找到符合搜尋條件的學生")
             return
-        
-        # 學生選擇下拉選單
+
         selected_student = st.selectbox(
-            "選擇學生",
-            options=filtered_students,
-            index=0,
-            help=f"共 {len(filtered_students)} 位學生可選擇"
+            "選擇學生", options=filtered, key="individual_select",
+            help=f"共 {len(filtered)} 位學生"
         )
-        
-        # 顯示選擇的學生資訊
-        st.info(f"已選擇學生：{selected_student}")
-    
-    # 取得該學生的資料
-    student_data = student_filter_df[student_filter_df[student_name_column] == selected_student]
-    
-    if not student_data.empty:
-        # 顯示學生姓名與學號
-        student_name = student_data['學員姓名'].iloc[0] if '學員姓名' in student_data.columns else selected_student
-        student_id_display = student_data['學號'].iloc[0] if '學號' in student_data.columns and pd.notna(student_data['學號'].iloc[0]) else ''
-        if student_id_display and student_id_display != student_name:
-            st.subheader(f"學生: {student_name} ({student_id_display})")
-        else:
-            st.subheader(f"學生: {student_name}")
-        
-        # 顯示學生基本統計資訊（與原始版本一致）
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("總評核數", len(student_data))
-        with col2:
-            unique_epa_items = len(student_data['EPA評核項目'].unique()) if 'EPA評核項目' in student_data.columns else 0
-            st.metric("EPA項目數", unique_epa_items)
-        with col3:
-            unique_batches = len(student_data['梯次'].unique()) if '梯次' in student_data.columns else 0
-            st.metric("梯次數", unique_batches)
-        with col4:
-            if '教師評核EPA等級_數值' in student_data.columns:
-                avg_score = student_data['教師評核EPA等級_數值'].mean()
-                st.metric("平均分數", f"{avg_score:.2f}")
-            else:
-                st.metric("平均分數", "N/A")
-        
-        # 顯示該學生的評核資料表格
-        with st.expander("學生評核資料", expanded=True):
-            # 選擇要顯示的欄位，確保學號正確
-            display_cols = []
-            for col in ['時間戳記', '學號', '學員姓名', '階層', '實習科部',
-                         'EPA評核項目', '教師評核EPA等級', '教師評核EPA等級_數值',
-                         '病歷號', '地點', '回饋', '教師', '梯次']:
-                if col in student_data.columns:
-                    display_cols.append(col)
-            # 若學號欄位為空或不存在，嘗試從 username 補充
-            if '學號' not in student_data.columns or student_data['學號'].isna().all():
-                if 'username' in student_data.columns:
-                    student_data = student_data.copy()
-                    student_data['學號'] = student_data['username']
-                    if '學號' not in display_cols:
-                        display_cols.insert(1, '學號')
-            if display_cols:
-                st.dataframe(student_data[display_cols], use_container_width=True, hide_index=True)
-            else:
-                st.dataframe(student_data, use_container_width=True, hide_index=True)
-        
-        # 雷達圖功能已移除
-        
-        # 顯示學生分析資料（使用原始的 display_student_data 函數）
-        standard_epa_categories = sorted(student_data['EPA評核項目'].unique().tolist()) if 'EPA評核項目' in student_data.columns else []
-        display_student_data(student_data, selected_student, standard_categories=standard_epa_categories)
-        
-    else:
-        st.warning("沒有找到該學生的資料")
+
+    # ── 顯示該學生 ──
+    student_data = df[df[name_col] == selected_student].copy()
+    _show_student_detail(student_data, df, selected_student)
+
 
 def show_ugy_student_analysis():
-    """顯示 UGY 個別學生分析的主要函數"""
-    # 每次進入都從 Supabase 取得最新資料並合併
-    try:
-        from pages.ugy.ugy_overview import _fetch_supabase_epa_records, _fix_student_ids
-        supabase_df = _fetch_supabase_epa_records()
-        if supabase_df is not None and not supabase_df.empty:
-            supabase_df = _fix_student_ids(supabase_df)
-            existing_df = st.session_state.get('processed_df')
-            if existing_df is not None and not existing_df.empty:
-                # 合併：去除 Supabase 中已存在於 Google Sheet 的重複資料
-                # 用學員姓名+EPA評核項目+梯次+教師 判斷重複
-                combined = pd.concat([existing_df, supabase_df], ignore_index=True)
-                dedup_cols = ['學員姓名', 'EPA評核項目', '教師']
-                dedup_cols = [c for c in dedup_cols if c in combined.columns]
-                if '梯次' in combined.columns:
-                    dedup_cols.append('梯次')
-                if dedup_cols:
-                    combined = combined.drop_duplicates(subset=dedup_cols, keep='first')
-                st.session_state['processed_df'] = combined
-            else:
-                st.session_state['processed_df'] = supabase_df
-    except Exception:
-        pass
-
-    # 首次進入且無資料時自動載入
-    if 'processed_df' not in st.session_state:
-        try:
-            from pages.ugy.ugy_overview import _auto_load_supabase_data
-            auto_df = _auto_load_supabase_data()
-            if auto_df is not None:
-                st.session_state['processed_df'] = auto_df
-        except Exception:
-            pass
-
-    # 從 session_state 取得資料
-    df = st.session_state.get('processed_df')
+    """主要入口：從 data_service 取得資料，顯示個別學生分析"""
+    df = ds.get_data()
 
     if df is None or df.empty:
-        st.warning("尚無評核資料。請先在 EPA 評核表單提交評核，或在「學生總覽」頁面載入資料。")
+        st.warning("尚無評核資料。請先在 EPA 評核表單提交評核。")
         return
 
-    # 顯示個別學生分析
     show_individual_student_analysis(df)

@@ -74,39 +74,10 @@ def get_teacher_evaluation_data(df):
         return None
 
 def convert_level_to_score(value):
-    """將 LEVEL 轉換為數值分數"""
-    if pd.isna(value):
-        return 0
-    
-    # 如果已經是數字，直接返回
-    if isinstance(value, (int, float)) and 1 <= value <= 5:
-        return value
-    
-    # 嘗試直接轉換為數字
-    try:
-        num_value = float(value)
-        if 1 <= num_value <= 5:
-            return num_value
-    except (ValueError, TypeError):
-        pass
-    
-    # 轉換為大寫並移除空白
-    value = str(value).upper().strip()
-    
-    # 定義轉換對照表
-    level_map = {
-        'LEVEL I': 1, 'LEVEL II': 2, 'LEVEL III': 3, 'LEVEL IV': 4, 'LEVEL V': 5,
-        'Level I': 1, 'Level II': 2, 'Level III': 3, 'Level IV': 4, 'Level V': 5,
-        'level i': 1, 'level ii': 2, 'level iii': 3, 'level iv': 4, 'level v': 5,
-        'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5,
-        'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5,
-        'LEVEL 1': 1, 'LEVEL 2': 2, 'LEVEL 3': 3, 'LEVEL 4': 4, 'LEVEL 5': 5,
-        'Level 1': 1, 'Level 2': 2, 'Level 3': 3, 'Level 4': 4, 'Level 5': 5,
-        'level 1': 1, 'level 2': 2, 'level 3': 3, 'level 4': 4, 'level 5': 5,
-        '1': 1, '2': 2, '3': 3, '4': 4, '5': 5
-    }
-    
-    return level_map.get(value, 0)
+    """將 LEVEL 轉換為數值分數（委託 ugy_chart_helpers 統一版本）"""
+    from pages.ugy.ugy_chart_helpers import convert_level_to_score as _convert
+    result = _convert(value)
+    return result if result is not None else 0
 
 def show_teacher_evaluation_ranking(teacher_df):
     """顯示老師評核次數排行榜"""
@@ -641,16 +612,12 @@ def show_ugy_teacher_analysis():
     """顯示UGY老師分析的主要函數"""
     st.markdown("<h1 style='color:#1E90FF; font-size:32px;'>老師分析</h1>", unsafe_allow_html=True)
     
-    # 檢查是否有處理後的資料
-    if 'processed_df' not in st.session_state:
-        st.warning("請先在「學生總覽」頁面載入資料")
-        return
-    
-    # 從 session_state 取得資料
-    df = st.session_state.get('processed_df')
-    
+    # 從統一資料服務取得資料
+    from pages.ugy import ugy_data_service as ds
+    df = ds.get_data()
+
     if df is None or df.empty:
-        st.warning("沒有可用的資料進行分析，請先在「學生總覽」頁面載入資料")
+        st.warning("尚無評核資料。請先在 EPA 評核表單提交評核。")
         return
     
     # 顯示資料統計
