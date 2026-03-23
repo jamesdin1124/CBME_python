@@ -55,7 +55,7 @@ def search_ugy_students(query):
     return [
         s for s in students
         if query_lower in s.get('full_name', '').lower()
-        or query_lower in str(s.get('student_id', '')).lower()
+        or query_lower in str(s.get('student_id', '') or s.get('username', '')).lower()
     ]
 
 
@@ -68,7 +68,7 @@ def get_ugy_student_options():
     options = []
     for s in students:
         name = s.get('full_name', '')
-        sid = s.get('student_id', '')
+        sid = s.get('student_id', '') or s.get('username', '')
         if name and sid:
             options.append({
                 'full_name': name,

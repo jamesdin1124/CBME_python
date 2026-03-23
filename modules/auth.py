@@ -553,11 +553,9 @@ def show_login_page():
                 st.session_state['user_id'] = user_info.get('user_id')
 
                 if user_info['role'] == 'student':
-                    if user_info.get('student_id'):
-                        st.session_state['student_id'] = user_info['student_id']
-                    else:
-                        st.error("找不到學號資訊，請聯繫管理員")
-                        return False
+                    # student_id 優先，若無則以 username（學號）作為 fallback
+                    sid = user_info.get('student_id') or username
+                    st.session_state['student_id'] = sid
 
                 st.success(f"歡迎回來，{st.session_state['user_name']}！")
                 return True
