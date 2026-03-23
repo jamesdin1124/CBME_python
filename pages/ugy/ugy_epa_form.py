@@ -252,32 +252,50 @@ def show_ugy_epa_form():
 
 
 def _show_recent_submissions(teacher_name, limit=10):
-    """在表單下方顯示該教師最近提交的 EPA 評核紀錄"""
+    """在表單下方顯示該教師最近提交的 EPA 評核紀錄（含刪除功能）"""
     st.markdown("---")
     st.subheader("📋 最近提交紀錄")
     try:
         conn = _get_supabase_conn()
         result = conn.client.table('ugy_epa_records').select(
-            '時間戳記, 學員姓名, 學號, 階層, 實習科部, EPA評核項目, 病歷號, 教師評核EPA等級_數值, 回饋, 教師'
+            'id, 時間戳記, 學員姓名, 學號, 階層, 實習科部, EPA評核項目, 病歷號, 教師評核EPA等級_數值, 回饋, 教師'
         ).eq('教師', teacher_name).order('時間戳記', desc=True).limit(limit).execute()
 
         if result.data:
             import pandas as pd
-            df = pd.DataFrame(result.data)
-            # 格式化時間
-            df['時間戳記'] = pd.to_datetime(df['時間戳記']).dt.strftime('%m/%d %H:%M')
-            # 回饋截斷
-            df['回饋'] = df['回饋'].apply(lambda x: (x[:30] + '...') if x and len(x) > 30 else x)
-            # 重新命名欄位
-            display_df = df.rename(columns={
-                '時間戳記': '時間',
-                '學員姓名': '學員',
-                '教師評核EPA等級_數值': 'EPA等級',
-            })
-            display_cols = ['時間', '學員', '學號', '階層', '實習科部', 'EPA評核項目', '病歷號', 'EPA等級', '回饋']
-            display_cols = [c for c in display_cols if c in display_df.columns]
-            st.dataframe(display_df[display_cols], use_container_width=True, hide_index=True)
-            st.caption(f"顯示最近 {len(df)} 筆（由您提交）")
+            records = result.data
+
+            for i, rec in enumerate(records):
+                ts = pd.to_datetime(rec.get('時間戳記', '')).strftime('%m/%d %H:%M') if rec.get('時間戳記') else ''
+                student = rec.get('學員姓名', '')
+                sid = rec.get('學號', '')
+                epa_item = rec.get('EPA評核項目', '')
+                patient = rec.get('病歷號', '') or ''
+                level = rec.get('教師評核EPA等級_數值', '')
+                feedback = rec.get('回饋', '') or ''
+                if len(feedback) > 25:
+                    feedback = feedback[:25] + '...'
+                record_id = rec.get('id')
+
+                cols = st.columns([2, 2, 2, 2, 2, 2, 1.5, 3, 1.5])
+                cols[0].caption(ts)
+                cols[1].caption(student)
+                cols[2].caption(sid)
+                cols[3].caption(rec.get('實習科部', ''))
+                cols[4].caption(epa_item)
+                cols[5].caption(patient)
+                cols[6].caption(str(level))
+                cols[7].caption(feedback)
+                if cols[8].button("🗑️", key=f"del_{record_id}_{i}", help="刪除此筆紀錄"):
+                    try:
+                        conn.client.table('ugy_epa_records').delete().eq('id', record_id).execute()
+                        st.success(f"已刪除 {student} 的 {epa_item} 評核")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"刪除失敗：{str(e)}")
+
+            # 表頭說明
+            st.caption(f"顯示最近 {len(records)} 筆（由您提交）｜點 🗑️ 可刪除錯誤紀錄")
         else:
             st.info("尚無提交紀錄。")
     except Exception as e:
