@@ -40,8 +40,18 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import traceback
 
-# 載入環境變數
+# 載入環境變數（.env 優先，Streamlit secrets 作為 fallback）
 load_dotenv()
+
+# Streamlit Cloud 部署時，從 st.secrets 補充缺少的環境變數
+for _secret_key in ['OPENAI_API_KEY', 'SUPABASE_URL', 'SUPABASE_KEY']:
+    if not os.getenv(_secret_key):
+        try:
+            _val = st.secrets[_secret_key]
+            if _val:
+                os.environ[_secret_key] = _val
+        except (KeyError, FileNotFoundError):
+            pass
 
 # Supabase 連線實例（全域變數，避免重複建立）
 _supabase_conn = None
