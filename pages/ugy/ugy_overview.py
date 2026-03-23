@@ -151,13 +151,17 @@ def show_ugy_student_overview():
     """顯示 UGY 學生總覽"""
     st.title("UGY EPA 分析")
 
+    # ── 只顯示有教師評核的資料 ──
+    filter_teacher = st.checkbox("只顯示有教師評核的資料", value=True,
+                                  key="overview_filter_teacher")
+
     # ── 載入資料 ──
-    df = ds.get_data()
+    df = ds.get_data(filter_teacher=filter_teacher)
 
     # 手動重新載入按鈕
     if st.button("🔄 重新載入資料（系統評核 + Google Sheet）"):
         with st.spinner("載入中..."):
-            df = ds.refresh(include_google_sheets=True)
+            df = ds.refresh(include_google_sheets=True, filter_teacher=filter_teacher)
         if df is not None:
             st.success(f"✅ 載入完成，共 {len(df)} 筆資料")
         else:
@@ -166,12 +170,6 @@ def show_ugy_student_overview():
     if df is None or df.empty:
         st.info("尚無評核資料。請先在 EPA 評核表單提交評核，或按上方按鈕載入 Google Sheet 資料。")
         return
-
-    # ── 只顯示有教師評核的資料 ──
-    filter_teacher = st.checkbox("只顯示有教師評核的資料", value=True,
-                                  key="overview_filter_teacher")
-    if filter_teacher and '教師' in df.columns:
-        df = df[df['教師'].notna() & (df['教師'] != '')]
 
     st.info(f"共 {len(df)} 筆評核資料")
 

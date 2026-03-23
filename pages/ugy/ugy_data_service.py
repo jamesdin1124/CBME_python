@@ -220,8 +220,9 @@ def load_all_data(include_google_sheets: bool = False,
     # 修正學號
     processed = fix_student_ids(processed)
 
-    # 去重（學員姓名+EPA評核項目+教師+梯次）
-    dedup_cols = [c for c in ['學員姓名', 'EPA評核項目', '教師', '梯次']
+    # 去重（學員姓名+EPA評核項目+教師+梯次+教師評核EPA等級_數值）
+    # 加入分數作為去重條件，避免同一學生同一梯次的不同評核被誤刪
+    dedup_cols = [c for c in ['學員姓名', 'EPA評核項目', '教師', '梯次', '教師評核EPA等級_數值']
                   if c in processed.columns]
     if dedup_cols:
         processed = processed.drop_duplicates(subset=dedup_cols, keep='first')
@@ -236,39 +237,17 @@ def load_all_data(include_google_sheets: bool = False,
 def get_data(filter_teacher: bool = True) -> pd.DataFrame | None:
     """
     取得快取資料，若無則自動從 Supabase 載入。
-    每次呼叫都會合併最新的 Supabase 資料。
+    已有快取時直接回傳，不重新合併（避免破壞已載入的 Google Sheet 資料）。
+    需要更新時請呼叫 refresh()。
     """
     cached = st.session_state.get(_CACHE_KEY)
 
-    if cached is None:
-        # 首次：自動載入
-        return load_all_data(include_google_sheets=False,
-                             filter_teacher=filter_teacher)
+    if cached is not None and not cached.empty:
+        return cached
 
-    # 已有快取：合併最新 Supabase 資料（確保新提交的表單可見）
-    supa_df = fetch_supabase_records()
-    if supa_df is not None and not supa_df.empty:
-        supa_df = fix_student_ids(supa_df)
-        # 確保梯次存在
-        if '梯次' not in supa_df.columns:
-            supa_df['梯次'] = None
-        date_col = 'evaluation_date' if 'evaluation_date' in supa_df.columns else '時間戳記'
-        if date_col in supa_df.columns:
-            mask = supa_df['梯次'].isna() | (supa_df['梯次'] == '')
-            if mask.any():
-                supa_df.loc[mask, '梯次'] = supa_df.loc[mask, date_col].astype(str).apply(convert_date_to_batch)
-
-        combined = pd.concat([cached, supa_df], ignore_index=True)
-        dedup_cols = [c for c in ['學員姓名', 'EPA評核項目', '教師', '梯次']
-                      if c in combined.columns]
-        if dedup_cols:
-            combined = combined.drop_duplicates(subset=dedup_cols, keep='first')
-
-        st.session_state[_CACHE_KEY] = combined
-        st.session_state[_COMPAT_KEY] = combined
-        return combined
-
-    return cached
+    # 首次：自動從 Supabase 載入
+    return load_all_data(include_google_sheets=False,
+                         filter_teacher=filter_teacher)
 
 
 def refresh(include_google_sheets: bool = True,
