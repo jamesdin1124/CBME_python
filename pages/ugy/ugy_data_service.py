@@ -149,20 +149,30 @@ def process_epa_data(df: pd.DataFrame, filter_teacher: bool = True) -> pd.DataFr
         df['學員自評EPA等級_數值'] = df['學員自評EPA等級'].apply(_convert_epa_level)
 
     # ── 梯次計算（統一從日期計算，不覆蓋已有值）──
-    # 優先使用 evaluation_date，其次用時間戳記
+    # 逐列選擇最佳日期欄位：evaluation_date 有值時用它，否則用時間戳記
     if '梯次' not in df.columns:
         df['梯次'] = None
 
     mask_no_batch = df['梯次'].isna() | (df['梯次'] == '') | (df['梯次'] == '未知梯次')
     if mask_no_batch.any():
-        date_col = None
-        if 'evaluation_date' in df.columns:
-            date_col = 'evaluation_date'
-        elif '時間戳記' in df.columns:
-            date_col = '時間戳記'
-        if date_col:
+        has_eval_date = 'evaluation_date' in df.columns
+        has_timestamp = '時間戳記' in df.columns
+
+        if has_eval_date or has_timestamp:
+            def _pick_date(row):
+                """優先取 evaluation_date，無值時取時間戳記"""
+                if has_eval_date:
+                    v = row.get('evaluation_date')
+                    if pd.notna(v) and str(v).strip() not in ('', 'None', 'nan', 'NaT'):
+                        return str(v)
+                if has_timestamp:
+                    v = row.get('時間戳記')
+                    if pd.notna(v) and str(v).strip() not in ('', 'None', 'nan', 'NaT'):
+                        return str(v)
+                return ''
+
             df.loc[mask_no_batch, '梯次'] = (
-                df.loc[mask_no_batch, date_col].astype(str).apply(convert_date_to_batch)
+                df.loc[mask_no_batch].apply(_pick_date, axis=1).apply(convert_date_to_batch)
             )
 
     # ── 階層清理 ──
