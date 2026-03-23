@@ -245,8 +245,8 @@ def get_data(filter_teacher: bool = True) -> pd.DataFrame | None:
     if cached is not None and not cached.empty:
         return cached
 
-    # 首次：自動從 Supabase 載入
-    return load_all_data(include_google_sheets=False,
+    # 首次：自動從 Supabase + Google Sheet 載入
+    return load_all_data(include_google_sheets=True,
                          filter_teacher=filter_teacher)
 
 

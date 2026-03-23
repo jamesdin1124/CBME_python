@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 from datetime import datetime
 import streamlit as st
 
@@ -70,22 +71,39 @@ def convert_date_to_batch(date_str):
         # 解析日期
         if isinstance(date_str, str):
             date_str = date_str.strip()
-            if not date_str or date_str.lower() == 'nan':
+            if not date_str or date_str.lower() in ('nan', 'none', 'nat', ''):
                 return '未知梯次'
+
+            # 預處理：移除中文上午/下午及時間部分
+            # 例如 '2025/5/2 下午 9:48:17' → '2025/5/2'
+            cleaned = re.sub(r'\s*(上午|下午|AM|PM)?\s*\d{1,2}:\d{2}(:\d{2})?.*$', '', date_str).strip()
+            if not cleaned:
+                cleaned = date_str
+
             # 先嘗試 pandas 自動解析（支援各種格式）
-            try:
-                parsed = pd.to_datetime(date_str)
-                # 移除 timezone 資訊以避免 naive/aware 比較問題
-                if parsed.tzinfo is not None:
-                    parsed = parsed.tz_localize(None)
-                date_obj = parsed.to_pydatetime()
-            except Exception:
-                date_str = date_str.replace('/', '-')
-                if 'T' in date_str:
-                    date_str = date_str.split('T')[0]
-                if ' ' in date_str:
-                    date_str = date_str.split(' ')[0]
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            for attempt in (cleaned, date_str):
+                try:
+                    parsed = pd.to_datetime(attempt, dayfirst=False)
+                    # 移除 timezone 資訊以避免 naive/aware 比較問題
+                    if parsed.tzinfo is not None:
+                        parsed = parsed.tz_localize(None)
+                    date_obj = parsed.to_pydatetime()
+                    break
+                except Exception:
+                    continue
+            else:
+                # 所有嘗試失敗，最後手動解析日期部分
+                date_part = cleaned.split('T')[0].split(' ')[0]
+                date_part = date_part.replace('/', '-')
+                try:
+                    # 支援非零填充格式 '2025-5-2'
+                    parts = date_part.split('-')
+                    if len(parts) == 3:
+                        date_obj = datetime(int(parts[0]), int(parts[1]), int(parts[2]))
+                    else:
+                        return '未知梯次'
+                except Exception:
+                    return '未知梯次'
         elif isinstance(date_str, datetime):
             date_obj = date_str
         elif hasattr(date_str, 'year'):  # date 物件
