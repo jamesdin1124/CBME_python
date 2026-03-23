@@ -101,9 +101,8 @@ def _submit_ugy_epa(data):
 # 主要表單 UI
 # ═══════════════════════════════════════════════════════
 
-@st.fragment
 def _show_voice_section(key: str):
-    """語音輸入區塊（st.fragment 獨立 rerun，不影響表單狀態）"""
+    """語音輸入區塊，轉錄結果存入 session_state 供表單使用"""
     if not _check_role():
         return
 
@@ -183,7 +182,7 @@ def _show_voice_section(key: str):
             )
             if st.button("🗑️ 清除語音文字", key=f"clear_{key}"):
                 st.session_state[text_key] = ""
-                st.rerun(scope="fragment")
+                st.rerun()
 
 
 def show_ugy_epa_form():
