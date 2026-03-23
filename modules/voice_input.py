@@ -168,6 +168,7 @@ def _transcribe_audio(audio_bytes: bytes) -> str | None:
                 file=audio_file,
                 prompt=MEDICAL_PROMPT,  # 提供醫學詞彙提示
                 language="zh",          # 主要語言：中文
+                temperature=0.0,        # 降低隨機性，提高準確度
             )
 
         os.unlink(tmp_path)

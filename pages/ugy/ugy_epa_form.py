@@ -132,6 +132,7 @@ def _show_voice_section(key: str):
                         recording_color="#e74c3c",
                         neutral_color="#6c757d",
                         icon_size="1x",
+                        sample_rate=44100,
                         key=f"recorder_{key}",
                     )
                     prev_key = f"_prev_audio_{key}"
@@ -171,15 +172,10 @@ def _show_voice_section(key: str):
                             st.session_state[text_key] = refined
                             st.success("✅ 潤飾完成")
 
-        # 預覽目前辨識文字
+        # 預覽目前辨識文字（用 st.info 避免 key 快取問題）
         if st.session_state.get(text_key, "").strip():
-            st.text_area(
-                "📋 語音辨識結果（提交時自動帶入回饋欄）",
-                value=st.session_state[text_key],
-                height=80,
-                key=f"preview_{key}",
-                disabled=True,
-            )
+            st.caption("📋 語音辨識結果（提交時自動帶入回饋欄）")
+            st.info(st.session_state[text_key])
             if st.button("🗑️ 清除語音文字", key=f"clear_{key}"):
                 st.session_state[text_key] = ""
                 st.rerun()
