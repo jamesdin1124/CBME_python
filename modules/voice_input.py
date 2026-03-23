@@ -97,8 +97,8 @@ def _get_openai_client():
         api_key = os.getenv("OPENAI_API_KEY", "").strip().strip('"').strip("'")
         if not api_key:
             try:
-                api_key = st.secrets.get("OPENAI_API_KEY", "").strip().strip('"').strip("'")
-            except Exception:
+                api_key = st.secrets["OPENAI_API_KEY"].strip().strip('"').strip("'")
+            except (KeyError, FileNotFoundError, Exception):
                 pass
         if not api_key:
             return None
