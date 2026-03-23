@@ -955,7 +955,22 @@ def display_student_data(student_df, student_id, standard_categories=None):
     if student_df.empty:
         st.warning(f"找不到學生 {student_id} 的資料")
         return
-    
+
+    # 確保「梯次」欄位存在（Supabase 資料可能缺少此欄位）
+    if '梯次' not in student_df.columns:
+        if 'evaluation_date' in student_df.columns:
+            from modules.data_processing import convert_date_to_batch
+            student_df = student_df.copy()
+            student_df['梯次'] = student_df['evaluation_date'].astype(str).apply(convert_date_to_batch)
+        elif '時間戳記' in student_df.columns:
+            from modules.data_processing import convert_tw_time, convert_date_to_batch
+            student_df = student_df.copy()
+            student_df['評核日期'] = student_df['時間戳記'].apply(convert_tw_time)
+            student_df['梯次'] = student_df['評核日期'].astype(str).apply(convert_date_to_batch)
+        else:
+            student_df = student_df.copy()
+            student_df['梯次'] = '未知梯次'
+
     # 如果 proceeded_EPA_df 為空，嘗試從 session_state 獲取
     if proceeded_EPA_df is None:
         if 'processed_df' in st.session_state:
