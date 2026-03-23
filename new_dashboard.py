@@ -751,7 +751,7 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_tab_names2 = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單"]
+                            ugy_tab_names2 = ["EPA評核表單", "學生總覽", "個別學生分析", "老師分析"]
                             if st.session_state.get('role') in ['admin', 'department_admin']:
                                 ugy_tab_names2.append("學生帳號管理")
                             ugy_subtabs = st.tabs(ugy_tab_names2)
