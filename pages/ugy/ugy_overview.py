@@ -24,6 +24,23 @@ from modules.visualization.radar_trend import create_layer_radar_chart, create_e
 # 在檔案開頭宣告全域變數
 proceeded_EPA_df = None
 
+
+def _fetch_supabase_epa_records():
+    """從 Supabase ugy_epa_records 表取得系統內填寫的 EPA 評核資料"""
+    try:
+        from modules.supabase_connection import SupabaseConnection
+        conn = SupabaseConnection()
+        result = conn.client.table('ugy_epa_records').select('*').order('時間戳記', desc=True).execute()
+        if result.data:
+            df = pd.DataFrame(result.data)
+            # 確保欄位名稱與 Google Sheets 一致
+            if '學員姓名' in df.columns and '姓名' not in df.columns:
+                df['姓名'] = df['學員姓名']
+            return df
+        return None
+    except Exception:
+        return None
+
 def show_diagnostic(message, level="info"):
     """顯示診斷訊息"""
     if SHOW_DIAGNOSTICS:
@@ -629,7 +646,7 @@ def show_ugy_student_overview():
     st.title("UGY EPA分析")
 
     # 檢查是否需要重新載入/處理資料
-    if st.button("重新載入 Google Sheet 資料"):
+    if st.button("重新載入資料（Google Sheet + 系統評核）"):
         # 執行資料載入與處理流程
         raw_df, sheet_titles = load_sheet_data(show_info=False)
         
@@ -678,9 +695,29 @@ def show_ugy_student_overview():
             epa_raw_df, _ = load_sheet_data(sheet_title=selected_sheet, show_info=False)
 
             if epa_raw_df is not None:
-                with st.expander("載入的原始EPA資料", expanded=False):
+                # ── 合併系統內評核資料（Supabase ugy_epa_records）──
+                supabase_df = _fetch_supabase_epa_records()
+                if supabase_df is not None and not supabase_df.empty:
+                    # 對齊欄位：只保留 Google Sheets 中也有的欄位（取交集）
+                    common_cols = list(set(epa_raw_df.columns) & set(supabase_df.columns))
+                    if common_cols:
+                        epa_raw_df = pd.concat(
+                            [epa_raw_df, supabase_df[common_cols]],
+                            ignore_index=True
+                        )
+                    else:
+                        # 若無交集欄位，直接 concat（pandas 會自動對齊）
+                        epa_raw_df = pd.concat(
+                            [epa_raw_df, supabase_df],
+                            ignore_index=True
+                        )
+                    show_diagnostic(f"已合併系統內評核 {len(supabase_df)} 筆", "success")
+                else:
+                    show_diagnostic("系統內評核尚無資料", "info")
+
+                with st.expander("載入的原始EPA資料（含系統評核）", expanded=False):
                     st.dataframe(epa_raw_df)
-                
+
                 current_processed_df = process_data(epa_raw_df.copy()) # 傳入副本進行處理
                 
                 if current_processed_df is not None and not current_processed_df.empty:
@@ -720,10 +757,24 @@ def show_ugy_student_overview():
                 if 'processed_df' in st.session_state:
                     del st.session_state['processed_df']
         else:
-            st.error("無法獲取工作表列表")
-            proceeded_EPA_df = None
-            if 'processed_df' in st.session_state:
-                del st.session_state['processed_df']
+            # Google Sheets 無法取得，嘗試只用 Supabase 資料
+            st.warning("無法獲取 Google Sheet 工作表列表，嘗試載入系統內評核資料...")
+            supabase_df = _fetch_supabase_epa_records()
+            if supabase_df is not None and not supabase_df.empty:
+                show_diagnostic(f"載入系統內評核 {len(supabase_df)} 筆", "success")
+                current_processed_df = process_data(supabase_df.copy())
+                if current_processed_df is not None and not current_processed_df.empty:
+                    proceeded_EPA_df = current_processed_df
+                    st.session_state['processed_df'] = current_processed_df
+                    show_diagnostic(f"成功處理 {len(proceeded_EPA_df)} 筆EPA資料！", "success")
+                else:
+                    proceeded_EPA_df = None
+                    if 'processed_df' in st.session_state:
+                        del st.session_state['processed_df']
+            else:
+                proceeded_EPA_df = None
+                if 'processed_df' in st.session_state:
+                    del st.session_state['processed_df']
     
     # 檢查是否有已處理的資料可以顯示
     if 'processed_df' in st.session_state:
