@@ -668,13 +668,31 @@ def display_visualizations():
                     if i != len(selected_layers) - 1:
                         st.markdown("---")
 
+def _auto_load_supabase_data():
+    """自動從 Supabase 載入 UGY EPA 資料並處理"""
+    supabase_df = _fetch_supabase_epa_records()
+    if supabase_df is not None and not supabase_df.empty:
+        processed = process_data(supabase_df.copy())
+        if processed is not None and not processed.empty:
+            processed = _fix_student_ids(processed)
+            return processed
+    return None
+
+
 def show_ugy_student_overview():
     """顯示 UGY 學生總覽的主要函數"""
     global proceeded_EPA_df  # 使用全域變數
     st.title("UGY EPA分析")
 
-    # 檢查是否需要重新載入/處理資料
-    if st.button("重新載入資料（Google Sheet + 系統評核）"):
+    # 首次進入時自動從 Supabase 載入資料
+    if 'processed_df' not in st.session_state:
+        auto_df = _auto_load_supabase_data()
+        if auto_df is not None:
+            st.session_state['processed_df'] = auto_df
+            proceeded_EPA_df = auto_df
+
+    # 手動重新載入（含 Google Sheet）
+    if st.button("🔄 重新載入資料（系統評核 + Google Sheet）"):
         # 執行資料載入與處理流程
         raw_df, sheet_titles = load_sheet_data(show_info=False)
         
@@ -822,7 +840,7 @@ def show_ugy_student_overview():
                  del st.session_state['processed_df']
     else:
         proceeded_EPA_df = None
-        st.info("請按上方「重新載入 Google Sheet 資料」按鈕開始載入資料")
+        st.info("尚無評核資料。請先在 EPA 評核表單提交評核，或按上方按鈕載入 Google Sheet 資料。")
 
     # 後續顯示邏輯都基於 proceeded_EPA_df
     if proceeded_EPA_df is not None and not proceeded_EPA_df.empty:

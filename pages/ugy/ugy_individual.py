@@ -441,17 +441,22 @@ def show_individual_student_analysis(df):
 
 def show_ugy_student_analysis():
     """顯示 UGY 個別學生分析的主要函數"""
-    # 檢查是否有處理後的資料
+    # 自動從 Supabase 載入（如果尚未載入）
     if 'processed_df' not in st.session_state:
-        st.warning("請先在「學生總覽」頁面按「重新載入資料」按鈕載入資料")
-        return
+        try:
+            from pages.ugy.ugy_overview import _auto_load_supabase_data
+            auto_df = _auto_load_supabase_data()
+            if auto_df is not None:
+                st.session_state['processed_df'] = auto_df
+        except Exception:
+            pass
 
     # 從 session_state 取得資料
     df = st.session_state.get('processed_df')
 
     if df is None or df.empty:
-        st.warning("沒有可用的資料進行分析，請先在「學生總覽」頁面按「重新載入資料」按鈕載入資料")
+        st.warning("尚無評核資料。請先在 EPA 評核表單提交評核，或在「學生總覽」頁面載入資料。")
         return
-    
+
     # 顯示個別學生分析
     show_individual_student_analysis(df)

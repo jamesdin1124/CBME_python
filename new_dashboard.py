@@ -597,10 +597,11 @@ def main():
         # 將選擇的科別存入 session state（供權限過濾使用）
         st.session_state['selected_department'] = selected_dept
 
-        # 根據權限顯示上傳區域
-        if check_permission(st.session_state.role, 'can_upload_files'):
+        # 根據權限顯示上傳區域（小兒部有專屬系統，不需要側邊欄上傳）
+        _is_pediatric = (selected_dept == "小兒部")
+        if check_permission(st.session_state.role, 'can_upload_files') and not _is_pediatric:
             st.subheader(f"{selected_dept}評核資料")
-            
+
             # 檔案上傳區域
             uploaded_files = st.file_uploader(
                 f"請上傳{selected_dept} Excel檔案",
@@ -608,7 +609,7 @@ def main():
                 accept_multiple_files=True,
                 key=f"{selected_dept}_files"
             )
-            
+
             if st.button(f"合併{selected_dept}檔案") and uploaded_files:
                 result = merge_excel_files(uploaded_files)
                 if result is not None:
@@ -618,7 +619,7 @@ def main():
                     st.session_state.merged_data = result
                 else:
                     st.error(f"{selected_dept}檔案合併失敗！")
-        
+
         # 顯示已上傳的科別 - 根據權限過濾
         if check_permission(st.session_state.role, 'can_view_all'):
             st.subheader("已上傳的科別")
@@ -628,8 +629,8 @@ def main():
                     st.write(f"✅ {dept}")
             else:
                 st.write("尚未上傳任何科別資料")
-        elif st.session_state.role == 'teacher' and user_department:
-            # 主治醫師只能看到自己科的資料
+        elif st.session_state.role in ['teacher', 'department_admin'] and user_department and not _is_pediatric:
+            # 主治醫師只能看到自己科的資料（小兒部不顯示）
             st.subheader("已上傳的科別")
             if f"{user_department}_data" in st.session_state:
                 st.write(f"✅ {user_department}")
@@ -641,8 +642,8 @@ def main():
             st.markdown("---")
             show_user_management()
 
-        # 評核表單入口（教師和管理員可用）
-        if st.session_state.get('role') in ['admin', 'department_admin', 'teacher']:
+        # 評核表單入口（教師和管理員可用，小兒部有專屬系統不需要）
+        if st.session_state.get('role') in ['admin', 'department_admin', 'teacher'] and not _is_pediatric:
             st.markdown("---")
             st.subheader("📝 評核表單")
             if st.button("填寫評核表單", key="sidebar_eval_form_button", width="stretch"):
