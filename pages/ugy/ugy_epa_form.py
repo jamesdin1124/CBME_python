@@ -341,6 +341,7 @@ def show_ugy_epa_form():
                 '教師': teacher_name,
                 'evaluation_date': str(eval_date),
                 '時間戳記': datetime.combine(eval_date, datetime.now().time()).isoformat(),
+                '梯次': batch_label,
             }
 
             result = _submit_ugy_epa(record)
