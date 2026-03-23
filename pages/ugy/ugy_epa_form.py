@@ -101,8 +101,9 @@ def _submit_ugy_epa(data):
 # 主要表單 UI
 # ═══════════════════════════════════════════════════════
 
+@st.fragment
 def _show_voice_section(key: str):
-    """在表單上方顯示語音輸入區塊（Whisper API），轉錄結果存入 session_state"""
+    """語音輸入區塊（st.fragment 獨立 rerun，不影響表單狀態）"""
     if not _check_role():
         return
 
@@ -134,7 +135,6 @@ def _show_voice_section(key: str):
                         icon_size="1x",
                         key=f"recorder_{key}",
                     )
-                    # 防止重複處理同一段錄音
                     prev_key = f"_prev_audio_{key}"
                     if audio_bytes and audio_bytes != st.session_state.get(prev_key):
                         st.session_state[prev_key] = audio_bytes
@@ -144,7 +144,7 @@ def _show_voice_section(key: str):
                             current = st.session_state.get(text_key, "")
                             sep = "\n" if current.strip() else ""
                             st.session_state[text_key] = current + sep + transcribed
-                            st.success("✅ 辨識完成")
+                            st.success("✅ 辨識完成，再次錄音可接續")
                 except ImportError:
                     st.info("💡 安裝 `audio_recorder_streamlit` 即可使用即時錄音")
 
@@ -172,15 +172,18 @@ def _show_voice_section(key: str):
                             st.session_state[text_key] = refined
                             st.success("✅ 潤飾完成")
 
-        # 預覽
+        # 預覽目前辨識文字
         if st.session_state.get(text_key, "").strip():
             st.text_area(
-                "📋 語音辨識結果（提交時會自動帶入下方回饋欄）",
+                "📋 語音辨識結果（提交時自動帶入回饋欄）",
                 value=st.session_state[text_key],
                 height=80,
                 key=f"preview_{key}",
                 disabled=True,
             )
+            if st.button("🗑️ 清除語音文字", key=f"clear_{key}"):
+                st.session_state[text_key] = ""
+                st.rerun(scope="fragment")
 
 
 def show_ugy_epa_form():
