@@ -94,34 +94,47 @@ def load_sheet_data(sheet_title=None, show_info=True):
     df, sheet_titles = fetch_google_form_data(sheet_title=sheet_title)
     return df, sheet_titles
 
-def process_data(df):
+def process_data(df, checkbox_key="filter_teacher_cb"):
     """處理EPA資料"""
     if df is not None:
         try:
             # 移除重複欄位
             df = df.loc[:, ~df.columns.duplicated()]
-            
-            # 檢查必要欄位
-            required_columns = ['學員自評EPA等級', '教師評核EPA等級', '教師']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                st.error(f"缺少必要欄位：{missing_columns}")
+
+            # 檢查必要欄位（教師是必要的，學員自評和教師評核EPA等級可選）
+            if '教師' not in df.columns:
+                st.error("缺少必要欄位：教師")
                 return None
-        
+
+            # 補充可能缺少的欄位
+            if '學員自評EPA等級' not in df.columns:
+                df['學員自評EPA等級'] = None
+            if '教師評核EPA等級' not in df.columns:
+                df['教師評核EPA等級'] = None
+
             try:
                 # 加入勾選框讓使用者選擇是否要限制只顯示有教師評核的資料
-                filter_teacher_data = st.checkbox("只顯示有認證教師評核的資料", value=True)
-                
+                filter_teacher_data = st.checkbox(
+                    "只顯示有認證教師評核的資料", value=True,
+                    key=checkbox_key
+                )
+
                 if filter_teacher_data:
-                    # 只保留教師欄位有資料的列
                     df = df[df['教師'].notna() & (df['教師'] != '')]
                     show_diagnostic("已過濾只顯示有教師評核的資料", "info")
                 else:
                     show_diagnostic("顯示所有資料（包含無教師評核的資料）", "info")
-                
-                # 創建新欄位儲存轉換後的數值
-                df['學員自評EPA等級_數值'] = df['學員自評EPA等級'].apply(process_epa_level)
-                df['教師評核EPA等級_數值'] = df['教師評核EPA等級'].apply(process_epa_level)
+
+                # 創建數值欄位（若已有數值欄位則保留，只轉換缺少的）
+                if '學員自評EPA等級_數值' not in df.columns:
+                    df['學員自評EPA等級_數值'] = df['學員自評EPA等級'].apply(process_epa_level)
+                if '教師評核EPA等級_數值' not in df.columns:
+                    df['教師評核EPA等級_數值'] = df['教師評核EPA等級'].apply(process_epa_level)
+                else:
+                    # 已有數值但可能有 NaN，用文字欄位補充
+                    mask = df['教師評核EPA等級_數值'].isna()
+                    if mask.any() and df['教師評核EPA等級'].notna().any():
+                        df.loc[mask, '教師評核EPA等級_數值'] = df.loc[mask, '教師評核EPA等級'].apply(process_epa_level)
             except Exception as e:
                 st.error(f"EPA等級轉換失敗：{str(e)}")
                 return None
@@ -672,7 +685,7 @@ def _auto_load_supabase_data():
     """自動從 Supabase 載入 UGY EPA 資料並處理"""
     supabase_df = _fetch_supabase_epa_records()
     if supabase_df is not None and not supabase_df.empty:
-        processed = process_data(supabase_df.copy())
+        processed = process_data(supabase_df.copy(), checkbox_key="auto_filter_teacher_cb")
         if processed is not None and not processed.empty:
             processed = _fix_student_ids(processed)
             return processed
@@ -764,7 +777,7 @@ def show_ugy_student_overview():
                 with st.expander("載入的原始EPA資料（含系統評核）", expanded=False):
                     st.dataframe(epa_raw_df)
 
-                current_processed_df = process_data(epa_raw_df.copy()) # 傳入副本進行處理
+                current_processed_df = process_data(epa_raw_df.copy(), checkbox_key="btn_filter_teacher_cb")
                 
                 if current_processed_df is not None and not current_processed_df.empty:
                     if processed_dept_df is not None:
@@ -811,7 +824,7 @@ def show_ugy_student_overview():
             supabase_df = _fetch_supabase_epa_records()
             if supabase_df is not None and not supabase_df.empty:
                 show_diagnostic(f"載入系統內評核 {len(supabase_df)} 筆", "success")
-                current_processed_df = process_data(supabase_df.copy())
+                current_processed_df = process_data(supabase_df.copy(), checkbox_key="fallback_filter_teacher_cb")
                 if current_processed_df is not None and not current_processed_df.empty:
                     current_processed_df = _fix_student_ids(current_processed_df)
                     proceeded_EPA_df = current_processed_df
