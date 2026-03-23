@@ -158,11 +158,16 @@ def process_data(df, checkbox_key="filter_teacher_cb"):
                     else:
                         show_diagnostic("時間戳記欄位中沒有有效的日期資料", "warning")
                 
-                # 如果有有效的評核日期，進行梯次處理
+                # 梯次處理：只填補缺少梯次的列，不覆蓋已有值
                 if '評核日期' in df.columns and not df['評核日期'].isna().all():
-                    df['梯次'] = df['評核日期'].astype(str).apply(convert_date_to_batch)
+                    if '梯次' not in df.columns:
+                        df['梯次'] = None
+                    # 只對梯次為空的列計算
+                    mask = df['梯次'].isna() | (df['梯次'] == '') | (df['梯次'] == '未知梯次')
+                    if mask.any():
+                        df.loc[mask, '梯次'] = df.loc[mask, '評核日期'].astype(str).apply(convert_date_to_batch)
                     show_diagnostic("日期轉換和梯次處理成功", "info")
-                else:
+                elif '梯次' not in df.columns:
                     st.warning("找不到有效的日期欄位，跳過梯次處理")
                 
             except Exception as e:

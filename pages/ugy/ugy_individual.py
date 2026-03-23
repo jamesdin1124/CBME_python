@@ -441,7 +441,30 @@ def show_individual_student_analysis(df):
 
 def show_ugy_student_analysis():
     """顯示 UGY 個別學生分析的主要函數"""
-    # 自動從 Supabase 載入（如果尚未載入）
+    # 每次進入都從 Supabase 取得最新資料並合併
+    try:
+        from pages.ugy.ugy_overview import _fetch_supabase_epa_records, _fix_student_ids
+        supabase_df = _fetch_supabase_epa_records()
+        if supabase_df is not None and not supabase_df.empty:
+            supabase_df = _fix_student_ids(supabase_df)
+            existing_df = st.session_state.get('processed_df')
+            if existing_df is not None and not existing_df.empty:
+                # 合併：去除 Supabase 中已存在於 Google Sheet 的重複資料
+                # 用學員姓名+EPA評核項目+梯次+教師 判斷重複
+                combined = pd.concat([existing_df, supabase_df], ignore_index=True)
+                dedup_cols = ['學員姓名', 'EPA評核項目', '教師']
+                dedup_cols = [c for c in dedup_cols if c in combined.columns]
+                if '梯次' in combined.columns:
+                    dedup_cols.append('梯次')
+                if dedup_cols:
+                    combined = combined.drop_duplicates(subset=dedup_cols, keep='first')
+                st.session_state['processed_df'] = combined
+            else:
+                st.session_state['processed_df'] = supabase_df
+    except Exception:
+        pass
+
+    # 首次進入且無資料時自動載入
     if 'processed_df' not in st.session_state:
         try:
             from pages.ugy.ugy_overview import _auto_load_supabase_data
