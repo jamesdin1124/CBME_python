@@ -702,25 +702,25 @@ def main():
                             show_ugy_student_analysis()
                         else:
                             # 其他角色顯示完整的分頁
-                            ugy_tab_names = ["學生總覽", "個別學生分析", "老師分析", "EPA評核表單"]
+                            ugy_tab_names = ["EPA評核表單", "學生總覽", "個別學生分析", "老師分析"]
                             if st.session_state.get('role') in ['admin', 'department_admin']:
                                 ugy_tab_names.append("學生帳號管理")
                             ugy_subtabs = st.tabs(ugy_tab_names)
 
                             with ugy_subtabs[0]:
+                                show_ugy_epa_form()
+
+                            with ugy_subtabs[1]:
                                 st.header("學生總覽")
                                 show_ugy_student_overview()
 
-                            with ugy_subtabs[1]:
+                            with ugy_subtabs[2]:
                                 st.header("個別學生分析")
                                 show_ugy_student_analysis()
 
-                            with ugy_subtabs[2]:
+                            with ugy_subtabs[3]:
                                 st.header("老師分析")
                                 show_ugy_teacher_analysis()
-
-                            with ugy_subtabs[3]:
-                                show_ugy_epa_form()
 
                             if st.session_state.get('role') in ['admin', 'department_admin']:
                                 with ugy_subtabs[4]:
@@ -757,19 +757,19 @@ def main():
                             ugy_subtabs = st.tabs(ugy_tab_names2)
 
                             with ugy_subtabs[0]:
+                                show_ugy_epa_form()
+
+                            with ugy_subtabs[1]:
                                 st.header("學生總覽")
                                 show_ugy_student_overview()
 
-                            with ugy_subtabs[1]:
+                            with ugy_subtabs[2]:
                                 st.header("個別學生分析")
                                 show_ugy_student_analysis()
 
-                            with ugy_subtabs[2]:
+                            with ugy_subtabs[3]:
                                 st.header("老師分析")
                                 show_ugy_teacher_analysis()
-
-                            with ugy_subtabs[3]:
-                                show_ugy_epa_form()
 
                             if st.session_state.get('role') in ['admin', 'department_admin']:
                                 with ugy_subtabs[4]:
