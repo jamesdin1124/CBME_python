@@ -290,9 +290,9 @@ def show_ugy_epa_form():
         # ── 第四列：回饋 ──
         st.markdown("---")
         st.markdown("### 回饋")
-        # 將語音辨識結果同步到表單 widget 的 key
+        # 將語音辨識結果同步到表單 widget 的 key（每次都更新，支援多次錄音接續）
         voice_text = st.session_state.get('voice_text_ugy_feedback', '')
-        if voice_text and not st.session_state.get('ugy_feedback'):
+        if voice_text:
             st.session_state['ugy_feedback'] = voice_text
         feedback = st.text_area("回饋 *", key='ugy_feedback',
                                 placeholder="請描述學員的表現...",
