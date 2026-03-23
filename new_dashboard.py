@@ -567,8 +567,8 @@ def main():
         if check_permission(st.session_state.role, 'can_view_all'):
             # 管理員可以選擇所有科別
             available_departments = departments
-        elif st.session_state.role == 'teacher' and user_department:
-            # 主治醫師只能選擇自己的科別
+        elif st.session_state.role in ['teacher', 'department_admin'] and user_department:
+            # 主治醫師 / 科別管理員只能選擇自己的科別
             available_departments = [user_department]
         else:
             # 其他角色只能選擇自己的科別（如果有的話）
@@ -583,7 +583,10 @@ def main():
                 "請選擇科別",
                 available_departments
             )
-        
+
+        # 將選擇的科別存入 session state（供權限過濾使用）
+        st.session_state['selected_department'] = selected_dept
+
         # 根據權限顯示上傳區域
         if check_permission(st.session_state.role, 'can_upload_files'):
             st.subheader(f"{selected_dept}評核資料")

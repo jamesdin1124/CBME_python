@@ -499,7 +499,12 @@ def filter_data_by_permission(data, user_role, user_department, data_type):
             if '科別' in data.columns:
                 return data[data['科別'] == user_department]
             else:
-                return pd.DataFrame()  # 缺少科別欄位，安全起見不回傳資料
+                # 缺少科別欄位（如麻醉部 Excel 合併資料），
+                # 若目前選擇的科別與使用者科別一致，視為同科資料直接放行
+                selected_dept = st.session_state.get('selected_department', '')
+                if selected_dept == user_department:
+                    return data
+                return pd.DataFrame()
         elif user_role == 'resident':
             username = st.session_state.get('username')
             if '姓名' in data.columns:
