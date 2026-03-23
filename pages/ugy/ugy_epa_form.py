@@ -153,11 +153,17 @@ def show_ugy_epa_form():
         st.markdown("---")
         st.markdown("### EPA 評核")
 
-        col4, col5 = st.columns(2)
+        col4, col5, col6_date = st.columns(3)
         with col4:
             epa_item = st.selectbox("EPA 評核項目 *", options=EPA_ITEMS, index=2, key='ugy_epa_item')
         with col5:
             location = st.text_input("地點", key='ugy_location')
+        with col6_date:
+            eval_date = st.date_input("評核日期 *", value=date.today(), key='ugy_eval_date')
+            # 自動計算梯次
+            from modules.data_processing import convert_date_to_batch
+            batch_label = convert_date_to_batch(str(eval_date))
+            st.caption(f"📅 梯次：{batch_label}")
 
         # 教師評核 EPA 等級
         st.markdown("#### 教師評核 EPA 等級")
@@ -184,7 +190,8 @@ def show_ugy_epa_form():
 
         col6, col7 = st.columns(2)
         with col6:
-            patient_id = st.text_input("病歷號 *", key='ugy_patient_id')
+            patient_id = st.text_input("病歷號 *（純數字）", key='ugy_patient_id',
+                                        placeholder="例：12345678")
             difficulty = st.selectbox("病人難度", options=DIFFICULTY_OPTIONS, index=1, key='ugy_difficulty')
         with col7:
             clinical_scenario = st.text_area("臨床情境描述", key='ugy_scenario',
@@ -193,6 +200,7 @@ def show_ugy_epa_form():
         # ── 第四列：回饋 ──
         st.markdown("---")
         st.markdown("### 回饋")
+        st.caption("💡 可直接輸入文字，或在表單外使用下方的語音輸入按鈕轉換後貼入")
         feedback = st.text_area("回饋 *", key='ugy_feedback',
                                 placeholder="請描述學員的表現...")
         private_feedback = st.text_area("給教學部的私下回饋（選填）", key='ugy_private',
@@ -212,6 +220,9 @@ def show_ugy_epa_form():
                 return
             if not patient_id:
                 st.error("請填寫病歷號")
+                return
+            if not patient_id.strip().isdigit():
+                st.error("病歷號必須為純數字")
                 return
             if not feedback:
                 st.error("請填寫回饋")
@@ -236,8 +247,8 @@ def show_ugy_epa_form():
                 '回饋': feedback,
                 '給教學部的私下回饋': private_feedback or None,
                 '教師': teacher_name,
-                'evaluation_date': str(date.today()),
-                '時間戳記': datetime.now().isoformat(),
+                'evaluation_date': str(eval_date),
+                '時間戳記': datetime.combine(eval_date, datetime.now().time()).isoformat(),
             }
 
             result = _submit_ugy_epa(record)
@@ -246,6 +257,69 @@ def show_ugy_epa_form():
                 st.balloons()
             else:
                 st.error("提交失敗，請檢查網路連線或聯繫管理員。")
+
+    # ── 語音輸入工具 ──
+    with st.expander("🎤 語音輸入工具（點擊展開）", expanded=False):
+        st.caption("點擊「開始錄音」後說話，辨識完成後複製文字貼入上方回饋欄位")
+        import streamlit.components.v1 as components
+        components.html("""
+        <div style="font-family: sans-serif; padding: 8px;">
+            <button id="startBtn" onclick="startRec()"
+                style="padding:8px 20px; font-size:16px; background:#4CAF50; color:white;
+                       border:none; border-radius:6px; cursor:pointer; margin-right:8px;">
+                🎤 開始錄音
+            </button>
+            <button id="stopBtn" onclick="stopRec()" disabled
+                style="padding:8px 20px; font-size:16px; background:#f44336; color:white;
+                       border:none; border-radius:6px; cursor:pointer;">
+                ⏹ 停止
+            </button>
+            <span id="status" style="margin-left:12px; color:#666;"></span>
+            <textarea id="result" rows="4"
+                style="width:100%; margin-top:10px; padding:8px; font-size:14px;
+                       border:1px solid #ddd; border-radius:6px;"
+                placeholder="辨識結果會顯示在這裡，可複製貼入回饋欄位..."></textarea>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('result').value);
+                             document.getElementById('status').innerText='✅ 已複製！';"
+                style="padding:6px 16px; font-size:14px; background:#2196F3; color:white;
+                       border:none; border-radius:6px; cursor:pointer; margin-top:6px;">
+                📋 複製文字
+            </button>
+        </div>
+        <script>
+        let rec;
+        function startRec() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                document.getElementById('status').innerText = '❌ 瀏覽器不支援語音辨識，請使用 Chrome';
+                return;
+            }
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            rec = new SR();
+            rec.lang = 'zh-TW';
+            rec.continuous = true;
+            rec.interimResults = true;
+            let final = '';
+            rec.onresult = (e) => {
+                let interim = '';
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    if (e.results[i].isFinal) final += e.results[i][0].transcript;
+                    else interim += e.results[i][0].transcript;
+                }
+                document.getElementById('result').value = final + interim;
+            };
+            rec.onend = () => {
+                document.getElementById('status').innerText = '⏹ 錄音結束';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            };
+            rec.start();
+            document.getElementById('status').innerText = '🔴 錄音中...';
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+        }
+        function stopRec() { if (rec) rec.stop(); }
+        </script>
+        """, height=220)
 
     # ── 最近提交紀錄 ──
     _show_recent_submissions(current_user)

@@ -384,9 +384,13 @@ def show_individual_student_analysis(df):
     student_data = student_filter_df[student_filter_df[student_name_column] == selected_student]
     
     if not student_data.empty:
-        # 顯示學生姓名（與原始版本一致）
+        # 顯示學生姓名與學號
         student_name = student_data['學員姓名'].iloc[0] if '學員姓名' in student_data.columns else selected_student
-        st.subheader(f"學生: {student_name} ({selected_student})")
+        student_id_display = student_data['學號'].iloc[0] if '學號' in student_data.columns and pd.notna(student_data['學號'].iloc[0]) else ''
+        if student_id_display and student_id_display != student_name:
+            st.subheader(f"學生: {student_name} ({student_id_display})")
+        else:
+            st.subheader(f"學生: {student_name}")
         
         # 顯示學生基本統計資訊（與原始版本一致）
         col1, col2, col3, col4 = st.columns(4)
