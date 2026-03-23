@@ -69,11 +69,23 @@ def convert_date_to_batch(date_str):
     try:
         # 解析日期
         if isinstance(date_str, str):
-            date_str = date_str.replace('/', '-').strip()
-            # 處理 datetime ISO 格式（如 2026-03-23T06:53:57）
-            if 'T' in date_str:
-                date_str = date_str.split('T')[0]
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            date_str = date_str.strip()
+            if not date_str or date_str.lower() == 'nan':
+                return '未知梯次'
+            # 先嘗試 pandas 自動解析（支援各種格式）
+            try:
+                parsed = pd.to_datetime(date_str)
+                # 移除 timezone 資訊以避免 naive/aware 比較問題
+                if parsed.tzinfo is not None:
+                    parsed = parsed.tz_localize(None)
+                date_obj = parsed.to_pydatetime()
+            except Exception:
+                date_str = date_str.replace('/', '-')
+                if 'T' in date_str:
+                    date_str = date_str.split('T')[0]
+                if ' ' in date_str:
+                    date_str = date_str.split(' ')[0]
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
         elif isinstance(date_str, datetime):
             date_obj = date_str
         elif hasattr(date_str, 'year'):  # date 物件
