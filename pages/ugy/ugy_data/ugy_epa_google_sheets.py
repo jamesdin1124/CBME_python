@@ -1175,7 +1175,9 @@ def display_visualizations():
     
     # ========== 梯次時間區段篩選 ==========
     if '梯次' in current_df_view.columns:
-        all_batches = sorted(current_df_view['梯次'].dropna().unique().tolist())
+        # 過濾掉「未知梯次」和無效值
+        all_batches = sorted([b for b in current_df_view['梯次'].dropna().unique().tolist()
+                              if b and b != '未知梯次' and b != 'None'])
         if all_batches:
             selected_batches = st.multiselect(
                 "選擇梯次時間區段 (可複選)",

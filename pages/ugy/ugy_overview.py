@@ -480,7 +480,8 @@ def display_visualizations():
     
     # ========== 梯次時間區段篩選 ==========
     if '梯次' in current_df_view.columns:
-        all_batches = sorted(current_df_view['梯次'].dropna().unique().tolist())
+        all_batches = sorted([b for b in current_df_view['梯次'].dropna().unique().tolist()
+                              if b and b != '未知梯次' and b != 'None'])
         if all_batches:
             selected_batches = st.multiselect(
                 "選擇梯次時間區段 (可複選)",
@@ -501,8 +502,9 @@ def display_visualizations():
         layer_batch_orders = {}
         
         if '階層' in current_df_view.columns:
-            all_layers = sorted(current_df_view['階層'].unique().tolist())
-            
+            all_layers = sorted([l for l in current_df_view['階層'].unique().tolist()
+                                  if l and l != '未知' and l != 'None' and l != 'nan'])
+
             selected_layers = st.multiselect(
                 "選擇階層 (可複選)",
                 options=all_layers,
