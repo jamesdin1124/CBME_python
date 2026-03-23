@@ -150,7 +150,7 @@ def show_ugy_epa_form():
 
         col4, col5 = st.columns(2)
         with col4:
-            epa_item = st.selectbox("EPA 評核項目 *", options=EPA_ITEMS, key='ugy_epa_item')
+            epa_item = st.selectbox("EPA 評核項目 *", options=EPA_ITEMS, index=2, key='ugy_epa_item')
         with col5:
             location = st.text_input("地點", key='ugy_location')
 
@@ -179,7 +179,7 @@ def show_ugy_epa_form():
 
         col6, col7 = st.columns(2)
         with col6:
-            patient_id = st.text_input("病歷號（選填）", key='ugy_patient_id')
+            patient_id = st.text_input("病歷號 *", key='ugy_patient_id')
             difficulty = st.selectbox("病人難度", options=DIFFICULTY_OPTIONS, index=1, key='ugy_difficulty')
         with col7:
             clinical_scenario = st.text_area("臨床情境描述", key='ugy_scenario',
@@ -204,6 +204,9 @@ def show_ugy_epa_form():
             # 驗證必填
             if not student_name:
                 st.error("請輸入或選擇學員姓名")
+                return
+            if not patient_id:
+                st.error("請填寫病歷號")
                 return
             if not feedback:
                 st.error("請填寫回饋")
