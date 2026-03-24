@@ -161,7 +161,7 @@ def show_ugy_student_overview():
     df = ds.get_data(filter_teacher=filter_teacher)
 
     # 手動重新載入按鈕
-    if st.button("🔄 重新載入資料（系統評核 + Google Sheet）"):
+    if st.button("🔄 重新載入資料（系統評核 + Google Form 新提交）"):
         with st.spinner("載入中..."):
             df = ds.refresh(include_google_sheets=True, filter_teacher=filter_teacher)
         if df is not None:

@@ -207,11 +207,23 @@ def load_all_data(include_google_sheets: bool = False,
     if supa_df is not None and not supa_df.empty:
         frames.append(supa_df)
 
-    # 2. Google Sheets（可選）
+    # 2. Google Sheets（可選 — 只讀取 2026-03-24 之後的新提交）
+    #    舊資料已於 2026-03-24 一次性匯入 Supabase（含錯字修正），不再重讀
     if include_google_sheets:
         gs_df = fetch_google_sheet_data()
         if gs_df is not None and not gs_df.empty:
-            frames.append(gs_df)
+            _GS_CUTOFF = '2026-03-24'
+            if '時間戳記' in gs_df.columns:
+                try:
+                    gs_df['_ts_parsed'] = pd.to_datetime(
+                        gs_df['時間戳記'].astype(str).str.replace(r'\s*(上午|下午)', '', regex=True),
+                        errors='coerce'
+                    )
+                    gs_df = gs_df[gs_df['_ts_parsed'] >= _GS_CUTOFF].drop(columns=['_ts_parsed'])
+                except Exception:
+                    pass  # 解析失敗時不過濾，保留全部
+            if not gs_df.empty:
+                frames.append(gs_df)
 
     if not frames:
         return None
@@ -255,7 +267,8 @@ def get_data(filter_teacher: bool = True) -> pd.DataFrame | None:
     if cached is not None and not cached.empty:
         return cached
 
-    # 首次：自動從 Supabase + Google Sheet 載入
+    # 首次：自動從 Supabase 載入（含已匯入的舊資料 + 系統表單新資料）
+    # 同時檢查 Google Sheet 是否有新提交（截止日後）
     return load_all_data(include_google_sheets=True,
                          filter_teacher=filter_teacher)
 
